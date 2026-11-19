@@ -1,0 +1,1298 @@
+{
+  "checkedAt": "2026-11-19T14:29:16.540Z",
+  "verdict": "Setup bytes and ownership reconciled after idle delivery; behavior, independent acceptance, bootstrap/runtime and hosted rollout are separate checks",
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "scratch": "_tmp-c5f-ovtrnV/setup-stage2-reconcile-wC6ozM",
+  "scope": "Saved-byte and contract-prefix reconciliation only; no module import, test/build/resource/source-materialization/runtime/hosted/publication execution",
+  "baseline": {
+    "path": "_tmp-c5f-ovtrnV/setup-stage2-oLp7U1/baseline.json",
+    "mode": "0644",
+    "bytes": 547981,
+    "sha256": "ed5906c0c6c97b52055bcb9edae0c93120bd379446b7a33b8e2b5ff8fd164c45",
+    "capturedAt": "2026-11-19T11:22:47.864Z",
+    "protectedRegularFiles": 2582
+  },
+  "narrowSourceListAmendment": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-contract-amendment.json",
+    "mode": "0644",
+    "bytes": 3315,
+    "sha256": "899234ecfcead72ac7cf4cfa6b32fdc77f90348afbf7dbfce30ef9b56111ea07",
+    "previousR1TestFingerprint": {
+      "mode": "0644",
+      "bytes": 46804,
+      "sha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285"
+    },
+    "exactAmendedR1TestFingerprint": {
+      "mode": "0644",
+      "bytes": 46822,
+      "sha256": "72c310d44334852a58ba311d1157b3d843bb49d6c787c778177d6c3634431b95"
+    },
+    "historicalPreimage": {
+      "path": "_tmp-c5f-ovtrnV/setup-scope-amendment-M5CVmx/workspace-test-before.mjs",
+      "mode": "0644",
+      "bytes": 46804,
+      "sha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285",
+      "omittedFromDurablePayload": true,
+      "reproductionLimit": "The complete R1 test preimage remains locally available but is not duplicated in this amendment; exact full-file before/after fingerprints and the sole authorized replacement are recorded"
+    }
+  },
+  "coordinatorOnlyDeltas": {
+    "path": "_tmp-c5f-ovtrnV/setup-scope-check-vLNj13/coordinator-deltas.json",
+    "mode": "0644",
+    "bytes": 2598,
+    "sha256": "4c24f3a6fc7a32b88ff405f8096b4ca9b0ed680c3f0a09aaeb6a03b88f5357e1",
+    "checkedAt": "2026-11-19T13:48:08.449Z",
+    "changedDocuments": {
+      "docs/tasks/20261118-111723-dependency-gated-ci-tests.md": {
+        "mode": "0644",
+        "bytes": 70825,
+        "sha256": "88d470f5fcd21f1873c4b2ab5131df0cd30176b9bf65fa68ca03ca34c063ffac"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md": {
+        "mode": "0644",
+        "bytes": 14960,
+        "sha256": "a99f8fbf763f125cb55acf0e91b5c26c544777cae7ebf9a12f36758949eca2fa"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md": {
+        "mode": "0644",
+        "bytes": 20242,
+        "sha256": "ba1d58c931c76c3aaa98b49ef2736c6db1c437070475f10547db4cc7430ae753"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md": {
+        "mode": "0644",
+        "bytes": 10199,
+        "sha256": "1a7680b611782fde7c71eaaecb616939a2ac3ffe9f7d3fcb74dcc0dc2c315a92"
+      }
+    },
+    "addedAmendment": {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-contract-amendment.json",
+      "mode": "0644",
+      "bytes": 3315,
+      "sha256": "899234ecfcead72ac7cf4cfa6b32fdc77f90348afbf7dbfce30ef9b56111ea07"
+    }
+  },
+  "sourceReferences": {
+    "path": "_tmp-c5f-ovtrnV/setup-source-refs-6Sukt7/source-references.json",
+    "mode": "0644",
+    "bytes": 2633,
+    "sha256": "67e8521b311fdd00a7c865ea1063e26cb3a50c854037f32b01c55a7d6715f25d",
+    "exactHistoricalPreimages": 8,
+    "originals": {
+      ".github/workflows/test.yml": {
+        "originalPath": "_tmp-05c-G8SORQ/c/.github/workflows/test.yml",
+        "mode": "0644",
+        "bytes": 18323,
+        "sha256": "c9408a1b25912416d25f95cefa609410bbf0c9852551803a9bf710ab69017aaf"
+      },
+      ".github/actions/ci-setup/action.yml": {
+        "originalPath": "_tmp-05c-G8SORQ/c/.github/actions/ci-setup/action.yml",
+        "mode": "0644",
+        "bytes": 659,
+        "sha256": "0bcffecbe5d059050e25840aa1d8cccfedfe697c5e286554ff4b1747db86ff92"
+      },
+      ".github/actions/ci-prepare/action.yml": {
+        "originalPath": "_tmp-05c-G8SORQ/c/.github/actions/ci-prepare/action.yml",
+        "mode": "0644",
+        "bytes": 843,
+        "sha256": "71f2bca5f051a7419be9ef9b3c823e8a6ae04e680eef56b600718ad9eea266dd"
+      },
+      ".github/actions/ci-test/action.yml": {
+        "originalPath": "_tmp-05c-G8SORQ/c/.github/actions/ci-test/action.yml",
+        "mode": "0644",
+        "bytes": 2249,
+        "sha256": "4e2f0efafcfc11d750e62481b4e83766659e557139d8f449dc5128ae5deab9ff"
+      },
+      "scripts/ci-test-plan.mjs": {
+        "originalPath": "_tmp-05c-G8SORQ/c/scripts/ci-test-plan.mjs",
+        "mode": "0644",
+        "bytes": 29767,
+        "sha256": "dc65f5f261288c0d9e69e78428a52e47ee43130316ee8959f57edbf4c0e9496c"
+      },
+      "scripts/ci-test-plan.test.mjs": {
+        "originalPath": "_tmp-05c-G8SORQ/c/scripts/ci-test-plan.test.mjs",
+        "mode": "0644",
+        "bytes": 62202,
+        "sha256": "cf938b1f3b6adc0812f70fd23a4cc710ef3177df2c3c2813a0eb94ec557296fb"
+      },
+      "scripts/ci-test-results.test.mjs": {
+        "originalPath": "_tmp-05c-G8SORQ/c/scripts/ci-test-results.test.mjs",
+        "mode": "0644",
+        "bytes": 22539,
+        "sha256": "225a786ce4421d498f2feab1cc0d612c8452251282d8f86f8b6eaa2ddf9b24c6"
+      },
+      "package.json": {
+        "originalPath": "_tmp-05c-G8SORQ/c/package.json",
+        "mode": "0644",
+        "bytes": 2930,
+        "sha256": "f3793110d566df545710024d37c207fc4b592aa57c5a5667fdcb7b5df6733d80"
+      }
+    }
+  },
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+  "protectedScope": {
+    "protectedOriginals": 2582,
+    "unchangedOriginals": 2568,
+    "changedOriginals": [
+      ".github/actions/ci-prepare/action.yml",
+      ".github/actions/ci-setup/action.yml",
+      ".github/actions/ci-test/action.yml",
+      ".github/workflows/test.yml",
+      "README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md",
+      "docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+      "package.json",
+      "scripts/ci-test-plan.mjs",
+      "scripts/ci-test-plan.test.mjs",
+      "scripts/ci-test-results.test.mjs",
+      "scripts/ci-test-workspace.test.mjs"
+    ],
+    "maintainedChangedOriginals": [
+      ".github/actions/ci-prepare/action.yml",
+      ".github/actions/ci-setup/action.yml",
+      ".github/actions/ci-test/action.yml",
+      ".github/workflows/test.yml",
+      "README.md",
+      "package.json",
+      "scripts/ci-test-plan.mjs",
+      "scripts/ci-test-plan.test.mjs",
+      "scripts/ci-test-results.test.mjs",
+      "scripts/ci-test-workspace.test.mjs"
+    ],
+    "separatelyRecordedCoordinatorChangedOriginals": [
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md",
+      "docs/tasks/20261118-111723-dependency-gated-ci-tests.md"
+    ],
+    "newMaintainedPaths": [
+      ".github/actions/ci-checkout/action.yml",
+      ".github/actions/ci-checkout/index.mjs",
+      "scripts/ci-test-checkout.test.mjs"
+    ],
+    "newEvidencePaths": [
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completed-aB1P4O/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completed-aB1P4O/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completed-aB1P4O/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completion-record-KbNMdR/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completion-record-KbNMdR/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completion-record-KbNMdR/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-delivery-foundation-CVRoYL/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-delivery-foundation-CVRoYL/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-delivery-foundation-CVRoYL/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-before-final-ljSlxP/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-before-final-ljSlxP/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-before-final-ljSlxP/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-before-final-ljSlxP/validation.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/validation.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-docs-ebsR9R/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-docs-ebsR9R/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-docs-ebsR9R/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-final-CGnVbX/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-final-CGnVbX/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-final-CGnVbX/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/provenance-curation-completion.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/provenance-delivery-foundation.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/provenance-final-checks.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/scope.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/whitespace-final-naEkBD/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/whitespace-final-naEkBD/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/whitespace-final-naEkBD/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/design/preflight.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/design/stage-1-fingerprints.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/design/stage-1-proposal.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/archive-initial-before-fix.py",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/archive.py",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/preserve-archive-failure-before-count-fix.py",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/preserve-archive-failure.py",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/reconcile-final.py",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/run-final.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/run.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/snapshot-curation-drivers.py",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/tools-final.py",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/tools.py",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/validate-delivery.py",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/fingerprints.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/manifest.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/actionlint-final-HbTCqp/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/actionlint-final-HbTCqp/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/actionlint-final-HbTCqp/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/archive-initial-sOFopf/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/archive-initial-sOFopf/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/archive-initial-sOFopf/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/boundary-red-c3Z9qz/input-snapshots.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/boundary-red-c3Z9qz/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/boundary-red-c3Z9qz/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/boundary-red-c3Z9qz/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-XYwIiX/input-snapshots.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-XYwIiX/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-XYwIiX/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-XYwIiX/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-isolated-xwggL6/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-isolated-xwggL6/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-isolated-xwggL6/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/ci-check-final-aKP5nR/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/ci-check-final-aKP5nR/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/ci-check-final-aKP5nR/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/curation-driver-preimages-RwIYBu/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/curation-driver-preimages-RwIYBu/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/curation-driver-preimages-RwIYBu/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-after-cause-wrap-oXXOQK/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-after-cause-wrap-oXXOQK/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-after-cause-wrap-oXXOQK/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-before-qUPMpb/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-before-qUPMpb/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-before-qUPMpb/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-correct-cli-J8kXdv/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-correct-cli-J8kXdv/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-correct-cli-J8kXdv/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-final-mrtDQy/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-final-mrtDQy/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-final-mrtDQy/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-owned-files-O1OcqU/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-owned-files-O1OcqU/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-owned-files-O1OcqU/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/groups-check-final-NDLH3V/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/groups-check-final-NDLH3V/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/groups-check-final-NDLH3V/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/helper-contracts-HZOAkG/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/helper-contracts-HZOAkG/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/helper-contracts-HZOAkG/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-after-cause-correction-Bp4l4b/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-after-cause-correction-Bp4l4b/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-after-cause-correction-Bp4l4b/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-final-fingerprint-9b6FjG/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-final-fingerprint-9b6FjG/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-final-fingerprint-9b6FjG/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-final-rqDvx4/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-final-rqDvx4/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-final-rqDvx4/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-green-0s2SlG/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-green-0s2SlG/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-green-0s2SlG/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/preserve-archive-failure-aX1i5T/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/preserve-archive-failure-aX1i5T/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/preserve-archive-failure-aX1i5T/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/preserve-archive-failure-corrected-iHgDzy/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/preserve-archive-failure-corrected-iHgDzy/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/preserve-archive-failure-corrected-iHgDzy/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/red-wiring-YkGW6y/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/red-wiring-YkGW6y/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/red-wiring-YkGW6y/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/scope-before-archive-ucoe20/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/scope-before-archive-ucoe20/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/scope-before-archive-ucoe20/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/selected-only-fixture-KeBfeD/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/selected-only-fixture-KeBfeD/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/selected-only-fixture-KeBfeD/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/tool-inventory-eQJCPT/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/tool-inventory-eQJCPT/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/tool-inventory-eQJCPT/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/tool-prerequisites-final-amBAtc/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/tool-prerequisites-final-amBAtc/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/tool-prerequisites-final-amBAtc/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/yaml-check-final-FrFAKP/result.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/yaml-check-final-FrFAKP/stderr.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/yaml-check-final-FrFAKP/stdout.log",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/scope/coordinator-deltas.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/scope/curation-driver-preimages.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/scope/partial-archive-before-continuation.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/scope/scope-before-archive.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/scope/stage2-preflight.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/scope/tooling-notes.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/.github/actions/ci-checkout/action.yml",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/.github/actions/ci-checkout/index.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/.github/actions/ci-prepare/action.yml",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/.github/actions/ci-setup/action.yml",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/.github/actions/ci-test/action.yml",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/.github/workflows/test.yml",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/package.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/scripts/ci-test-checkout.test.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/scripts/ci-test-plan.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/scripts/ci-test-plan.test.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/scripts/ci-test-results.test.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/scripts/ci-test-workspace.test.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/.github/actions/ci-prepare/action.yml",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/.github/actions/ci-setup/action.yml",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/.github/actions/ci-test/action.yml",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/.github/workflows/test.yml",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/package.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/scripts/ci-test-plan.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/scripts/ci-test-plan.test.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/scripts/ci-test-results.test.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/scripts/ci-test-workspace.test.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/intermediate/boundary-red-c3Z9qz/.github/actions/ci-checkout/index.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/intermediate/boundary-red-c3Z9qz/scripts/ci-test-checkout.test.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/intermediate/checkout-green-XYwIiX/.github/actions/ci-checkout/index.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/intermediate/checkout-green-XYwIiX/scripts/ci-test-checkout.test.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/maintained.diff",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/manifest.json",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/r1-one-line.diff",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/red-wiring.test-input.mjs",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup.md"
+    ],
+    "currentRegularFiles": 2755,
+    "originalFileModesUnchanged": true,
+    "originalStage1InputsAndHistoricalSealsMatched": 13,
+    "allInheritedR1GuardsAndR2OtherBytesUnchanged": true,
+    "exactOneLineR1TestAmendmentOnly": true,
+    "originalIndependentJobBlocks": {
+      "lint": {
+        "bytes": 297,
+        "sha256": "42bb672c52751f51dabc426dc624610d88cd0fd16b7112ca09501049efa48c9e"
+      },
+      "access-router-minimum-node-smoke": {
+        "bytes": 1028,
+        "sha256": "c6853dbe4a2cb7fff2094e2d6b59f20a973f3fae4f4c8e05a4d48beb59df0a76"
+      },
+      "access-router-react-minimum-node": {
+        "bytes": 1574,
+        "sha256": "182e3960152c375a9ec14ed240f9795239618d7038ed0bc8bbfbad883ba67829"
+      }
+    },
+    "all31JobIdsAndOrderUnchanged": true,
+    "completePackageJobs": 25,
+    "topLevelWorkflowMetadataUnchanged": true,
+    "exactRootValidationFilenameOnly": true,
+    "dependencyAndEligibilityModelPrefixUnchanged": true,
+    "protectedEvaluatorNegativeTestsUnchanged": true,
+    "allCurrentBytesAndModesUnchangedByReconciliation": true
+  },
+  "deliveryFingerprints": {
+    ".github/actions/ci-prepare/action.yml": {
+      "mode": "0644",
+      "bytes": 1406,
+      "sha256": "35054ec6acdb4f823f77bdf8d2975b971706a41a2324b3b19c82174b13708747"
+    },
+    ".github/actions/ci-setup/action.yml": {
+      "mode": "0644",
+      "bytes": 1382,
+      "sha256": "4169b7bf717d2c951b1007219acd6549c9ec4b96a766cd0bbac14e6ba14588f2"
+    },
+    ".github/actions/ci-test/action.yml": {
+      "mode": "0644",
+      "bytes": 2857,
+      "sha256": "85dfb30dee2223fe13f9ae47bc9fbde77386017a7cd441f7d5251e2383053fe2"
+    },
+    ".github/workflows/test.yml": {
+      "mode": "0644",
+      "bytes": 27606,
+      "sha256": "694a1798730ac2b9fd7253cf88d1e77e0773ea9b23f4d83c1a5b0a180cbcfb3c"
+    },
+    "README.md": {
+      "mode": "0644",
+      "bytes": 13333,
+      "sha256": "f4fc1345a9152c6f1d9e0f49ffde8a85183fa8818e899cd7fab4eb4e9e9c9055"
+    },
+    "package.json": {
+      "mode": "0644",
+      "bytes": 2964,
+      "sha256": "2f17f6b734045bf54e76d91fb0e654eb9231c3821bc2e628ae86b34425b5109a"
+    },
+    "scripts/ci-test-plan.mjs": {
+      "mode": "0644",
+      "bytes": 32782,
+      "sha256": "50c6e1880b3cea9ea49cc1bbcc0aa320ab10bf2495461400817b28e9bb64d408"
+    },
+    "scripts/ci-test-plan.test.mjs": {
+      "mode": "0644",
+      "bytes": 72222,
+      "sha256": "f916a064401391bc20997afad82298af13b69b8f6aff7f990c80189d79c9cf2f"
+    },
+    "scripts/ci-test-results.test.mjs": {
+      "mode": "0644",
+      "bytes": 22739,
+      "sha256": "d0e12781c0c6f0b4af86173e02cd24a01549d3f104e4650a1c80a53f7667535a"
+    },
+    "scripts/ci-test-workspace.test.mjs": {
+      "mode": "0644",
+      "bytes": 46822,
+      "sha256": "72c310d44334852a58ba311d1157b3d843bb49d6c787c778177d6c3634431b95"
+    },
+    ".github/actions/ci-checkout/action.yml": {
+      "mode": "0644",
+      "bytes": 519,
+      "sha256": "2e33e69304b843ca86d839cd54f3a9f24f61ffa42f527a17ba4a40ac82a58bf5"
+    },
+    ".github/actions/ci-checkout/index.mjs": {
+      "mode": "0644",
+      "bytes": 32529,
+      "sha256": "7b39870bb9eb1c4621d475b77ebf3cc7fffffa13b46a286b15a78f67f92f121a"
+    },
+    "scripts/ci-test-checkout.test.mjs": {
+      "mode": "0644",
+      "bytes": 64062,
+      "sha256": "4b16f6fd820b742dc0e6e447e000ade1a55419b1bc006729dbfc29c4ddc0b9a9"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/README.md": {
+      "mode": "0644",
+      "bytes": 6009,
+      "sha256": "38fdb1d54921fa203c25be425e7975358d4803f6d205a6fe188b8d9903961fb7"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completed-aB1P4O/result.json": {
+      "mode": "0644",
+      "bytes": 6362,
+      "sha256": "4509571f973bf320315722043ca2088c29bfde921830c63dcddc3bd802737820"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completed-aB1P4O/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completed-aB1P4O/stdout.log": {
+      "mode": "0644",
+      "bytes": 233,
+      "sha256": "3f0a43a98799da19049236eac5a1afe7f270e101dd9cdf4fa217310ea9185cbc"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completion-record-KbNMdR/result.json": {
+      "mode": "0644",
+      "bytes": 6340,
+      "sha256": "bb5a9dce443301742eb2666cb50b7db1d976e940d7a9c1b01e1bec15374af420"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completion-record-KbNMdR/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-completion-record-KbNMdR/stdout.log": {
+      "mode": "0644",
+      "bytes": 79,
+      "sha256": "fdf25c397c0e294c01bbe2d527ee049f6bcae2bae3ef18b6e96e31fb4feeecd8"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-delivery-foundation-CVRoYL/result.json": {
+      "mode": "0644",
+      "bytes": 6470,
+      "sha256": "92d33e256e58f1cf59a421e5aa203a1e5c4bcc92df731a95640623f8a5131238"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-delivery-foundation-CVRoYL/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/archive-delivery-foundation-CVRoYL/stdout.log": {
+      "mode": "0644",
+      "bytes": 80,
+      "sha256": "53b54e4b649d9d298665d621b7e3c651742fa32b09c09598807c882b44b1cfd2"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-before-final-ljSlxP/result.json": {
+      "mode": "0644",
+      "bytes": 6408,
+      "sha256": "db2b7ca7e4498ffb0c348d39439d543465e23d6f922e9f8ebd7597c76e064fab"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-before-final-ljSlxP/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-before-final-ljSlxP/stdout.log": {
+      "mode": "0644",
+      "bytes": 939,
+      "sha256": "721069b87bf7c766d820ecc21174ae8c0f16109f6bc6032e3b0a7da97d505d2b"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-before-final-ljSlxP/validation.json": {
+      "mode": "0644",
+      "bytes": 62706,
+      "sha256": "c0a27acbf51a0836625e9bbf9f3aa26883bfbaa2d4d6f0c09c3ac2f5ac47f2c1"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/result.json": {
+      "mode": "0644",
+      "bytes": 6394,
+      "sha256": "81accbe007d015c932057cdc0b7bea880db2678670c138aaefa9a7d8246c80f3"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/stdout.log": {
+      "mode": "0644",
+      "bytes": 932,
+      "sha256": "eaa6b4ba038f9ad7331da253db79267af72c33da17a4642800409075bce67ac7"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/delivery-integrity-final-6XkCgL/validation.json": {
+      "mode": "0644",
+      "bytes": 68350,
+      "sha256": "42c4ce6df689e078476ff46ea9d5ea1a6c1957ba6fd51e96b0b0e77943b40631"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-docs-ebsR9R/result.json": {
+      "mode": "0644",
+      "bytes": 6541,
+      "sha256": "81ab96fda215c3ec0bd31121222606a667ae0ac09327da9a3c04d2813b3c9b7d"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-docs-ebsR9R/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-docs-ebsR9R/stdout.log": {
+      "mode": "0644",
+      "bytes": 104,
+      "sha256": "c772da9d842dcd27a9980a494ab9e34682e2648d05f1fe12d99781a2bf7654f9"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-final-CGnVbX/result.json": {
+      "mode": "0644",
+      "bytes": 6541,
+      "sha256": "60861dd7ac87b6b3dff6ad0238da9b88b66f46a7899b6ee59ffdc1a555294da9"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-final-CGnVbX/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/format-setup-delivery-final-CGnVbX/stdout.log": {
+      "mode": "0644",
+      "bytes": 67,
+      "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/provenance-curation-completion.json": {
+      "mode": "0644",
+      "bytes": 5802,
+      "sha256": "b7f69cd72680c2ea0739dd3c04abe8c0bff71f19e5dd80494ea43943f1674072"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/provenance-delivery-foundation.json": {
+      "mode": "0644",
+      "bytes": 23157,
+      "sha256": "8263b19991390207e12dbb2db44c02269067162a0b7e61b42792e6b04933fa88"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/provenance-final-checks.json": {
+      "mode": "0644",
+      "bytes": 24050,
+      "sha256": "8dd6820d86c75776e1254e4a283b2a8c68bab14178743faae708c74a46388be1"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/result.json": {
+      "mode": "0644",
+      "bytes": 6279,
+      "sha256": "bbb5edaa14f2230ac8f2ca8f807c5363ebb65fa71254e50b50bc1f2593ea2840"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/scope.json": {
+      "mode": "0644",
+      "bytes": 66757,
+      "sha256": "c28534eac0dcf462d3542891e29f446c242a2afab79bc4cdc90039af127805b3"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/scope-after-archive-final-8EFuMU/stdout.log": {
+      "mode": "0644",
+      "bytes": 1174,
+      "sha256": "135aecd1e0b471325f89a09436906ffb283aedb9e3d80c9c68c3489f053fb38b"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/whitespace-final-naEkBD/result.json": {
+      "mode": "0644",
+      "bytes": 6248,
+      "sha256": "c9cd569aebfd0a1e67a19ad3252271a9d7624d922385b33eb8c49219d3a87dbf"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/whitespace-final-naEkBD/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/delivery/whitespace-final-naEkBD/stdout.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/design/preflight.json": {
+      "mode": "0644",
+      "bytes": 540399,
+      "sha256": "2d7e808826ce5a6de639593070944453ee0c2b1cb20a7d5cbec6125a903a91a8"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/design/stage-1-fingerprints.json": {
+      "mode": "0644",
+      "bytes": 6335,
+      "sha256": "e8ed30684e90b41c1e9a582fecd31604a0ebab36d00d26e958becd57ffc4429c"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/design/stage-1-proposal.md": {
+      "mode": "0644",
+      "bytes": 29344,
+      "sha256": "5513e1d9022d0b158e20ce9424e79003b6c292d21e8c92433c10f90b74f471bf"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/archive-initial-before-fix.py": {
+      "mode": "0644",
+      "bytes": 19346,
+      "sha256": "2e6ff50ee9ed0841fc9932d0b2d95a3326d788134fc0f807356652b25d9b2084"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/archive.py": {
+      "mode": "0644",
+      "bytes": 23233,
+      "sha256": "7f09d42e261f3f8315f03917195d158ce1ee064ef812000a212a30d25a1d9fdb"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/preserve-archive-failure-before-count-fix.py": {
+      "mode": "0644",
+      "bytes": 2652,
+      "sha256": "a4406e896359c9363022f2b933dbbac615483c502cece038ad541041bb3c2804"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/preserve-archive-failure.py": {
+      "mode": "0644",
+      "bytes": 2608,
+      "sha256": "e2ab0f80edc3d05601f2d7f25fce84891c0d0bc43f52e3bed981d6d5c57b93ed"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/reconcile-final.py": {
+      "mode": "0644",
+      "bytes": 10311,
+      "sha256": "2dc0a65589b34d3483148e5c6cae223bf2121369f29819297ba21950890be6b7"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/run-final.mjs": {
+      "mode": "0644",
+      "bytes": 3981,
+      "sha256": "a96c3342ecbdc2b414a1f5723ea0b6e1dfa8b45da90050f36a62c175ea733e4d"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/run.mjs": {
+      "mode": "0644",
+      "bytes": 3518,
+      "sha256": "5594c555e5d99110132ab44b95bb1d1d87698c4f1a2789ca445e4917032daede"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/snapshot-curation-drivers.py": {
+      "mode": "0644",
+      "bytes": 1344,
+      "sha256": "20bc45bee4d1feb0a71a267650e41e1572386a3bc51705252c9a7e04d6aa470a"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/tools-final.py": {
+      "mode": "0644",
+      "bytes": 3324,
+      "sha256": "a54db3751b5dbdd464434d19ae35f2df0b5fb20c5543fa7153bfa74baf25fa8e"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/tools.py": {
+      "mode": "0644",
+      "bytes": 1950,
+      "sha256": "7c2bc239b97f4ec04e0f96ae1dce2ca7cc296605cbefe0be826894fb4aa80e8a"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/drivers/validate-delivery.py": {
+      "mode": "0644",
+      "bytes": 18211,
+      "sha256": "5ac8fe5a2983b1501f261212e003386fc1b297ee2b6f8dc25beea289173e3a83"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/fingerprints.json": {
+      "mode": "0644",
+      "bytes": 4789,
+      "sha256": "f7d4043dbf82ea328eb3ab9c6517ad364784ba1f6a314d06b76f836233b75999"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/manifest.json": {
+      "mode": "0644",
+      "bytes": 89442,
+      "sha256": "a2e96b85d7ce10f72f8db56dd5fb8f00a8bada72d49810f02b388883a5f166b0"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations.json": {
+      "mode": "0644",
+      "bytes": 93019,
+      "sha256": "51db02d372cb3a39936c5e55811523512e11933fde240233e525f23809256910"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/actionlint-final-HbTCqp/result.json": {
+      "mode": "0644",
+      "bytes": 6312,
+      "sha256": "2fbce24a483d3813e9348f129c84d2f74f6d69f338ac45031e80689ad9693d9a"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/actionlint-final-HbTCqp/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/actionlint-final-HbTCqp/stdout.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/archive-initial-sOFopf/result.json": {
+      "mode": "0644",
+      "bytes": 6266,
+      "sha256": "c64f13f70d97d10a4dd01a191ad25e8ea2a48ecc280b9d13fc5570bbb3d8eaa8"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/archive-initial-sOFopf/stderr.log": {
+      "mode": "0644",
+      "bytes": 1049,
+      "sha256": "c0d3f7e26f85f7c577f38a3d556626c6b06159c8004777adcdb1f817d5f80fad"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/archive-initial-sOFopf/stdout.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/boundary-red-c3Z9qz/input-snapshots.json": {
+      "mode": "0644",
+      "bytes": 705,
+      "sha256": "f187042239db81eaf1a388eb5bf884a4b2121ef8e09936bf13c326eda0ebd204"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/boundary-red-c3Z9qz/result.json": {
+      "mode": "0644",
+      "bytes": 5462,
+      "sha256": "43cfdd4eac49bee4b391db47f4ac1b5d6c0550c8b955f12eef0c54c5f7143562"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/boundary-red-c3Z9qz/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/boundary-red-c3Z9qz/stdout.log": {
+      "mode": "0644",
+      "bytes": 25095,
+      "sha256": "458100c975bf395ecf8c532d2c504c889604b92149d0977a36c85f3318e6dcd2"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-XYwIiX/input-snapshots.json": {
+      "mode": "0644",
+      "bytes": 709,
+      "sha256": "7be498007947e3a03713bec8783f4a89798a3378a9435dba13e53c1d68687aa4"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-XYwIiX/result.json": {
+      "mode": "0644",
+      "bytes": 5466,
+      "sha256": "608e88ca708a53c7023709605ced7567f73f81de4c678180c07c303f60faa1d1"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-XYwIiX/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-XYwIiX/stdout.log": {
+      "mode": "0644",
+      "bytes": 22095,
+      "sha256": "e0a7e12d27b6781f221eeaa20e0c280191bbf2ba92f82fad72dd0cfcbe48e2d2"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-isolated-xwggL6/result.json": {
+      "mode": "0644",
+      "bytes": 5484,
+      "sha256": "7ba945d618469cd6bb9cd91161d979d9e523466e8aaa13f6397d593a83480339"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-isolated-xwggL6/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/checkout-green-isolated-xwggL6/stdout.log": {
+      "mode": "0644",
+      "bytes": 20238,
+      "sha256": "d0b0301b8a4ffabd70083acc8138725f418d4a6b311e0da7b48067aefee0f38c"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/ci-check-final-aKP5nR/result.json": {
+      "mode": "0644",
+      "bytes": 6227,
+      "sha256": "f7f33d13771572033c2c88da365f6ff1dc20d0e8e44a6aeb948c60eb058a628e"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/ci-check-final-aKP5nR/stderr.log": {
+      "mode": "0644",
+      "bytes": 320,
+      "sha256": "0af68c3f239fd739e0e9f0587a5b18f748dabe25d5f78b181373476d17f54402"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/ci-check-final-aKP5nR/stdout.log": {
+      "mode": "0644",
+      "bytes": 57640,
+      "sha256": "120224a2e835410368dc68e4b67788bbb745cd27d1f024f16c6d9c985491431f"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/curation-driver-preimages-RwIYBu/result.json": {
+      "mode": "0644",
+      "bytes": 6287,
+      "sha256": "16d18e676c15e43190fbb3e82a7e4b9f9a6a64c26553c050905c87ef3a22a98d"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/curation-driver-preimages-RwIYBu/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/curation-driver-preimages-RwIYBu/stdout.log": {
+      "mode": "0644",
+      "bytes": 745,
+      "sha256": "bfc151cd1871c6adaa31c3082726d66a6e22ca580ab191cf5101d9d634be45ab"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-after-cause-wrap-oXXOQK/result.json": {
+      "mode": "0644",
+      "bytes": 6582,
+      "sha256": "f7158a3d21a55a78f13b5ccf4a4cc8b21c8bae77e8b01909a40c99443378158a"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-after-cause-wrap-oXXOQK/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-after-cause-wrap-oXXOQK/stdout.log": {
+      "mode": "0644",
+      "bytes": 67,
+      "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-before-qUPMpb/result.json": {
+      "mode": "0644",
+      "bytes": 6557,
+      "sha256": "c8db93f4a274d3f41551b857107db92f299680fefa9c1e52650c8508d810458b"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-before-qUPMpb/stderr.log": {
+      "mode": "0644",
+      "bytes": 70,
+      "sha256": "70988d19ea226ebd9a7178e2aec22377db72c87bef3aae002e577618be4f9753"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-before-qUPMpb/stdout.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-correct-cli-J8kXdv/result.json": {
+      "mode": "0644",
+      "bytes": 6576,
+      "sha256": "9d7c9e8f0ed2c590c00d62c30cefd480998079c023d42a4fb7333d382fa0f8be"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-correct-cli-J8kXdv/stderr.log": {
+      "mode": "0644",
+      "bytes": 232,
+      "sha256": "1ecbefc919726753e36a5295cd30f6c7c8b4226fceb6744d18a311372d496c7e"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-correct-cli-J8kXdv/stdout.log": {
+      "mode": "0644",
+      "bytes": 24,
+      "sha256": "f563726beee093be4f60c47bb6fd71641105b841418dca69dc29b62871faa84a"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-final-mrtDQy/result.json": {
+      "mode": "0644",
+      "bytes": 6564,
+      "sha256": "4b6344c23d79c922ada204b08792d461796bef2c7e0a8d02e71d7faad834f135"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-final-mrtDQy/stderr.log": {
+      "mode": "0644",
+      "bytes": 121,
+      "sha256": "8560aec206eddc2ce8fd1f8823f005acaa59f13f1230a7c71a796e00be6760a9"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-check-final-mrtDQy/stdout.log": {
+      "mode": "0644",
+      "bytes": 24,
+      "sha256": "f563726beee093be4f60c47bb6fd71641105b841418dca69dc29b62871faa84a"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-owned-files-O1OcqU/result.json": {
+      "mode": "0644",
+      "bytes": 6443,
+      "sha256": "d272ffb8594175157437fadf21715be3ba54d743bd077bb79337409af378a36b"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-owned-files-O1OcqU/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/format-owned-files-O1OcqU/stdout.log": {
+      "mode": "0644",
+      "bytes": 127,
+      "sha256": "8596cc48595cc50f7ac30d483e7c5015ea8b13e72d9bca0b827791f5c2f5406e"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/groups-check-final-NDLH3V/result.json": {
+      "mode": "0644",
+      "bytes": 6234,
+      "sha256": "7503419e53ad5c7aee07d5e4ed2e7cf8402a564fb0d3f3d41ee0ceaf77fb2f79"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/groups-check-final-NDLH3V/stderr.log": {
+      "mode": "0644",
+      "bytes": 83,
+      "sha256": "28e1a1d8d5567fb8820d6b28040398278fd40ab42937599c77e14dfe50b1af7c"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/groups-check-final-NDLH3V/stdout.log": {
+      "mode": "0644",
+      "bytes": 1601,
+      "sha256": "71d573173719c835c9c142d5d1d23ea2220f0ed5cc5b9ada38c758c2d3153ece"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/helper-contracts-HZOAkG/result.json": {
+      "mode": "0644",
+      "bytes": 5591,
+      "sha256": "b7a5dcf6e25a6bf7abb6c5f11939d3f20ba8cb8dda2fdfbc41d0f9dfb22b26c4"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/helper-contracts-HZOAkG/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/helper-contracts-HZOAkG/stdout.log": {
+      "mode": "0644",
+      "bytes": 37976,
+      "sha256": "ddabe0a35d94140ceb54f5ec6fe96437b12bcaae1fe548cb7c11b9c3c170787f"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-after-cause-correction-Bp4l4b/result.json": {
+      "mode": "0644",
+      "bytes": 6482,
+      "sha256": "e6eebb7d3c7f93d2ce2ee5d4671d456e3a5ec402abfa2159a5a954cb698a63bb"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-after-cause-correction-Bp4l4b/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-after-cause-correction-Bp4l4b/stdout.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-final-fingerprint-9b6FjG/result.json": {
+      "mode": "0644",
+      "bytes": 6472,
+      "sha256": "57a9a1c3d549703e6abcef0d1ada150cec6642da310b9f2b0dfc69421cbf0f4a"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-final-fingerprint-9b6FjG/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-final-fingerprint-9b6FjG/stdout.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-final-rqDvx4/result.json": {
+      "mode": "0644",
+      "bytes": 6452,
+      "sha256": "1cb111185658b1ce5f57711b7048cf2604b9e1972d279bdfeb8db40d90a357a4"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-final-rqDvx4/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-final-rqDvx4/stdout.log": {
+      "mode": "0644",
+      "bytes": 297,
+      "sha256": "ad9399353cab5b5a8200c803be2b23c1726fcbf170f8fc73bce996430a11769f"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-green-0s2SlG/result.json": {
+      "mode": "0644",
+      "bytes": 6452,
+      "sha256": "f663486363d82e922121c318dabf94d59a20aab5c2f857785456bec387424d70"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-green-0s2SlG/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/lint-green-0s2SlG/stdout.log": {
+      "mode": "0644",
+      "bytes": 293,
+      "sha256": "755b93f835c673f1b8be878aaa37fe0ba8bc84ee683b73dfeb36d89c03383ff6"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/preserve-archive-failure-aX1i5T/result.json": {
+      "mode": "0644",
+      "bytes": 6283,
+      "sha256": "de724b76f10e8af3ac229fb9c2e4312aa06fa84fa7feefa449fbdb232b50bb75"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/preserve-archive-failure-aX1i5T/stderr.log": {
+      "mode": "0644",
+      "bytes": 207,
+      "sha256": "f1cc90f16a994771afa356b7061ed4a98b1dcfa25a1d8a9703cf321ddb6c98e5"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/preserve-archive-failure-aX1i5T/stdout.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/preserve-archive-failure-corrected-iHgDzy/result.json": {
+      "mode": "0644",
+      "bytes": 6303,
+      "sha256": "cfe75fb13e86c760f45114e46407d9c23630e42734befff4c8cb2065f20f44cf"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/preserve-archive-failure-corrected-iHgDzy/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/preserve-archive-failure-corrected-iHgDzy/stdout.log": {
+      "mode": "0644",
+      "bytes": 375,
+      "sha256": "34e9d4843d57f29cad4b3a7bac0079ea514283dde54ab373134749324399f763"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/red-wiring-YkGW6y/result.json": {
+      "mode": "0644",
+      "bytes": 391,
+      "sha256": "8dfa59d9b897579dd56b19cefe0c946460c6b31e2d64f14d1674b696bdda7b94"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/red-wiring-YkGW6y/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/red-wiring-YkGW6y/stdout.log": {
+      "mode": "0644",
+      "bytes": 6016,
+      "sha256": "0791f8204408a374ba045d895172678608fe50299d99cb6b672dd98b2e44b9f5"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/scope-before-archive-ucoe20/result.json": {
+      "mode": "0644",
+      "bytes": 6269,
+      "sha256": "30ef620443ab7dd24231b36a55cb42991ccc8cf80fb52cf1d8872764191dce7c"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/scope-before-archive-ucoe20/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/scope-before-archive-ucoe20/stdout.log": {
+      "mode": "0644",
+      "bytes": 1169,
+      "sha256": "56ccab178c39eb8f3a59242a068ebf30e5a20d4a765d8841708de00a9035ca4b"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/selected-only-fixture-KeBfeD/result.json": {
+      "mode": "0644",
+      "bytes": 468,
+      "sha256": "4e4bd4d6c08faebc221bb789866b98234306f292c54e827223f752e6f4faed9e"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/selected-only-fixture-KeBfeD/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/selected-only-fixture-KeBfeD/stdout.log": {
+      "mode": "0644",
+      "bytes": 250,
+      "sha256": "dc74e5943e164e238047c80215ff7e1252affeb61ae2a397f3b219128d466310"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/tool-inventory-eQJCPT/result.json": {
+      "mode": "0644",
+      "bytes": 367,
+      "sha256": "efdd983782018687fd34f0c854789b853ac797a34e2b4f788e4c5da81c1a9e86"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/tool-inventory-eQJCPT/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/tool-inventory-eQJCPT/stdout.log": {
+      "mode": "0644",
+      "bytes": 8293,
+      "sha256": "870788f6eb82fda94e6aa5666c9deb6235410cc32d6daf65b6ca17bf707bf0ac"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/tool-prerequisites-final-amBAtc/result.json": {
+      "mode": "0644",
+      "bytes": 6274,
+      "sha256": "735f0f654f30cf9b1ecb9d47d8fcd824d3608a259f60702b1182d91c7f8369cf"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/tool-prerequisites-final-amBAtc/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/tool-prerequisites-final-amBAtc/stdout.log": {
+      "mode": "0644",
+      "bytes": 4996,
+      "sha256": "d71988b3e57978ff7b1f7210619bc9f48a466403390f9880c562126671abe7f9"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/yaml-check-final-FrFAKP/result.json": {
+      "mode": "0644",
+      "bytes": 6477,
+      "sha256": "2f006cc1d2e6af91622a9eeedee4bcbe9cc78eee1ab777d6b9983ecc77de2f8d"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/yaml-check-final-FrFAKP/stderr.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/observations/yaml-check-final-FrFAKP/stdout.log": {
+      "mode": "0644",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/scope/coordinator-deltas.json": {
+      "mode": "0644",
+      "bytes": 2598,
+      "sha256": "4c24f3a6fc7a32b88ff405f8096b4ca9b0ed680c3f0a09aaeb6a03b88f5357e1"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/scope/curation-driver-preimages.json": {
+      "mode": "0644",
+      "bytes": 745,
+      "sha256": "bfc151cd1871c6adaa31c3082726d66a6e22ca580ab191cf5101d9d634be45ab"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/scope/partial-archive-before-continuation.json": {
+      "mode": "0644",
+      "bytes": 7009,
+      "sha256": "4cab1cdf6bb6dbd8ddbcb468db54201ae7584e4b1ae8e6aeb031a3b3d9e7feea"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/scope/scope-before-archive.json": {
+      "mode": "0644",
+      "bytes": 21081,
+      "sha256": "ae5c95a971165bfa3be351d79f9fbe9904746b4e4ce8926ed1223923969a1bb4"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/scope/stage2-preflight.json": {
+      "mode": "0644",
+      "bytes": 547222,
+      "sha256": "72b2bcd351628378cfd9f6ad7ccf1e01f7a154e543343b0ff559e1d982cdb4ff"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/scope/tooling-notes.json": {
+      "mode": "0644",
+      "bytes": 657,
+      "sha256": "92ceff5a0d8d2f7e0988dd26c6856dacdb967a9c337fd5d0cdcaa61655eb44f4"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/.github/actions/ci-checkout/action.yml": {
+      "mode": "0644",
+      "bytes": 519,
+      "sha256": "2e33e69304b843ca86d839cd54f3a9f24f61ffa42f527a17ba4a40ac82a58bf5"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/.github/actions/ci-checkout/index.mjs": {
+      "mode": "0644",
+      "bytes": 32529,
+      "sha256": "7b39870bb9eb1c4621d475b77ebf3cc7fffffa13b46a286b15a78f67f92f121a"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/.github/actions/ci-prepare/action.yml": {
+      "mode": "0644",
+      "bytes": 1406,
+      "sha256": "35054ec6acdb4f823f77bdf8d2975b971706a41a2324b3b19c82174b13708747"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/.github/actions/ci-setup/action.yml": {
+      "mode": "0644",
+      "bytes": 1382,
+      "sha256": "4169b7bf717d2c951b1007219acd6549c9ec4b96a766cd0bbac14e6ba14588f2"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/.github/actions/ci-test/action.yml": {
+      "mode": "0644",
+      "bytes": 2857,
+      "sha256": "85dfb30dee2223fe13f9ae47bc9fbde77386017a7cd441f7d5251e2383053fe2"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/.github/workflows/test.yml": {
+      "mode": "0644",
+      "bytes": 27606,
+      "sha256": "694a1798730ac2b9fd7253cf88d1e77e0773ea9b23f4d83c1a5b0a180cbcfb3c"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/README.md": {
+      "mode": "0644",
+      "bytes": 13333,
+      "sha256": "f4fc1345a9152c6f1d9e0f49ffde8a85183fa8818e899cd7fab4eb4e9e9c9055"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/package.json": {
+      "mode": "0644",
+      "bytes": 2964,
+      "sha256": "2f17f6b734045bf54e76d91fb0e654eb9231c3821bc2e628ae86b34425b5109a"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/scripts/ci-test-checkout.test.mjs": {
+      "mode": "0644",
+      "bytes": 64062,
+      "sha256": "4b16f6fd820b742dc0e6e447e000ade1a55419b1bc006729dbfc29c4ddc0b9a9"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/scripts/ci-test-plan.mjs": {
+      "mode": "0644",
+      "bytes": 32782,
+      "sha256": "50c6e1880b3cea9ea49cc1bbcc0aa320ab10bf2495461400817b28e9bb64d408"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/scripts/ci-test-plan.test.mjs": {
+      "mode": "0644",
+      "bytes": 72222,
+      "sha256": "f916a064401391bc20997afad82298af13b69b8f6aff7f990c80189d79c9cf2f"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/scripts/ci-test-results.test.mjs": {
+      "mode": "0644",
+      "bytes": 22739,
+      "sha256": "d0e12781c0c6f0b4af86173e02cd24a01549d3f104e4650a1c80a53f7667535a"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/after/scripts/ci-test-workspace.test.mjs": {
+      "mode": "0644",
+      "bytes": 46836,
+      "sha256": "6e0125c007285d1fb4c4e9f0a51993d4bc4c874e102efbf7a7c9f3897036ebe2"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/.github/actions/ci-prepare/action.yml": {
+      "mode": "0644",
+      "bytes": 843,
+      "sha256": "71f2bca5f051a7419be9ef9b3c823e8a6ae04e680eef56b600718ad9eea266dd"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/.github/actions/ci-setup/action.yml": {
+      "mode": "0644",
+      "bytes": 659,
+      "sha256": "0bcffecbe5d059050e25840aa1d8cccfedfe697c5e286554ff4b1747db86ff92"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/.github/actions/ci-test/action.yml": {
+      "mode": "0644",
+      "bytes": 2249,
+      "sha256": "4e2f0efafcfc11d750e62481b4e83766659e557139d8f449dc5128ae5deab9ff"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/.github/workflows/test.yml": {
+      "mode": "0644",
+      "bytes": 18323,
+      "sha256": "c9408a1b25912416d25f95cefa609410bbf0c9852551803a9bf710ab69017aaf"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/README.md": {
+      "mode": "0644",
+      "bytes": 11566,
+      "sha256": "4149b5dfdc5c13afea2a2e070bd5dec5c057e8390bde41dc7d2a9f2634bc66a4"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/package.json": {
+      "mode": "0644",
+      "bytes": 2930,
+      "sha256": "f3793110d566df545710024d37c207fc4b592aa57c5a5667fdcb7b5df6733d80"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/scripts/ci-test-plan.mjs": {
+      "mode": "0644",
+      "bytes": 29767,
+      "sha256": "dc65f5f261288c0d9e69e78428a52e47ee43130316ee8959f57edbf4c0e9496c"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/scripts/ci-test-plan.test.mjs": {
+      "mode": "0644",
+      "bytes": 62202,
+      "sha256": "cf938b1f3b6adc0812f70fd23a4cc710ef3177df2c3c2813a0eb94ec557296fb"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/scripts/ci-test-results.test.mjs": {
+      "mode": "0644",
+      "bytes": 22539,
+      "sha256": "225a786ce4421d498f2feab1cc0d612c8452251282d8f86f8b6eaa2ddf9b24c6"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/before/scripts/ci-test-workspace.test.mjs": {
+      "mode": "0644",
+      "bytes": 46818,
+      "sha256": "e2986c213b259f2c84f2a978b6b328cd66e1a175247ade568a62d441a820131f"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/intermediate/boundary-red-c3Z9qz/.github/actions/ci-checkout/index.mjs": {
+      "mode": "0644",
+      "bytes": 30629,
+      "sha256": "ce37b1c95ac710ea34d2a23668198d59f7c5420c302fe8db27d70df1d09261f3"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/intermediate/boundary-red-c3Z9qz/scripts/ci-test-checkout.test.mjs": {
+      "mode": "0644",
+      "bytes": 53804,
+      "sha256": "55686318351c0da9903dac083fb59d45456d4a7f06178fffe63df7150c41d8f5"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/intermediate/checkout-green-XYwIiX/.github/actions/ci-checkout/index.mjs": {
+      "mode": "0644",
+      "bytes": 31162,
+      "sha256": "3359022688cf0b4c6b0de3cb07bec9dce189eb68a961a150d8da9114e34bf0e0"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/intermediate/checkout-green-XYwIiX/scripts/ci-test-checkout.test.mjs": {
+      "mode": "0644",
+      "bytes": 59638,
+      "sha256": "5848296056ce7290671c41cb50bc1ebfb9e3ad51be9ce6bbc19a098a0a6ced19"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/maintained.diff": {
+      "mode": "0644",
+      "bytes": 166940,
+      "sha256": "05f3d0740f82c46ba59df786af26f1d7f0d5207724884f077fda1375ed5229a8"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/manifest.json": {
+      "mode": "0644",
+      "bytes": 9962,
+      "sha256": "5cfa8921a6d3b8684888b3b681c71b6a2f8e344773be4090251102e6d070bdf2"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/r1-one-line.diff": {
+      "mode": "0644",
+      "bytes": 577,
+      "sha256": "cb790e3cb80634a995c0eecc8e8579f0c6e0f3971fe6f14ea0349e5a537e9f08"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-support/sources/red-wiring.test-input.mjs": {
+      "mode": "0644",
+      "bytes": 5764,
+      "sha256": "8cc1acbbaba166c72be1886c39c4125bfc8d7e18dfda7f161adc6f9242333755"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup.md": {
+      "mode": "0644",
+      "bytes": 21277,
+      "sha256": "02353368aae96ccff6190b0cb1506d37f9f09d1bb682430c1de7a7af6b5bd136"
+    }
+  },
+  "retainedBlockers": [
+    "Independent R1 and setup corrective acceptance remain outstanding; source/bootstrap fixture success is not native selector or actual runner/post-action evidence",
+    "Original R2 retry-preparation cause, focused Node abort failure and observer timing neutrality remain undisposed; the sole complete-package allowance is spent and packed-consumer verification is incomplete",
+    "R3 authorized live healthy/fault/preparation/validation/cancellation/missing/skipped-result evidence, scheduling/artifacts/required-check, timing/quota/billing and maintainer rollout decisions remain unavailable"
+  ],
+  "noTestsBuildResourcesSourceOperationsHostedOrRepositoryPublication": true,
+  "coordinatorDriver": {
+    "path": "_tmp-c5f-ovtrnV/reconcile-setup-stage2.mjs",
+    "mode": "0644",
+    "bytes": 15294,
+    "sha256": "52b1ed38f077e39e7e2211ca0b0c4eca8a8919f7bc0f0d3552f1bc549645ea7d"
+  },
+  "limitation": "No independent review or recertification of saved verification is claimed. Narrow owned result-test/metadata changes, archive/source fingerprints and exact saved commands still require inspection before reviewer assignment."
+}

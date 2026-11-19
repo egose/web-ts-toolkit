@@ -26,7 +26,7 @@ dependency changes, host/Docker configuration changes, subagents or commits.
   `socketPath`, `ensureFoldersExist` and `createSocketEventEmitter`, then closed
   only that socket; no backend override, monkeypatch or harness change.
 - Docker read-only server check passed: **29.9.2**. Node **v26.12.1**, pnpm
-  **11.18.0**, Vitest **4.1.11**; existing prerequisites/dependencies.
+  **11.24.0**, Vitest **4.1.11**; existing prerequisites/dependencies.
 - **B1 resolved in the required run:** mongoose-rxdb **45 files / 632 passed**,
   including the previously failing SQLite/BroadcastChannel cases. No socket errors
   or unhandled rejections were reported. The old 123–124-byte failures remain

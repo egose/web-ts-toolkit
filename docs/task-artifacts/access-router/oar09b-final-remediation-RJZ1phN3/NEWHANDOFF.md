@@ -149,7 +149,7 @@ diagnostics are not acceptance evidence.
   both entire failed campaigns, all accepted artifacts, caches and originals.
 - HEAD `58b22c0d6d3abd4ecce03533e3867d148ff21233`; lock
   `ef86ef24726d09f81d1262656920d6215caeb0f26e345198db2d27b8ab7ab314` unchanged.
-  Node **26.12.1**, pnpm **11.18.0**, Mongo **8.2.6** and binary hashes pinned.
+  Node **26.12.1**, pnpm **11.24.0**, Mongo **8.2.6** and binary hashes pinned.
 - `FINAL-SEAL.json`, `CAMPAIGN-FILES.json`, `EVIDENCE-FILES.json`, `COMMANDS.json` and
   `FINAL-CLOSURE.json` close this packet. **No owned jobs remain**, no delegation,
   commit/publish, dependencies/lock changes, reverts or workspace-wide gates.

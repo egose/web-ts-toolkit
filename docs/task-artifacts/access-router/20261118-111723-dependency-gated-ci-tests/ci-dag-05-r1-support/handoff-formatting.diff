@@ -1,0 +1,29 @@
+--- docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md
++++ docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-remediation.md
+@@ -87,5 +87,5 @@
+-| Checkout root | Compact `TMPDIR` | Socket bytes with reserved UUID | Result |
+-| ------------- | ---------------- | ------------------------------- | ------ |
+-| 33 bytes      | 44 bytes         | 106                             | Supported; actual local probe |
+-| 34 bytes      | 45 bytes         | 107                             | Supported boundary regression |
+-| 35 bytes      | 46 bytes         | 108                             | Rejected, one byte over |
++| Checkout root | Compact `TMPDIR` | Socket bytes with reserved UUID | Result                               |
++| ------------- | ---------------- | ------------------------------- | ------------------------------------ |
++| 33 bytes      | 44 bytes         | 106                             | Supported; actual local probe        |
++| 34 bytes      | 45 bytes         | 107                             | Supported boundary regression        |
++| 35 bytes      | 46 bytes         | 108                             | Rejected, one byte over              |
+@@ -133,7 +133,7 @@
+-| Check | Result | Wrapper duration |
+-| ----- | ------ | ---------------- |
+-| `node --test --test-concurrency=1 scripts/ci-test-workspace.test.mjs scripts/ci-test-artifacts.test.mjs` | 134 passed; exit 0 | 6,864 ms |
+-| `pnpm test:ci:check` | 326 passed; exit 0 | 14,960 ms |
+-| `pnpm test:groups:check` | 18 passed; exit 0 | 4,303 ms |
+-| Targeted ESLint on the four helper/test files | Exit 0 | 3,855 ms |
+-| Targeted code/README Prettier check | Exit 0 | 1,914 ms |
++| Check                                                                                                    | Result             | Wrapper duration |
++| -------------------------------------------------------------------------------------------------------- | ------------------ | ---------------- |
++| `node --test --test-concurrency=1 scripts/ci-test-workspace.test.mjs scripts/ci-test-artifacts.test.mjs` | 134 passed; exit 0 | 6,864 ms         |
++| `pnpm test:ci:check`                                                                                     | 326 passed; exit 0 | 14,960 ms        |
++| `pnpm test:groups:check`                                                                                 | 18 passed; exit 0  | 4,303 ms         |
++| Targeted ESLint on the four helper/test files                                                            | Exit 0             | 3,855 ms         |
++| Targeted code/README Prettier check                                                                      | Exit 0             | 1,914 ms         |
+

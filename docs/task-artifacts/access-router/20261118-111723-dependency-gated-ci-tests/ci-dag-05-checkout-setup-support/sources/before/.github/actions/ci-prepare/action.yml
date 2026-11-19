@@ -1,0 +1,22 @@
+name: CI build-output preparation
+description: One clean full build and a verified same-run output-only archive
+outputs:
+  artifact-name:
+    description: Exact run/attempt/checkout-scoped build artifact
+    value: ${{ steps.prepare.outputs.artifact-name }}
+  artifact-digest:
+    description: Expected archive SHA-256, passed outside the downloaded artifact
+    value: ${{ steps.prepare.outputs.artifact-digest }}
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/ci-setup
+    - id: prepare
+      shell: bash
+      run: node scripts/ci-test-artifacts.mjs prepare
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: ${{ steps.prepare.outputs.artifact-name }}
+        path: ${{ steps.prepare.outputs.artifact-path }}
+        if-no-files-found: error
+        compression-level: 0

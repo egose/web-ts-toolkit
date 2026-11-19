@@ -235,7 +235,7 @@ All line ranges describe `c68451e`; symbols are the durable lookup keys.
 
 ## Executed bounded probes and verification
 
-Working tree source stayed at `c68451e`. Node `v26.12.1`, pnpm `11.18.0`;
+Working tree source stayed at `c68451e`. Node `v26.12.1`, pnpm `11.24.0`;
 installed Vitest reported `4.1.11`. Existing installed dependencies/build artifacts
 were used; no install/build was performed. Commands below were actually run from
 repository root unless a working directory is specified. Shell `&&` only joined

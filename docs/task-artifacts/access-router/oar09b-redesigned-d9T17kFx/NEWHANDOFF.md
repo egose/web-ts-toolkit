@@ -40,7 +40,7 @@ optimize/resample.** Coordinator alone owns task/status and next disposition.
 | Original baseline ESM | `33662faede23acffc1a90973f51a7407df147afba76e4fbb23eeb99169df3822` |
 | User HEAD, preserved | `a1996e10f8339d89fc8a0aa2b10f7b531f5a07ca` |
 | Workspace lock | `ef86ef24726d09f81d1262656920d6215caeb0f26e345198db2d27b8ab7ab314` |
-| Pinned runtime | Node 26.12.1 / pnpm 11.18.0 / Mongo 8.2.6, binary hashes verified |
+| Pinned runtime | Node 26.12.1 / pnpm 11.24.0 / Mongo 8.2.6, binary hashes verified |
 
 Original baseline is the same sealed bytes with ten old controls OFF and ON, not
 two versions. No older owned candidate was run with new tools.

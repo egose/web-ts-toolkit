@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-11-19T15:01:20.885597+00:00",
+  "scope": "Coordinator scratch-checker AST and immutable metadata schema check only; checker not executed, reviewer outputs not inspected, no product module/probe/test/quality lane executed",
+  "driver": {
+    "path": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c/reconcile-idle-corrective-review.py",
+    "mode": "0644",
+    "bytes": 12933,
+    "sha256": "e3d5be82b4c315459150040b2559058671c823becc971dd1a2dcad17b42e3136"
+  },
+  "snapshotSha256": "ad378fec69c87bb1b750c9f1bb3b47b23861ebf4f1d40a3aabb9ebe4678ef696",
+  "staticallyReferencedSnapshotFields": [
+    "allCorrectiveMaintainedPaths",
+    "files",
+    "filesTableSha256",
+    "gitStatus",
+    "head",
+    "historicalProtectedInputs",
+    "nonRegularGitVisiblePaths",
+    "projectRefsSha256",
+    "protectedRegularFiles",
+    "reviewedMaintainedFingerprints"
+  ],
+  "syntaxAndFieldReferences": "passed",
+  "executionState": "Prepared only; must wait for automatic reviewer-idle delivery before executing reconciliation"
+}

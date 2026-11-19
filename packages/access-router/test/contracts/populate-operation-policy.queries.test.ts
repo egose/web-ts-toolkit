@@ -537,6 +537,7 @@ describe('PSA-02 effective source access across ordinary populate paths', () => 
         f.source.setOption(`${operation}AuthorizationMode`, mode);
         f.api.setModelOption(f.targetName, 'operationAccess', { read: false, list: true });
         f.Parent.schema.path('ref').default(f.rows[1]._id);
+        f.Parent.recompileSchema();
         await f.Parent.updateOne({ _id: f.parent._id }, { ref: f.rows[1]._id });
         await f.execute(async (req) => {
           const service = req.macl.getService(f.sourceName);

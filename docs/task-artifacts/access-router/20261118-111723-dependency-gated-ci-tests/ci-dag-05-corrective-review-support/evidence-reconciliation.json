@@ -1,0 +1,375 @@
+{
+  "reviewAlias": "CI-DAG-05 fresh corrective-review session",
+  "purpose": "Curated independent read-only reconciliation; retain the failed first audit, corrected accounting and acceptance limits without rerunning delivered/historical helpers or packages.",
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-5m91q69w'",
+  "method": "Independent regular-file SHA-256/mode checks, in-memory delta/curation reconstruction, JSON value comparison, raw TAP/Vitest summary parsing and snapshot comparison; no delivered or historical driver execution, product imports, tests, builds, resources, source operation or network access.",
+  "attempts": [
+    {
+      "attempt": 1,
+      "originalRecord": {
+        "path": "_tmp-c5cr-5m91q69w/reconciliation-attempt-1.json",
+        "mode": "0644",
+        "bytes": 19490,
+        "sha256": "fad92872b1efe436460a63e629e294ae07c13c62f681b91a00ddc7ccd14b2b35"
+      },
+      "command": [
+        "python3",
+        "_tmp-c5cr-5m91q69w/reconcile_evidence.py",
+        "_tmp-c5cr-5m91q69w/reconciliation-attempt-1.json"
+      ],
+      "driverAtInvocationPreservedAs": {
+        "path": "_tmp-c5cr-5m91q69w/reconcile_evidence.attempt-1.py",
+        "mode": "0644",
+        "bytes": 30517,
+        "sha256": "b61a5d4e9cb778bc726494b0118440e88d2c2ce96dda4384db00f5dd2de34636"
+      },
+      "startedAt": "2026-11-19T16:48:24.003470+00:00",
+      "finishedAt": "2026-11-19T16:48:24.439403+00:00",
+      "result": "EVIDENCE DISCREPANCIES",
+      "observedExitCode": 1,
+      "checks": 3257,
+      "problems": [
+        "R1 exact five-file implementation scope",
+        "R1 exact reconstructed implementation delta",
+        "R1 formatter encoded-lines transformation",
+        "R1 inverse formatter delta exactly matches all preformat hashes",
+        "Setup final verification thirteen-path fingerprints: lint-final",
+        "Setup saved before/after inputs: format-owned-files",
+        "Setup ten maintained changes/three new/four coordinator documents separately reconciled"
+      ]
+    },
+    {
+      "attempt": 2,
+      "originalRecord": {
+        "path": "_tmp-c5cr-5m91q69w/reconciliation-attempt-2.json",
+        "mode": "0644",
+        "bytes": 20363,
+        "sha256": "641001ed93b54dcf5dc65c4610b50ddc16c0778a4d4bd42743acc47b6a5a9e31"
+      },
+      "command": [
+        "python3",
+        "_tmp-c5cr-5m91q69w/reconcile_evidence.py",
+        "_tmp-c5cr-5m91q69w/reconciliation-attempt-2.json"
+      ],
+      "driver": {
+        "path": "_tmp-c5cr-5m91q69w/reconcile_evidence.py",
+        "mode": "0644",
+        "bytes": 33492,
+        "sha256": "f3f19ee537fd7700524fd79b66a17230c5bb381abf38e7a9cc6ebef318dd9453"
+      },
+      "startedAt": "2026-11-19T16:52:58.484772+00:00",
+      "finishedAt": "2026-11-19T16:52:58.680024+00:00",
+      "result": "PASS",
+      "observedExitCode": 0,
+      "checks": 3507,
+      "problems": []
+    }
+  ],
+  "firstAttemptDispositions": [
+    {
+      "problem": "R1 exact five-file implementation scope",
+      "disposition": "The later R2 preflight includes exactly four already-recorded coordinator-document differences in addition to the five R1 maintained changes; compare delivery stages separately."
+    },
+    {
+      "problem": "R1 exact reconstructed implementation delta",
+      "disposition": "GNU diff and Python difflib choose different valid zero-context blank-line hunks. Reverse every saved archive hunk against exact delivered bytes and require all five original preimages, rather than assuming textual diff-generator equality."
+    },
+    {
+      "problem": "R1 formatter encoded-lines transformation",
+      "disposition": "The encoded lines already preserve the terminal empty line; joining with LF matches the original scrubbed output without appending another LF."
+    },
+    {
+      "problem": "R1 inverse formatter delta exactly matches all preformat hashes",
+      "disposition": "All four helper preimages reconstruct. The earlier README hash predates later documentation; no formatting-only README equivalence is inferred. Separate implementation-delta reversal reconstructs the exact delivered README."
+    },
+    {
+      "problem": "Setup final verification thirteen-path fingerprints: lint-final",
+      "disposition": "The earlier failed lint-final is pre-format. The distinct successful lint-final-fingerprint, alongside the named final CI/group/format/YAML/actionlint observations, matches delivered inputs."
+    },
+    {
+      "problem": "Setup saved before/after inputs: format-owned-files",
+      "disposition": "The successful owned formatter legitimately changes four owned files and explicitly records inputsUnchangedDuringRun false; compare the exact saved flag and four-path delta, not an assumed unchanged flag."
+    },
+    {
+      "problem": "Setup ten maintained changes/three new/four coordinator documents separately reconciled",
+      "disposition": "The historical delivery records have four coordinator changes/2568 unchanged originals; the current review has seven coordinator changes/2565 unchanged originals. Their before/after inventory records are separately matched."
+    }
+  ],
+  "attemptLimit": "All seven first-attempt discrepancies arose from reviewer stage/diff/formatting assumptions, not demonstrated implementation defects. Attempt 1 and its driver remain unchanged. Correcting this read-only reviewer audit did not repeat any test, failed quality command, package lane or historical helper.",
+  "correctedAttempt2Summary": {
+    "checkedSourceInventory": {
+      "entries": 582,
+      "canonicalSha256": "513e950a797f635dc13a8575e47b7427085e5cee075a31073e83fc52e1ff30fc"
+    },
+    "r1": {
+      "archiveEntries": 21,
+      "uniqueDeclaredSources": 48,
+      "preflightFiles": 2536,
+      "changed": [
+        "scripts/ci-test-artifacts.mjs",
+        "scripts/ci-test-artifacts.test.mjs",
+        "scripts/ci-test-workspace.mjs",
+        "scripts/ci-test-workspace.test.mjs",
+        "README.md"
+      ],
+      "unchangedAtCapturedR1Delivery": 2531,
+      "laterCoordinatorDocumentChangesAtR2Preflight": [
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+        "docs/tasks/20261118-111723-dependency-gated-ci-tests.md"
+      ],
+      "formatterHelperPreimageHashesReconstructed": 4,
+      "readmePreformatLimit": {
+        "preformatSha256": "ab328da8c1754fe317565b1929b7835e695189aa672e3fc3afc5a7c824fdb7c9",
+        "deliveredSha256": "4149b5dfdc5c13afea2a2e070bd5dec5c057e8390bde41dc7d2a9f2634bc66a4",
+        "limit": "The preformat inventory captures an earlier README; the reviewed formatter delta covers only the two workspace helper files, not that later documentation update. No format-only README preimage is inferred; the separate implementation delta reconstructs the exact delivered README from its pre-R1 source."
+      },
+      "reviewedHistoricalFailedRecordLabels": [
+        "before-workspace-tests",
+        "broadcast-probe",
+        "broadcast-probe-diagnostic",
+        "prettier-draft",
+        "final-prettier"
+      ],
+      "redBefore": { "tests": 51, "pass": 50, "fail": 1, "exit": 1 },
+      "savedFinalPassCounts": { "helper": 134, "ci": 326, "groups": 18 },
+      "transport": {
+        "initialAndDiagnosticExit": 101,
+        "correctedExit": 0,
+        "realRootUtf8Bytes": 33,
+        "tmpdirUtf8Bytes": 44,
+        "socketUtf8Bytes": [95, 94],
+        "deliveries": 1,
+        "limit": "Saved disposable transport-only success after teardown correction, not a database/full-script/native setup or hosted pass."
+      }
+    },
+    "r2": {
+      "payloads": 10,
+      "payloadBytes": 99546,
+      "uniquePayloadSources": 45,
+      "planningStagingSeals": 34,
+      "stagingExactPayloads": 8,
+      "archiveOnlyOneSpaceDeltas": [
+        {
+          "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/historical-failure.log",
+          "stagedLine": 51,
+          "operation": "Remove exactly one trailing ASCII space; no other bytes changed",
+          "bytesRemoved": 1
+        },
+        {
+          "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/interrupted-package.log",
+          "stagedLine": 64,
+          "operation": "Remove exactly one trailing ASCII space; no other bytes changed",
+          "bytesRemoved": 1
+        }
+      ],
+      "observations": 10,
+      "omittedSetupEvents": 100,
+      "requestFailedEventsRetained": 16,
+      "droppedCountersUnchanged": true,
+      "completedRecorderObjects": 17,
+      "interruptedInvocations": 1,
+      "productionSourceFilesUnchanged": 24,
+      "focusedAbort": {
+        "label": "signer-fetch-contracts",
+        "exit": 1,
+        "pass": 104,
+        "fail": 1,
+        "skipped": 91,
+        "tests": 196,
+        "failureSource": "packages/express-request-attestation/test/fetch-ownership.cases.ts:793",
+        "failureDurationMs": 508,
+        "failure": "AssertionError: expected undefined to deeply equal { status: 'rejected', …(1) }",
+        "observerCasesSkipped": true,
+        "limit": "Failure retained, not attributed to observer causation or harmlessness."
+      },
+      "byteVerifiedBaselineControl": {
+        "label": "signer-fetch-baseline-control",
+        "exit": 0,
+        "pass": 105,
+        "fail": 0,
+        "skipped": 76,
+        "tests": 181
+      },
+      "soleCompleteInvocation": {
+        "savedPasses": { "node": 633, "redis": 62, "mongo": 31, "browser": 141 },
+        "packedConsumerCompletionAbsent": true,
+        "recorderJsonAbsent": true,
+        "separatelyAttributedHarnessMetadata": { "seconds": 120, "exit": 143, "signal": "SIGTERM" },
+        "limit": "No complete-package pass or invented recorder status/count/result; no additional package execution by this reviewer."
+      },
+      "riskLimits": [
+        "No original retry-preparation exception",
+        "Focused abort failure retained, not disposed",
+        "Mapped load/signer identity is changed; static assertion retention does not establish timing neutrality",
+        "Packed-consumer completion/result absent; timeout/exit/signal are separately attributed harness metadata"
+      ]
+    },
+    "setup": {
+      "capturedFiles": 169,
+      "jsonFilesParsed": 57,
+      "archiveEntries": 162,
+      "uniqueOriginalSources": 156,
+      "rawOutputs": 64,
+      "observations": 35,
+      "nonzeroObservations": 11,
+      "preflightFiles": 2582,
+      "maintainedChanges": [
+        ".github/actions/ci-prepare/action.yml",
+        ".github/actions/ci-setup/action.yml",
+        ".github/actions/ci-test/action.yml",
+        ".github/workflows/test.yml",
+        "README.md",
+        "package.json",
+        "scripts/ci-test-plan.mjs",
+        "scripts/ci-test-plan.test.mjs",
+        "scripts/ci-test-results.test.mjs",
+        "scripts/ci-test-workspace.test.mjs"
+      ],
+      "newMaintainedPaths": [
+        ".github/actions/ci-checkout/action.yml",
+        ".github/actions/ci-checkout/index.mjs",
+        "scripts/ci-test-checkout.test.mjs"
+      ],
+      "historicalCoordinatorDocumentDeliveryCount": 4,
+      "historicalDeliveryUnchangedOriginalCount": 2568,
+      "historicalDocumentLimit": "Independently matched original/archived inventory records and their before/after fields; no omitted historical document preimages or state are synthesized.",
+      "coordinatorDocumentChangesAtCurrentReview": [
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md",
+        "docs/tasks/20261118-111723-dependency-gated-ci-tests.md"
+      ],
+      "unchangedOriginalsAtCurrentReview": 2565,
+      "soleR1TestAddition": {
+        "path": "scripts/ci-test-workspace.test.mjs",
+        "line": 194,
+        "addition": "ciActions.source",
+        "allOtherBytesAndModeMatch": true,
+        "preimage": "_tmp-c5f-ovtrnV/setup-scope-amendment-M5CVmx/workspace-test-before.mjs"
+      },
+      "exactResultTestApprovedReplacementCount": 2,
+      "nonzeroRecordLabels": [
+        "red-wiring",
+        "boundary-red",
+        "checkout-green",
+        "helper-contracts",
+        "lint-final",
+        "format-check-before",
+        "format-check-correct-cli",
+        "lint-green",
+        "format-check-final",
+        "archive-initial",
+        "preserve-archive-failure"
+      ],
+      "selectedHistoricalCounts": {
+        "red-wiring": { "pass": 0, "fail": 5, "status": 1 },
+        "boundary-red": { "pass": 177, "fail": 6, "status": 1 },
+        "checkout-green": { "pass": 204, "fail": 1, "status": 1 },
+        "checkout-green-isolated": { "pass": 205, "fail": 0, "status": 0 },
+        "helper-contracts": { "pass": 405, "fail": 1, "status": 1 },
+        "ci-check-final": { "pass": 611, "fail": 0, "status": 0 },
+        "groups-check-final": { "pass": 18, "fail": 0, "status": 0 }
+      },
+      "finalFingerprintRecordLabels": [
+        "ci-check-final",
+        "groups-check-final",
+        "lint-final-fingerprint",
+        "format-check-after-cause-wrap",
+        "yaml-check-final",
+        "actionlint-final"
+      ],
+      "fourOwnedFormatterChanges": [
+        ".github/actions/ci-checkout/index.mjs",
+        "scripts/ci-test-checkout.test.mjs",
+        "scripts/ci-test-plan.mjs",
+        "scripts/ci-test-plan.test.mjs"
+      ],
+      "formatterRecordedInputsUnchangedDuringRun": false,
+      "limit": "All 35 observation counts/nonzero results, exact input flags, chronological serialization, original/sanitized/archive outputs and final thirteen-path fingerprints reconciled. Deep fixtures/metadata/shell modeling remain distinct from native full-root, Node-20 or actual runner acceptance."
+    }
+  },
+  "freshStaticPreservation": {
+    "originalRecord": {
+      "path": "_tmp-c5cr-5m91q69w/static-review.json",
+      "mode": "0644",
+      "bytes": 51046,
+      "sha256": "5ba0c7402f03237d91bc45d70848e67a3fe0f4da212e6513d46ebf5dd70c373b"
+    },
+    "driver": {
+      "path": "_tmp-c5cr-5m91q69w/static-review.mjs",
+      "mode": "0644",
+      "bytes": 14119,
+      "sha256": "82957877046f64f996702ccfbddaadcb0d95c82b3334e9aadaaeb30c068d8dc2"
+    },
+    "checkedAt": "2026-11-19T17:04:28.727Z",
+    "result": "PASS",
+    "savedJsonChecks": 476,
+    "stdoutChecks": 482,
+    "counterDisposition": "Six metadata fingerprint calls after counter capture at static-review.mjs:209-214; static counters are not test counts.",
+    "runtime": { "node": "26.12.1", "v8": "14.6.202.34-node.40", "typescript": "6.0.3" },
+    "r2SyntaxFiles": 8,
+    "parseDiagnostics": 0,
+    "savedR2PreimagesMatched": 5,
+    "expectChains": {
+      "originalRetainedInOrder": 239,
+      "fetchClient": {
+        "original": 111,
+        "delivered": 111,
+        "originalSyntaxSha256": "8a3e9ab421e895fd878e43695f2d865b82bf1dcc547f360cae8284fcc92afbb4",
+        "existingStatementsUnchangedAfterTwoRegistrationAdditions": true
+      },
+      "packedConsumer": {
+        "original": 128,
+        "delivered": 184,
+        "originalSyntaxSha256": "dcaedac0b7cf045d1a2d3a83a8d32e300b8a022ca98b3acae8a91436f527fd4f",
+        "browserScenariosUnchanged": true,
+        "browserScenariosStructuralSha256": "da3fc1fa1df26b749853367ad035bd75c54119a08985abf8ccb3c29e885cf210"
+      },
+      "newDiagnosticCases": 70
+    },
+    "graphPrefix": {
+      "unchangedBytes": 15664,
+      "sha256": "90880d49ae1d8ccbaf3d42a5fd8e65933e42f638f774bbb42968097b20a8b1e4"
+    },
+    "exactApprovedResultTestReplacementCount": 2,
+    "evaluatorSha256": "fe0c33a9379e2a44ef2d458b66d254773b4c7519cccb9c1660512e593410b9da",
+    "workflowPreservation": {
+      "jobIdsAndOrder": 31,
+      "aggregateNeeds": 27,
+      "preservedOriginalCheckoutSteps": 28,
+      "completePackageTestScripts": 25,
+      "independentIds": ["lint", "access-router-minimum-node-smoke", "access-router-react-minimum-node"],
+      "strictYamlFiles": [
+        ".github/workflows/test.yml",
+        ".github/actions/ci-checkout/action.yml",
+        ".github/actions/ci-setup/action.yml",
+        ".github/actions/ci-prepare/action.yml",
+        ".github/actions/ci-test/action.yml"
+      ]
+    },
+    "limits": "Full node/assertion maps, five preimage fingerprints and per-package script records remain in the fingerprinted original JSON and existing protected source/support. Static assertion/metadata preservation is not runtime equivalence, original R2 causality, timing neutrality, native/Node-20/runner or hosted acceptance. No nonexistent retained-assertions.json is used."
+  },
+  "historicalV5": {
+    "rawLog": {
+      "path": "_tmp-05c-G8SORQ/grouped.log",
+      "mode": "0644",
+      "bytes": 252259,
+      "sha256": "1b750bce5243882f4aec8fd8e344049100e49a5c795aea5fee9620420e782bf0"
+    },
+    "groups": 12,
+    "completeScripts": 25,
+    "fileExecutions": 689,
+    "passes": 21224,
+    "todo": 1,
+    "invocations": 34,
+    "matchesLedger": true,
+    "limit": "Historical accounting only; no suite repeated. Earlier failures, cache/resource omissions and Chromium-only selection remain in the protected ledger. Different temporary allocation does not recertify R1/R2/setup, cold installation, current artifacts or hosted behavior."
+  },
+  "omissions": "Full original inventories/observation records, private raw diagnostics, unselected logs, executable audit drivers and dependencies are omitted from this curated support. The two attempts and original streams remain unchanged in ignored scratch or existing sealed support. This is summary evidence, not self-contained runtime reproduction or original causal/risk disposition."
+}

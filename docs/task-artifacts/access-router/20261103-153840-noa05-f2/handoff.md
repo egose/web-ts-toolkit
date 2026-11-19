@@ -27,7 +27,7 @@ index 2c1eb55..c5bc2e7 100644
 ## Complete verification
 
 From repository root, one build/test command at a time. Runtime: Node `26.12.1`,
-pnpm `11.18.0`; existing dependencies, no installation or policy changes. Fresh
+pnpm `11.24.0`; existing dependencies, no installation or policy changes. Fresh
 scratch was created and confirmed ignored before running. Replace `<repo-root>`
 with the checkout path; `TMPDIR` was absolute at runtime.
 

@@ -59,7 +59,7 @@ tests/
 
 ## Toolchain and installation
 
-This generated project requires Node `^22.13.0 || >=24.0.0` and pnpm `11.18.0`, as
+This generated project requires Node `^22.13.0 || >=24.0.0` and pnpm `11.24.0`, as
 declared in `package.json`. The lower bound follows the release dependency
 graph: the shipped `jsdom` 29 / ESLint 10 toolchain requires
 `^20.19.0 || ^22.13.0 || >=24.0.0` while the workspace runtime packages require

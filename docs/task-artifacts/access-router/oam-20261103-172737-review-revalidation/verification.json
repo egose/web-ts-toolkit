@@ -163,7 +163,7 @@
   },
   "environment": {
     "node": "v26.12.1",
-    "pnpm": "11.18.0",
+    "pnpm": "11.24.0",
     "vitest": "4.1.11",
     "workdir": ".",
     "packageVitestEffectiveWorkdirs": ["packages/access-router", "packages/access-router-deco"],

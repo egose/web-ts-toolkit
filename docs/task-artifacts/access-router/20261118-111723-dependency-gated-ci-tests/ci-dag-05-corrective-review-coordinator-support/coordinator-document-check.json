@@ -1,0 +1,464 @@
+{
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "startedAt": "2026-11-19T18:53:00.057533+00:00",
+  "finishedAt": "2026-11-19T18:53:03.602071+00:00",
+  "verdict": "PASS: coordinator documentation/hygiene/scope only; CHANGES REQUIRED / BLOCKED remains",
+  "command": [
+    "python3",
+    "_tmp-c5cr-coord-3ovrro4e/check-coordinator-documents.py",
+    "_tmp-c5cr-coord-3ovrro4e/coordinator-document-check.json"
+  ],
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-coord-3ovrro4e'",
+  "documentationAssertions": 17526,
+  "problems": [],
+  "hygiene": {
+    "scannedFiles": 30,
+    "markdownFiles": 8,
+    "strictJsonFiles": 10,
+    "localLinks": 188,
+    "anchors": 6,
+    "existingExternalHttpsReferencesNotFetched": 2
+  },
+  "documentationFormatter": {
+    "command": [
+      "pnpm",
+      "exec",
+      "prettier",
+      "--check",
+      "--config-path",
+      ".prettierrc",
+      "docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/manifest.json"
+    ],
+    "startedAt": "2026-11-19T18:53:01.151023+00:00",
+    "finishedAt": "2026-11-19T18:53:03.308909+00:00",
+    "exitCode": 0,
+    "inputsBefore": {
+      "docs/tasks/20261118-111723-dependency-gated-ci-tests.md": {
+        "mode": "0644",
+        "bytes": 77842,
+        "sha256": "d026cbe3671eb4f0c294b0bc0cc9dc6ef92b445a2cdf5f68323163ec2f210cc5"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md": {
+        "mode": "0644",
+        "bytes": 28941,
+        "sha256": "eb607e2101df1d27dd8e959572bb7232409d079250d1b0329a1772c82423bc9e"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md": {
+        "mode": "0644",
+        "bytes": 14771,
+        "sha256": "f8d4ac6b967249f1b8c8b4cc13abc48115630c4e69864a842180ef8abcb8a024"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md": {
+        "mode": "0644",
+        "bytes": 18115,
+        "sha256": "f6b06d0157537d6467f6728223b43565ea1a0b5a6d725ee1960e53393ab7f403"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md": {
+        "mode": "0644",
+        "bytes": 46572,
+        "sha256": "f43246961c4d89dd4ae2eaa0bcb6df122e50c327f67c5bc746d733f16b4d7a9d"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md": {
+        "mode": "0644",
+        "bytes": 23573,
+        "sha256": "faa9575fa154e1569b56afdc62e50c3fa094f7f62ae1906b6be33e1475f921b9"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md": {
+        "mode": "0644",
+        "bytes": 19180,
+        "sha256": "bf64f9631e0b251f2615c6b567898da1b1094b7aca3082378e04943996ffcbfc"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/README.md": {
+        "mode": "0644",
+        "bytes": 7566,
+        "sha256": "b4ef8f27ec6949c506fbedf3bf59872d6cacc271481790c93ac7e3b5115caafb"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/manifest.json": {
+        "mode": "0644",
+        "bytes": 23095,
+        "sha256": "85248b8dafafaebbe43b2e05905ec823733e9c8e878d536e25109a1466d85621"
+      }
+    },
+    "inputsAfter": {
+      "docs/tasks/20261118-111723-dependency-gated-ci-tests.md": {
+        "mode": "0644",
+        "bytes": 77842,
+        "sha256": "d026cbe3671eb4f0c294b0bc0cc9dc6ef92b445a2cdf5f68323163ec2f210cc5"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md": {
+        "mode": "0644",
+        "bytes": 28941,
+        "sha256": "eb607e2101df1d27dd8e959572bb7232409d079250d1b0329a1772c82423bc9e"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md": {
+        "mode": "0644",
+        "bytes": 14771,
+        "sha256": "f8d4ac6b967249f1b8c8b4cc13abc48115630c4e69864a842180ef8abcb8a024"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md": {
+        "mode": "0644",
+        "bytes": 18115,
+        "sha256": "f6b06d0157537d6467f6728223b43565ea1a0b5a6d725ee1960e53393ab7f403"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md": {
+        "mode": "0644",
+        "bytes": 46572,
+        "sha256": "f43246961c4d89dd4ae2eaa0bcb6df122e50c327f67c5bc746d733f16b4d7a9d"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md": {
+        "mode": "0644",
+        "bytes": 23573,
+        "sha256": "faa9575fa154e1569b56afdc62e50c3fa094f7f62ae1906b6be33e1475f921b9"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md": {
+        "mode": "0644",
+        "bytes": 19180,
+        "sha256": "bf64f9631e0b251f2615c6b567898da1b1094b7aca3082378e04943996ffcbfc"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/README.md": {
+        "mode": "0644",
+        "bytes": 7566,
+        "sha256": "b4ef8f27ec6949c506fbedf3bf59872d6cacc271481790c93ac7e3b5115caafb"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/manifest.json": {
+        "mode": "0644",
+        "bytes": 23095,
+        "sha256": "85248b8dafafaebbe43b2e05905ec823733e9c8e878d536e25109a1466d85621"
+      }
+    },
+    "inputsUnchangedDuringRun": true,
+    "streams": {
+      "stdout": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/coordinator-document-prettier.stdout.log",
+        "mode": "0644",
+        "bytes": 67,
+        "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b",
+        "rawAtExecutionBytesReported": 67,
+        "rawAtExecutionSha256Reported": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b",
+        "limit": "Raw bytes not separately persisted; retained text is independently readable. Only coordinator documents/new index/manifest selected."
+      },
+      "stderr": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/coordinator-document-prettier.stderr.log",
+        "mode": "0644",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rawAtExecutionBytesReported": 0,
+        "rawAtExecutionSha256Reported": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "limit": "Raw bytes not separately persisted; retained text is independently readable. Only coordinator documents/new index/manifest selected."
+      }
+    },
+    "selectedMarkdownFiles": 8,
+    "selectedJsonFiles": 1,
+    "excluded": "All maintained code/workflow files, unchanged reviewer deliverables and 21 immutable raw receipt/driver copies; their exclusion is not a Prettier pass",
+    "configInput": {
+      "path": ".prettierrc",
+      "mode": "0644",
+      "bytes": 371,
+      "sha256": "d5f583faa0e75f412586161fc0aa3f444cd95dadb6f37544acf25720a6600428"
+    }
+  },
+  "documentationDelta": {
+    "changedDocuments": {
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md": {
+        "before": {
+          "mode": "0644",
+          "bytes": 15160,
+          "sha256": "e19893042c9865807e1aa10b2f3d77d1088cd77469d6d21f9f9bbd65c68afce4"
+        },
+        "after": {
+          "mode": "0644",
+          "bytes": 19180,
+          "sha256": "bf64f9631e0b251f2615c6b567898da1b1094b7aca3082378e04943996ffcbfc"
+        },
+        "retainedPreimage": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md": {
+        "before": {
+          "mode": "0644",
+          "bytes": 16356,
+          "sha256": "8da278286d7882e70c8c616b4c1956dd2c0f06fd71b0ce6a61868fb2e35b67d1"
+        },
+        "after": {
+          "mode": "0644",
+          "bytes": 18115,
+          "sha256": "f6b06d0157537d6467f6728223b43565ea1a0b5a6d725ee1960e53393ab7f403"
+        },
+        "retainedPreimage": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md": {
+        "before": {
+          "mode": "0644",
+          "bytes": 12666,
+          "sha256": "925035d953a5c79b44cfdc630f2676864466a9b2edfe33732404de71a14d6e02"
+        },
+        "after": {
+          "mode": "0644",
+          "bytes": 14771,
+          "sha256": "f8d4ac6b967249f1b8c8b4cc13abc48115630c4e69864a842180ef8abcb8a024"
+        },
+        "retainedPreimage": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md": {
+        "before": {
+          "mode": "0644",
+          "bytes": 43108,
+          "sha256": "16de64041844c2acc95631d3939e08ce807a87cc9e4aa2790f07a7a29da659fa"
+        },
+        "after": {
+          "mode": "0644",
+          "bytes": 46572,
+          "sha256": "f43246961c4d89dd4ae2eaa0bcb6df122e50c327f67c5bc746d733f16b4d7a9d"
+        },
+        "retainedPreimage": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md": {
+        "before": {
+          "mode": "0644",
+          "bytes": 21741,
+          "sha256": "9125dbfcfe3ab62815b6947de72360316c8a98f3209f75080300196e82dc61c3"
+        },
+        "after": {
+          "mode": "0644",
+          "bytes": 23573,
+          "sha256": "faa9575fa154e1569b56afdc62e50c3fa094f7f62ae1906b6be33e1475f921b9"
+        },
+        "retainedPreimage": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md"
+      },
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md": {
+        "before": {
+          "mode": "0644",
+          "bytes": 24153,
+          "sha256": "adc002cbf3342f363249e3522cfcaf08f70a20b0789100d175f6e10ee2b093ce"
+        },
+        "after": {
+          "mode": "0644",
+          "bytes": 28941,
+          "sha256": "eb607e2101df1d27dd8e959572bb7232409d079250d1b0329a1772c82423bc9e"
+        },
+        "retainedPreimage": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md"
+      },
+      "docs/tasks/20261118-111723-dependency-gated-ci-tests.md": {
+        "before": {
+          "mode": "0644",
+          "bytes": 73898,
+          "sha256": "67a328c506080f7acfcc8ab6216e35617ccf69feadab7a654550b0718c85306e"
+        },
+        "after": {
+          "mode": "0644",
+          "bytes": 77842,
+          "sha256": "d026cbe3671eb4f0c294b0bc0cc9dc6ef92b445a2cdf5f68323163ec2f210cc5"
+        },
+        "retainedPreimage": "_tmp-c5cr-coord-3ovrro4e/pre-update/docs/tasks/20261118-111723-dependency-gated-ci-tests.md"
+      }
+    },
+    "diff": {
+      "path": "_tmp-c5cr-coord-3ovrro4e/coordinator-document-update.diff",
+      "mode": "0644",
+      "bytes": 83833,
+      "sha256": "9cc06b8fb3412ac0137c6a55e7c61888b609a2f292766fd4cbc06b61cede1b78"
+    },
+    "method": "Exact seven-path unified diff against preserved review-input preimages, not HEAD. Preimage fingerprints equal immutable snapshot; all other originals remain byte/mode exact."
+  },
+  "protectedScope": {
+    "reviewedOriginals": 2771,
+    "authorizedCoordinatorDocumentChanges": 7,
+    "unchangedProtectedOriginals": 2764,
+    "unchangedMaintainedFingerprints": 24,
+    "unchangedHistoricalSeals": 33,
+    "unchangedReviewerDeliverables": 9,
+    "unchangedSnapshotAndAssignment": true,
+    "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+    "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+    "capturedCurrentRegularFiles": 2805,
+    "capturedCurrentFilesTableSha256": "faafe017cfffca6d614b44c9e65734d537f6fdc3bfdfeec0aa518bf98afacb73",
+    "initialImmutableCopyEntries": 21,
+    "initialImmutableCopyBytes": 383653,
+    "onlyAdditionalPrefix": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/",
+    "checksMadeNoGitVisibleEdits": true
+  },
+  "gitCommands": [
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 41,
+      "stdoutSha256": "d9fc09c66e8f9d79791308f3960d7c07e38589b227a43bdd643e2247bdeeeafa"
+    },
+    {
+      "command": [
+        "git",
+        "for-each-ref",
+        "--format=%(objectname) %(refname)"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 8156,
+      "stdoutSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b"
+    },
+    {
+      "command": [
+        "git",
+        "status",
+        "--short"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 1344,
+      "stdoutSha256": "ee96fed08f62dbef2db568b6c1367c50042daae4b695d0b970d810ec6454cd19"
+    },
+    {
+      "command": [
+        "git",
+        "ls-files",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "-z"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 202029,
+      "stdoutSha256": "8bdccc5166d92c584e3dee230afe01dc1ea67ea00c06dee8cca1dcc67a4179b2"
+    },
+    {
+      "command": [
+        "git",
+        "check-ignore",
+        "--",
+        "_tmp-c5cr-coord-3ovrro4e"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 25,
+      "stdoutSha256": "841472ca5ae1167a25ad77c630975a40a6dc7ae2ecee06645185c70cc1fa109d"
+    },
+    {
+      "command": [
+        "git",
+        "check-ignore",
+        "--",
+        "docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/README.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/manifest.json"
+      ],
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 41,
+      "stdoutSha256": "d9fc09c66e8f9d79791308f3960d7c07e38589b227a43bdd643e2247bdeeeafa"
+    },
+    {
+      "command": [
+        "git",
+        "for-each-ref",
+        "--format=%(objectname) %(refname)"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 8156,
+      "stdoutSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b"
+    },
+    {
+      "command": [
+        "git",
+        "status",
+        "--short"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 1344,
+      "stdoutSha256": "ee96fed08f62dbef2db568b6c1367c50042daae4b695d0b970d810ec6454cd19"
+    },
+    {
+      "command": [
+        "git",
+        "ls-files",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "-z"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 202029,
+      "stdoutSha256": "8bdccc5166d92c584e3dee230afe01dc1ea67ea00c06dee8cca1dcc67a4179b2"
+    },
+    {
+      "command": [
+        "git",
+        "check-ignore",
+        "--",
+        "_tmp-c5cr-coord-3ovrro4e"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 25,
+      "stdoutSha256": "841472ca5ae1167a25ad77c630975a40a6dc7ae2ecee06645185c70cc1fa109d"
+    },
+    {
+      "command": [
+        "git",
+        "check-ignore",
+        "--",
+        "docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/README.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/manifest.json"
+      ],
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "coordinatorDriver": {
+    "path": "_tmp-c5cr-coord-3ovrro4e/check-coordinator-documents.py",
+    "mode": "0644",
+    "bytes": 16765,
+    "sha256": "79960e3a6ba6861919986f2721f838bde7676880130e74fad27459037813651b"
+  },
+  "captureBoundary": "Updated documents/index/manifest and the 21 immutable evidence payloads at this capture. The later diff/receipt/driver/preservation metadata copies are separate additions; this receipt excludes its own digest and those later copies. No historical check is rerun or acceptance granted.",
+  "limits": "Only this new stdlib document reader, allowlisted read-only Git metadata and one nine-file coordinator-document Prettier check executed. No historical/project/reviewer driver, maintained validator/package/quality selection, source/native/runner probe, installation, resource, network, hosted/publication/settings operation. Existing HTTPS links were checked syntactically, not fetched. Privacy patterns/manual review are bounded, not a claim of exhaustive secret detection."
+}

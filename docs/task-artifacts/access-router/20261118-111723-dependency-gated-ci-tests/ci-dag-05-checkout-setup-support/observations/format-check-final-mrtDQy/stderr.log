@@ -1,0 +1,2 @@
+[warn] .github/actions/ci-checkout/index.mjs
+[warn] Code style issues found in 1 file. Run Prettier with --write to fix.

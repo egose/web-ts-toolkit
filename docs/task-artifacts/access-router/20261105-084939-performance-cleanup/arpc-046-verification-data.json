@@ -3,7 +3,7 @@
   "date": "2026-11-07",
   "head": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
   "node": "v26.12.1",
-  "pnpm": "11.18.0",
+  "pnpm": "11.24.0",
   "vitest": "4.1.11",
   "platform": "Linux 6.18.54.1-microsoft-standard-WSL2 x86_64 GNU/Linux",
   "productionFilesComparedToHead": 151,

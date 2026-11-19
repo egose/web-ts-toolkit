@@ -225,7 +225,7 @@ Their scratch logs/reporter outputs are omitted, not required archive inputs.
 - Comparable original 1,744-file source scope now hashes to
   `03d82fde3cd57f5c4ff50577ab5b9eff8cde04a594d25d991a80d6d3881c4a1f`.
   Exactly the four documented files differ from the earlier failed review.
-- Node `26.12.1`, pnpm `11.18.0`, Vitest `4.1.11`. Existing repository dependencies
+- Node `26.12.1`, pnpm `11.24.0`, Vitest `4.1.11`. Existing repository dependencies
   were used; normal test scripts create isolated consumers/React lane dependencies.
   No root lockfile or metadata change occurred.
 - [Source identity](source-identity.json) records the hash method, selected bytes and

@@ -186,8 +186,8 @@ Exact expanded V1 selection/commands, runtime and identities are in
    verified. All 15 rebuilt access-router dist files, including eight declaration
    files, byte-match CWO-01. The task document was not edited.
 
-Actual runtime: Node **v26.12.1**, pnpm **11.18.0**, matching root
-`packageManager: "pnpm@11.18.0"`. The distinct `.tool-versions` pnpm **11.24.0**
+Actual runtime: Node **v26.12.1**, pnpm **11.24.0**, matching root
+`packageManager: "pnpm@11.24.0"`. The distinct `.tool-versions` pnpm **11.24.0**
 entry was inspected and left unchanged. The existing Vite native-config warning was
 not suppressed and no test settings/timeouts were changed. No command remains active.
 

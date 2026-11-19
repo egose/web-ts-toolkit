@@ -818,7 +818,7 @@ transport/device variants, stale-session survival, installed ESM/CJS/types/READM
 and `/wire` isolation. Historical red-run evidence was inspected against baseline
 source, not replayed. Website evidence was reused without edits.
 
-Commands (working directory `<repo-root>`, Node 26.12.1, pnpm 11.18.0):
+Commands (working directory `<repo-root>`, Node 26.12.1, pnpm 11.24.0):
 
 ```sh
 TMPDIR='<repo-root>/_tmp-fer-20261104-112824/fer04-review-DQqeWC' pnpm --filter @web-ts-toolkit/express-oidc-vault test
@@ -924,7 +924,7 @@ Success routing/base-path normalization are unchanged. All 18 task paths remaine
 byte-for-byte unchanged by review.
 
 Current-source V4 commands (working directory `<repo-root>`, Node 26.12.1,
-pnpm 11.18.0; serial, fresh short real ignored TMPDIR):
+pnpm 11.24.0; serial, fresh short real ignored TMPDIR):
 
 ```sh
 TMPDIR='<repo-root>/_tmp4-FJ2Gro' pnpm --filter @web-ts-toolkit/express-oidc-vault test

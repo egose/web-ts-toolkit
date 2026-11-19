@@ -35,7 +35,7 @@ change was made. Normal packed-consumer suites installed their isolated consumer
 ## Fresh commands and results
 
 Every command ran **serially from repository root** with installed dependencies and
-MongoDB prerequisites, Node `v26.12.1`, pnpm `11.18.0`, Vitest `4.1.11`. Fresh scratch
+MongoDB prerequisites, Node `v26.12.1`, pnpm `11.24.0`, Vitest `4.1.11`. Fresh scratch
 `_tmp-oam04-revalidation-20261104-070756` was created and confirmed ignored using
 `git check-ignore`. Every runtime/build/type/test/lint/format command used its
 absolute checkout path as `TMPDIR`; benchmark/verifier commands also used it as

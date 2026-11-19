@@ -1,0 +1,405 @@
+{
+  "reviewAlias": "CI-DAG-05 fresh corrective-review session",
+  "purpose": "Curated records of the six fresh one-shot static/validation/quality invocations; no package or runtime acceptance is inferred.",
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-5m91q69w'",
+  "recorder": {
+    "path": "_tmp-c5cr-5m91q69w/run_review_check.py",
+    "mode": "0644",
+    "bytes": 9641,
+    "sha256": "5247235b01f1611dcedbc03c28d6fe111c1b12a8830790c4170affbbe1444a2a"
+  },
+  "recorderInvocation": {
+    "commandTemplate": ["python3", "_tmp-c5cr-5m91q69w/run_review_check.py", "<label>"],
+    "limit": "Substitute each recorded label: exactly one invocation per label, in listed order. Historical template requires the omitted scratch recorder and installed dependencies; not executable from support alone."
+  },
+  "allowanceUse": {
+    "ciContractCheckInvocations": 1,
+    "groupValidationCheckInvocations": 1,
+    "allSixInvocationsSerial": true,
+    "checkRetries": 0,
+    "directHelperRepeats": 0,
+    "packageLaneInvocations": 0,
+    "standaloneNativeOrRunnerProbes": 0
+  },
+  "inputIdentityForEveryInvocation": {
+    "immutableSnapshotSha256": "ad378fec69c87bb1b750c9f1bb3b47b23861ebf4f1d40a3aabb9ebe4678ef696",
+    "protectedRegularFilesBeforeAndAfter": 2771,
+    "protectedFilesTableSha256BeforeAndAfter": "0ff69a3db18fc13dbebe0107f4dc3dc03151520dd1a263da180feee31c56a7c2",
+    "maintainedFingerprintsBeforeAndAfter": 24,
+    "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+    "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+    "inputsUnchangedDuringEveryRun": true,
+    "exactSelectedInputTable": "inputs.json",
+    "omission": "Repeated full before/after tables are omitted; their unchanged original recorder JSON remains fingerprinted below. Ignored dependencies/build/cache state is not inventoried."
+  },
+  "skippedForAllSix": [
+    "all package/focused/pack/consumer lanes",
+    "all workspace builds/full suites/resources",
+    "standalone source/native-short-root/Node-20/runner/hosted probes",
+    "installations/fetches/production history/config/ref changes"
+  ],
+  "streamPolicy": {
+    "recorderTransformation": "UTF-8 text; replace checkout/home absolute paths and private session IDs with placeholders; originals not persisted",
+    "allSixRawAndScratchRetainedBytesAndHashesEqual": true,
+    "streamFingerprintMeaning": "The bytes and sha256 fields below identify each original scratch-retained stream and, for these six invocations, the equal raw-at-execution bytes/hash. Full successful streams are omitted; excerpts are selected text with LF line endings, not a full byte-exact archive.",
+    "failureArchivalException": "The complete new durable Prettier stdout normalizes its sole CRLF to LF, decreasing 24 bytes to 23. Original scratch/raw and new archive hashes are both recorded. Stderr is byte-exact. Neither original stream nor failed command was changed or repeated."
+  },
+  "records": [
+    {
+      "label": "static-review",
+      "invocationCount": 1,
+      "originalRecord": {
+        "path": "_tmp-c5cr-5m91q69w/static-review.result.json",
+        "mode": "0644",
+        "bytes": 15634,
+        "sha256": "2eceedc013700534d7023a9abf8ff4ebbfa0f22ecca8ccfce2c6383be4cf6430"
+      },
+      "command": ["node", "_tmp-c5cr-5m91q69w/static-review.mjs", "_tmp-c5cr-5m91q69w/static-review.json"],
+      "startedAt": "2026-11-19T17:04:28.046355+00:00",
+      "finishedAt": "2026-11-19T17:04:28.839555+00:00",
+      "durationSeconds": 0.68602,
+      "exitCode": 0,
+      "signalNumber": null,
+      "counts": null,
+      "selection": {
+        "r2MaintainedSyntaxFiles": 8,
+        "r2SavedPreimages": 5,
+        "originalExpectChainsRetainedInOrder": 239,
+        "strictYamlFiles": 5,
+        "otherSelectedScope": "Graph/evaluator/workflow/package metadata structural comparison",
+        "resultDetails": "evidence-reconciliation.json",
+        "savedJsonCheckCounter": 476,
+        "stdoutCheckCounter": 482,
+        "counterDisposition": "Six metadata fingerprint calls at static-review.mjs:209-214 occur after JSON counter capture; neither count is a runtime-test total."
+      },
+      "streams": {
+        "stdout": {
+          "path": "_tmp-c5cr-5m91q69w/static-review.stdout.log",
+          "bytes": 1659,
+          "sha256": "c2f2b8ff8983f8846505ec43ac4930d6e2a661d2efbc16d4bf7e45003c6c313e"
+        },
+        "stderr": {
+          "path": "_tmp-c5cr-5m91q69w/static-review.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "stdoutExcerpt": {
+        "selection": "Lines 2-4 of original stdout",
+        "lines": ["  \"result\": \"PASS\",", "  \"checks\": 482,", "  \"problems\": [],"]
+      }
+    },
+    {
+      "label": "ci-contract-check",
+      "invocationCount": 1,
+      "originalRecord": {
+        "path": "_tmp-c5cr-5m91q69w/ci-contract-check.result.json",
+        "mode": "0644",
+        "bytes": 15950,
+        "sha256": "85a755a3d7b77f6a640ba8bed61ee98849903e9d06bdc9777d13615f8e2bffc1"
+      },
+      "command": ["pnpm", "test:ci:check"],
+      "packageScriptAtInvocation": "node --test --test-concurrency=1 scripts/ci-test-plan.test.mjs scripts/ci-test-artifacts.test.mjs scripts/ci-test-workspace.test.mjs scripts/ci-test-results.test.mjs scripts/ci-test-checkout.test.mjs && node scripts/ci-test-plan.mjs --check && node scripts/ci-test-plan.mjs --check-workflow .github/workflows/test.yml",
+      "startedAt": "2026-11-19T17:04:48.002517+00:00",
+      "finishedAt": "2026-11-19T17:05:15.649092+00:00",
+      "durationSeconds": 27.543781,
+      "exitCode": 0,
+      "signalNumber": null,
+      "counts": {
+        "tests": 611,
+        "suites": 0,
+        "pass": 611,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "duration_ms": 24882.284271
+      },
+      "selection": [
+        "scripts/ci-test-plan.test.mjs",
+        "scripts/ci-test-artifacts.test.mjs",
+        "scripts/ci-test-workspace.test.mjs",
+        "scripts/ci-test-results.test.mjs",
+        "scripts/ci-test-checkout.test.mjs",
+        "scripts/ci-test-plan.mjs --check",
+        "scripts/ci-test-plan.mjs --check-workflow .github/workflows/test.yml"
+      ],
+      "scopeLimit": "Maintained synthetic checkout fixtures only within this authorized validator; their local Git/ownership operations are not standalone production source, Node-20, positive full native-root or runner main/post evidence. No package/browser/database/consumer lane ran.",
+      "streams": {
+        "stdout": {
+          "path": "_tmp-c5cr-5m91q69w/ci-contract-check.stdout.log",
+          "bytes": 57748,
+          "sha256": "c80f9833764938544d64c3e4fec94784df4ae5eecb965f3625082823f0534350"
+        },
+        "stderr": {
+          "path": "_tmp-c5cr-5m91q69w/ci-contract-check.stderr.log",
+          "bytes": 320,
+          "sha256": "0af68c3f239fd739e0e9f0587a5b18f748dabe25d5f78b181373476d17f54402"
+        }
+      },
+      "stdoutExcerpt": {
+        "selection": "Final ten lines of original stdout",
+        "lines": [
+          "ℹ tests 611",
+          "ℹ suites 0",
+          "ℹ pass 611",
+          "ℹ fail 0",
+          "ℹ cancelled 0",
+          "ℹ skipped 0",
+          "ℹ todo 0",
+          "ℹ duration_ms 24882.284271",
+          "Validated CI model: 25 tested workspaces, 26 declared gates + 1 fixture gates, 6 build-only workspaces. Workflow agreement is a separate --check-workflow check.",
+          "Validated workflow and CI helper contracts: .github/workflows/test.yml (25 tested workspaces)."
+        ]
+      }
+    },
+    {
+      "label": "group-validation-check",
+      "invocationCount": 1,
+      "originalRecord": {
+        "path": "_tmp-c5cr-5m91q69w/group-validation-check.result.json",
+        "mode": "0644",
+        "bytes": 15712,
+        "sha256": "a45f60e63ef9694b333d2b6cd5c14153e9eb59d57151f3f1a0aa4c43035e2268"
+      },
+      "command": ["pnpm", "test:groups:check"],
+      "packageScriptAtInvocation": "node --test scripts/test-groups.test.mjs && node scripts/test-groups.mjs --check",
+      "startedAt": "2026-11-19T17:05:19.086015+00:00",
+      "finishedAt": "2026-11-19T17:05:23.136425+00:00",
+      "durationSeconds": 3.94595,
+      "exitCode": 0,
+      "signalNumber": null,
+      "counts": {
+        "tests": 18,
+        "suites": 0,
+        "pass": 18,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "duration_ms": 2232.872939
+      },
+      "selection": ["scripts/test-groups.test.mjs", "scripts/test-groups.mjs --check"],
+      "scopeLimit": "12 groups / 25 workspaces validated; no actual workspace group or package suite execution. Serialized after CI validation.",
+      "streams": {
+        "stdout": {
+          "path": "_tmp-c5cr-5m91q69w/group-validation-check.stdout.log",
+          "bytes": 1604,
+          "sha256": "962dd3e545418b9016d6799185ed9c4edd5e390e93b8523d6a9fbdc9801f6dbd"
+        },
+        "stderr": {
+          "path": "_tmp-c5cr-5m91q69w/group-validation-check.stderr.log",
+          "bytes": 83,
+          "sha256": "28e1a1d8d5567fb8820d6b28040398278fd40ab42937599c77e14dfe50b1af7c"
+        }
+      },
+      "stdoutExcerpt": {
+        "selection": "Final nine lines of original stdout",
+        "lines": [
+          "ℹ tests 18",
+          "ℹ suites 0",
+          "ℹ pass 18",
+          "ℹ fail 0",
+          "ℹ cancelled 0",
+          "ℹ skipped 0",
+          "ℹ todo 0",
+          "ℹ duration_ms 2232.872939",
+          "Validated 12 test groups covering 25 workspaces."
+        ]
+      }
+    },
+    {
+      "label": "targeted-eslint",
+      "invocationCount": 1,
+      "originalRecord": {
+        "path": "_tmp-c5cr-5m91q69w/targeted-eslint.result.json",
+        "mode": "0644",
+        "bytes": 17629,
+        "sha256": "8a9d573b7d49d26626fb3678f1c486bee41c8a830dd7035c873974fa42deb71a"
+      },
+      "command": [
+        "pnpm",
+        "exec",
+        "eslint",
+        ".github/actions/ci-checkout/index.mjs",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.d.mts",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs",
+        "packages/express-request-attestation/test/fetch-client.test.ts",
+        "packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts",
+        "packages/express-request-attestation/test/installed-browser-harness.ts",
+        "packages/express-request-attestation/test/packed-consumer.test.ts",
+        "scripts/ci-test-artifacts.mjs",
+        "scripts/ci-test-artifacts.test.mjs",
+        "scripts/ci-test-checkout.test.mjs",
+        "scripts/ci-test-plan.mjs",
+        "scripts/ci-test-plan.test.mjs",
+        "scripts/ci-test-results.test.mjs",
+        "scripts/ci-test-workspace.mjs",
+        "scripts/ci-test-workspace.test.mjs"
+      ],
+      "selectedPathCount": 17,
+      "startedAt": "2026-11-19T17:05:29.081098+00:00",
+      "finishedAt": "2026-11-19T17:05:33.449145+00:00",
+      "durationSeconds": 4.265011,
+      "exitCode": 0,
+      "signalNumber": null,
+      "counts": null,
+      "streams": {
+        "stdout": {
+          "path": "_tmp-c5cr-5m91q69w/targeted-eslint.stdout.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "path": "_tmp-c5cr-5m91q69w/targeted-eslint.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    {
+      "label": "maintained-prettier",
+      "invocationCount": 1,
+      "originalRecord": {
+        "path": "_tmp-c5cr-5m91q69w/maintained-prettier.result.json",
+        "mode": "0644",
+        "bytes": 18216,
+        "sha256": "e46b349ef7421f68e423f11764a2e0249cb2170b22e444603c1067eba45a9960"
+      },
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--check",
+        "--config-path",
+        ".prettierrc",
+        ".github/actions/ci-checkout/action.yml",
+        ".github/actions/ci-checkout/index.mjs",
+        ".github/actions/ci-prepare/action.yml",
+        ".github/actions/ci-setup/action.yml",
+        ".github/actions/ci-test/action.yml",
+        ".github/workflows/test.yml",
+        "README.md",
+        "package.json",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.d.mts",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs",
+        "packages/express-request-attestation/test/fetch-client.test.ts",
+        "packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts",
+        "packages/express-request-attestation/test/installed-browser-harness.ts",
+        "packages/express-request-attestation/test/packed-consumer.test.ts",
+        "scripts/ci-test-artifacts.mjs",
+        "scripts/ci-test-artifacts.test.mjs",
+        "scripts/ci-test-checkout.test.mjs",
+        "scripts/ci-test-plan.mjs",
+        "scripts/ci-test-plan.test.mjs",
+        "scripts/ci-test-results.test.mjs",
+        "scripts/ci-test-workspace.mjs",
+        "scripts/ci-test-workspace.test.mjs"
+      ],
+      "selectedPathCount": 24,
+      "startedAt": "2026-11-19T17:05:37.019263+00:00",
+      "finishedAt": "2026-11-19T17:05:38.530898+00:00",
+      "durationSeconds": 1.416419,
+      "exitCode": 1,
+      "signalNumber": null,
+      "counts": null,
+      "failedPaths": [".github/workflows/test.yml"],
+      "failureDisposition": "Current maintained formatting failure retained without implementation edit or retry. No baseline execution establishes it as pre-existing. Setup's saved successful formatting selection excluded YAML.",
+      "streams": {
+        "stdout": {
+          "path": "_tmp-c5cr-5m91q69w/maintained-prettier.stdout.log",
+          "bytes": 24,
+          "sha256": "f563726beee093be4f60c47bb6fd71641105b841418dca69dc29b62871faa84a",
+          "durableArchive": {
+            "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/maintained-prettier.stdout.log",
+            "bytes": 23,
+            "sha256": "ebe82dad128d5e5d8936334ceac09492f3c60bd9e0b4a16cc7fd7075513b33de",
+            "transformation": "Normalize the sole CRLF to LF; no other byte change. Original remains unchanged."
+          }
+        },
+        "stderr": {
+          "path": "_tmp-c5cr-5m91q69w/maintained-prettier.stderr.log",
+          "bytes": 110,
+          "sha256": "894b457c0fe401b1e7193511b9d30175f7042fe2a8bb7229589f6e96f9fb2511",
+          "durableArchive": {
+            "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/maintained-prettier.stderr.log",
+            "bytes": 110,
+            "sha256": "894b457c0fe401b1e7193511b9d30175f7042fe2a8bb7229589f6e96f9fb2511",
+            "transformation": "Byte-exact copy; original remains unchanged."
+          }
+        }
+      }
+    },
+    {
+      "label": "verified-actionlint",
+      "invocationCount": 1,
+      "originalRecord": {
+        "path": "_tmp-c5cr-5m91q69w/verified-actionlint.result.json",
+        "mode": "0644",
+        "bytes": 16382,
+        "sha256": "488243c2c2532af54087f17277c308d6818db60370dff2b5cb6ef594ef61fae2"
+      },
+      "command": [
+        "_tmp-ci-dag-04-accept-HHjMox/actionlint/actionlint",
+        "-shellcheck=",
+        "-pyflakes=",
+        ".github/workflows/test.yml"
+      ],
+      "selectedPaths": [".github/workflows/test.yml"],
+      "startedAt": "2026-11-19T17:05:50.502191+00:00",
+      "finishedAt": "2026-11-19T17:05:50.675247+00:00",
+      "durationSeconds": 0.005506,
+      "exitCode": 0,
+      "signalNumber": null,
+      "counts": null,
+      "optionalChecksDisabled": ["shellcheck", "pyflakes"],
+      "streams": {
+        "stdout": {
+          "path": "_tmp-c5cr-5m91q69w/verified-actionlint.stdout.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "path": "_tmp-c5cr-5m91q69w/verified-actionlint.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    }
+  ],
+  "actionlintProvenance": {
+    "originalRecord": {
+      "path": "_tmp-c5cr-5m91q69w/actionlint-provenance.json",
+      "mode": "0644",
+      "bytes": 1235,
+      "sha256": "8cf507a2df11b981c329cbff9c5478b8b428105c80d41111bb518dae8574923f"
+    },
+    "archive": {
+      "path": "_tmp-ci-dag-04-accept-HHjMox/actionlint/actionlint.tar.gz",
+      "mode": "0644",
+      "bytes": 2080472,
+      "sha256": "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
+    },
+    "installedBinary": {
+      "path": "_tmp-ci-dag-04-accept-HHjMox/actionlint/actionlint",
+      "mode": "0755",
+      "bytes": 5132440,
+      "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+    },
+    "archiveMember": {
+      "name": "actionlint",
+      "mode": "0755",
+      "bytes": 5132440,
+      "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+    },
+    "procedure": "Independent regular-file SHA-256/mode check and exact in-memory regular archive-member comparison; archive/binary pin matches were repeated within the one-shot recorder before the only execution. No extraction, fetch, installation or new signature/network verification.",
+    "limits": "Local equality to historical checksum pins in the sealed handoff/review; no claim that disabled shellcheck/pyflakes ran."
+  },
+  "deliveryOnlyChecks": "delivery-check.json",
+  "omissionsAndLimits": "Original recorder JSON, full successful streams and scratch drivers are omitted from this summary-only support. No package/consumer completeness, timing neutrality, original R2 causality, Node-20/native/runner or hosted rollout acceptance is claimed. Additional report/support-only checks are separate and do not repeat a maintained failed check."
+}

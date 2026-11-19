@@ -3,7 +3,7 @@
   "provenance": "Implementer-curated summary reconciled with Vitest JSON and console summaries; not independent review or raw reproduction evidence",
   "environment": {
     "node": "26.12.1",
-    "pnpm": "11.18.0",
+    "pnpm": "11.24.0",
     "scratch": "_tmp-noa04-I2bo1b99",
     "ignoredScratchConfirmed": true,
     "serializedBuildsAndTests": true

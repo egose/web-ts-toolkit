@@ -833,6 +833,7 @@ describe.each(['lean', 'hydrated'] as const)('DPV-04 alternate entry points (%s)
   ] as const)('root %s returns the same declared private computation', async (operation) => {
     const f = await fixture(hydration, { parent: { docPermissions: () => ({ owns: true }) } });
     f.Parent.schema.path('account').default(f.b._id);
+    f.Parent.recompileSchema();
     const id = String(f.parent._id);
     const subId = String(f.parent.children[0]._id);
     const sub = operation.startsWith('sub');
@@ -1058,6 +1059,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 / POP-03 denied-read ID ret
     ] as const)('root %s keeps computation authority separate from reference output', async (operation) => {
       const f = await policyFixture();
       f.Parent.schema.path('account').default(f.b._id);
+      f.Parent.recompileSchema();
       const id = String(f.parent._id);
       const subId = String(f.parent.children[0]._id);
       const sub = operation.startsWith('sub');
@@ -1104,6 +1106,7 @@ describe.each(['lean', 'hydrated'] as const)('PPR-02 / POP-03 denied-read ID ret
     it('trusted create/update/upsert/new retain local snapshots and perform persistence once', async () => {
       const f = await policyFixture();
       f.Parent.schema.path('account').default(f.b._id);
+      f.Parent.recompileSchema();
       await f.execute(async (req) => {
         const service = req.macl.getService(f.Parent.modelName);
         const args = { select: ['name', 'account', 'total'] };

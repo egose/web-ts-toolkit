@@ -97,7 +97,7 @@ still one filtered build, preflight and one Vitest execution, not three chained
 layers. Original Node/setup/serial-file/timeout settings are unchanged. Normal
 Vite future-native-config warnings remained visible and unsuppressed.
 
-Environment: Linux x64, Node **v26.12.1**, pnpm **11.18.0**, TypeScript **6.0.3**,
+Environment: Linux x64, Node **v26.12.1**, pnpm **11.24.0**, TypeScript **6.0.3**,
 Vitest **4.1.11**, tsup **8.5.1**, Express **5.2.1**, Mongoose **9.11.4**,
 mongodb-memory-server **11.2.0**. Real Mongo, minimum/current-peer packed and bounded
 publication fixtures, and installed positive/negative compiles actually ran in

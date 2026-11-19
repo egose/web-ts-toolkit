@@ -143,7 +143,7 @@ typecheck and wrote only to new CWO-03 scratch. It did not edit maintained files
 share build outputs; source-only typecheck was repeated serially. All subsequent
 commands were serialized. No background command or active job remains.
 
-Actual Node was **v26.12.1**, pnpm **11.18.0**, matching root `pnpm@11.18.0`.
+Actual Node was **v26.12.1**, pnpm **11.24.0**, matching root `pnpm@11.24.0`.
 The existing Vite native-config warning was not suppressed. Read-only preservation
 checked 2,507 pre-existing files, 153 production source files, 15 dist files/eight
 declarations, 14 CWO-01 payloads and 12 recorded scratch originals, including the

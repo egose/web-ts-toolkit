@@ -1,0 +1,63 @@
+{
+  "checkedAt": "2026-11-19T13:48:08.449Z",
+  "scope": "Coordinator-only amendment document, copy, links/privacy/format and preimage/seal checks while setup is paused; no product/helper/fixture/package/resource/build/hosted execution",
+  "scratch": "_tmp-c5f-ovtrnV/setup-scope-check-vLNj13",
+  "coordinatorChangedDocuments": {
+    "docs/tasks/20261118-111723-dependency-gated-ci-tests.md": {
+      "mode": "0644",
+      "bytes": 70825,
+      "sha256": "88d470f5fcd21f1873c4b2ab5131df0cd30176b9bf65fa68ca03ca34c063ffac"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md": {
+      "mode": "0644",
+      "bytes": 14960,
+      "sha256": "a99f8fbf763f125cb55acf0e91b5c26c544777cae7ebf9a12f36758949eca2fa"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md": {
+      "mode": "0644",
+      "bytes": 20242,
+      "sha256": "ba1d58c931c76c3aaa98b49ef2736c6db1c437070475f10547db4cc7430ae753"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md": {
+      "mode": "0644",
+      "bytes": 10199,
+      "sha256": "1a7680b611782fde7c71eaaecb616939a2ac3ffe9f7d3fcb74dcc0dc2c315a92"
+    }
+  },
+  "coordinatorAddedAmendment": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-contract-amendment.json",
+    "mode": "0644",
+    "bytes": 3315,
+    "sha256": "899234ecfcead72ac7cf4cfa6b32fdc77f90348afbf7dbfce30ef9b56111ea07"
+  },
+  "protectedPreAmendmentTest": {
+    "path": "scripts/ci-test-workspace.test.mjs",
+    "mode": "0644",
+    "bytes": 46804,
+    "sha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285"
+  },
+  "exactExpectedPostAmendmentFingerprint": {
+    "mode": "0644",
+    "bytes": 46822,
+    "sha256": "72c310d44334852a58ba311d1157b3d843bb49d6c787c778177d6c3634431b95"
+  },
+  "amendmentExactCopy": true,
+  "originalBaselineAndHistoricalSealsUnchanged": true,
+  "headAndProjectRefsUnchanged": true,
+  "checks": {
+    "documents": 4,
+    "jsonFiles": 1,
+    "localLinks": 61,
+    "anchors": 3,
+    "newlineWhitespacePrivacyIgnore": "passed",
+    "prettier": "exit 0",
+    "gitDiffCheck": "exit 0"
+  },
+  "noPackageResourceBuildSourceHostedOrRepositoryPublicationExecution": true,
+  "coordinatorDriver": {
+    "path": "_tmp-c5f-ovtrnV/check-setup-scope-amendment.mjs",
+    "mode": "0644",
+    "bytes": 6520,
+    "sha256": "524e351912f1d77681dd65ad168b9061b825a57b0cb9eb1bb5a1a940846deddf"
+  }
+}

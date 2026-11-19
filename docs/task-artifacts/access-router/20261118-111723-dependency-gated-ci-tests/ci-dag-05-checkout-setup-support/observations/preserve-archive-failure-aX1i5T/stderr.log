@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "<repo-root>/_tmp-c5-setup-stage2-oNPuwiq6/preserve-archive-failure.py", line 37, in <module>
+    assert len(files) == 22
+           ^^^^^^^^^^^^^^^^
+AssertionError

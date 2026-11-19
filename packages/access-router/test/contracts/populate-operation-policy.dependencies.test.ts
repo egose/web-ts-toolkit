@@ -594,6 +594,7 @@ describe.each(['lean', 'hydrated'] as const)('POP-03 independent private/public 
         const f = await fixture(hydration, mode);
         f.Source.schema.path('account').default(f.a._id);
         f.Source.schema.path('accounts').default(f.ids);
+        f.Source.recompileSchema();
         const result = await f.execute((req) => {
           const service = req.macl.getService(f.Source.modelName);
           const data = { name: 'saved', account: f.a._id, accounts: f.ids };

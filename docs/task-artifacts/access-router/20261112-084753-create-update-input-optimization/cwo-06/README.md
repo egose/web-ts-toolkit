@@ -199,7 +199,7 @@ results and hashes are in [verification.json](verification.json).
 five tables and one singleton. It records maintained test hashes and original report
 hashes; conversion options/order were asserted in the tests. Final JSON/link/privacy/
 ignore/whitespace and identity review is recorded in `verification.json`. Actual
-runtime was Node **v26.12.1**, pnpm **11.18.0**, matching root `pnpm@11.18.0`.
+runtime was Node **v26.12.1**, pnpm **11.24.0**, matching root `pnpm@11.24.0`.
 The existing Vite native-config warning was not suppressed.
 
 Following the [preservation workflow](../../../README.md), only these useful reports

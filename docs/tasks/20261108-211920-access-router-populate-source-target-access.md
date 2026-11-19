@@ -448,7 +448,7 @@ according to the repository conventions.
   `_tmp-populate-source-target-20261109-DCsFHQ` (confirmed ignored). Runtime
   `TMPDIR` must be the absolute path to this checkout-local directory; no durable
   evidence may depend on its contents alone.
-- Environment: Node `v26.12.1`, pnpm `11.18.0`; workspace dependencies are present.
+- Environment: Node `v26.12.1`, pnpm `11.24.0`; workspace dependencies are present.
 - Baseline verification (repo root): `pnpm lint` passed before implementation;
   the task document also passed `pnpm exec prettier --check`.
 - Toolkit runtime checks: focused PSA-01 checks passed as recorded above;

@@ -1,0 +1,7 @@
+
+<repo-root>/.github/actions/ci-checkout/index.mjs
+  315:110  error  The symptom error is being thrown with an incorrect `cause`  preserve-caught-error
+  759:99   error  The symptom error is being thrown with an incorrect `cause`  preserve-caught-error
+
+✖ 2 problems (2 errors, 0 warnings)
+

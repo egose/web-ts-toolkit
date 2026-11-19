@@ -1,0 +1,11 @@
+--- stage2-preflight/scripts/ci-test-workspace.test.mjs
++++ selected-final/scripts/ci-test-workspace.test.mjs
+@@ -191,7 +191,7 @@
+ test('checked-in CI composites match the strict independent helper contract without wiring the active workflow', () => {
+   validateHelperContracts(
+     Object.fromEntries(
+-      [ciActions.setup, ciActions.prepare, ciActions.test].map((path) => [
++      [ciActions.source, ciActions.setup, ciActions.prepare, ciActions.test].map((path) => [
+         path,
+         readFileSync(resolve(repositoryRoot, path, 'action.yml'), 'utf8'),
+       ]),

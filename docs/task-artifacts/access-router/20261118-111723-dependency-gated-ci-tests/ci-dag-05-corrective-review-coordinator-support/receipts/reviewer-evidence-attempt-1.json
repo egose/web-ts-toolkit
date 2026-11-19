@@ -1,0 +1,744 @@
+{
+  "reviewAlias": "CI-DAG-05 fresh corrective-review session",
+  "startedAt": "2026-11-19T16:48:24.003470+00:00",
+  "finishedAt": "2026-11-19T16:48:24.439403+00:00",
+  "result": "EVIDENCE DISCREPANCIES",
+  "checks": 3257,
+  "problems": [
+    "R1 exact five-file implementation scope",
+    "R1 exact reconstructed implementation delta",
+    "R1 formatter encoded-lines transformation",
+    "R1 inverse formatter delta exactly matches all preformat hashes",
+    "Setup final verification thirteen-path fingerprints: lint-final",
+    "Setup saved before/after inputs: format-owned-files",
+    "Setup ten maintained changes/three new/four coordinator documents separately reconciled"
+  ],
+  "method": "Independent regular-file SHA-256/mode checks, in-memory delta/curation reconstruction, JSON value comparison, raw TAP/Vitest summary parsing and snapshot comparison; no delivered or historical driver execution, product imports, tests, build, resource, source operation or network access.",
+  "r1": {
+    "archiveEntries": 21,
+    "uniqueDeclaredSources": 48,
+    "preflightFiles": 2536,
+    "changed": [
+      "scripts/ci-test-artifacts.mjs",
+      "scripts/ci-test-artifacts.test.mjs",
+      "scripts/ci-test-workspace.mjs",
+      "scripts/ci-test-workspace.test.mjs",
+      "README.md"
+    ],
+    "unchanged": 2531,
+    "formatterPreimageHashesReconstructed": 5,
+    "records": [
+      {
+        "label": "before-workspace-tests",
+        "exit": 1,
+        "signal": null,
+        "counts": {
+          "tests": 51,
+          "suites": 0,
+          "pass": 50,
+          "fail": 1,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0,
+          "duration_ms": 3427.220104
+        }
+      },
+      {
+        "label": "broadcast-probe",
+        "exit": 101,
+        "signal": null,
+        "counts": {}
+      },
+      {
+        "label": "broadcast-probe-diagnostic",
+        "exit": 101,
+        "signal": null,
+        "counts": {}
+      },
+      {
+        "label": "broadcast-probe-corrected",
+        "exit": 0,
+        "signal": null,
+        "counts": {}
+      },
+      {
+        "label": "prettier-draft",
+        "exit": 1,
+        "signal": null,
+        "counts": {}
+      },
+      {
+        "label": "final-helper-tests",
+        "exit": 0,
+        "signal": null,
+        "counts": {
+          "tests": 134,
+          "suites": 0,
+          "pass": 134,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0,
+          "duration_ms": 6824.891717
+        }
+      },
+      {
+        "label": "final-ci-contracts",
+        "exit": 0,
+        "signal": null,
+        "counts": {
+          "tests": 326,
+          "suites": 0,
+          "pass": 326,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0,
+          "duration_ms": 12400.446859
+        }
+      },
+      {
+        "label": "final-groups-contracts",
+        "exit": 0,
+        "signal": null,
+        "counts": {
+          "tests": 18,
+          "suites": 0,
+          "pass": 18,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0,
+          "duration_ms": 2130.696838
+        }
+      },
+      {
+        "label": "targeted-eslint",
+        "exit": 0,
+        "signal": null,
+        "counts": {}
+      },
+      {
+        "label": "prettier-code",
+        "exit": 0,
+        "signal": null,
+        "counts": {}
+      },
+      {
+        "label": "final-prettier",
+        "exit": 1,
+        "signal": null,
+        "counts": {}
+      },
+      {
+        "label": "handoff-format-review",
+        "exit": 0,
+        "signal": null,
+        "counts": {}
+      },
+      {
+        "label": "final-prettier-corrected",
+        "exit": 0,
+        "signal": null,
+        "counts": {}
+      },
+      {
+        "label": "diff-check",
+        "exit": 0,
+        "signal": null,
+        "counts": {}
+      },
+      {
+        "label": "final-scope-check",
+        "exit": 0,
+        "signal": null,
+        "counts": {}
+      }
+    ]
+  },
+  "r2": {
+    "payloads": 10,
+    "payloadBytes": 99546,
+    "uniquePayloadSources": 45,
+    "planningStagingSeals": 34,
+    "stagingExactPayloads": 8,
+    "archiveOnlyOneSpaceDeltas": [
+      {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/historical-failure.log",
+        "stagedLine": 51,
+        "operation": "Remove exactly one trailing ASCII space; no other bytes changed",
+        "bytesRemoved": 1
+      },
+      {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/interrupted-package.log",
+        "stagedLine": 64,
+        "operation": "Remove exactly one trailing ASCII space; no other bytes changed",
+        "bytesRemoved": 1
+      }
+    ],
+    "observations": 10,
+    "omittedSetupEvents": 100,
+    "requestFailedEventsRetained": 16,
+    "completedRecorderObjects": 17,
+    "interruptedInvocations": 1,
+    "productionSourceFilesUnchanged": 24,
+    "records": [
+      {
+        "label": "conditions",
+        "exit": 0,
+        "durationSeconds": 2.522,
+        "counts": []
+      },
+      {
+        "label": "initial-build",
+        "exit": 0,
+        "durationSeconds": 4.039,
+        "counts": []
+      },
+      {
+        "label": "diagnostic-red",
+        "exit": 1,
+        "durationSeconds": 5.371,
+        "counts": [
+          {
+            "kind": "Test Files",
+            "failed": 1,
+            "total": 1
+          },
+          {
+            "kind": "Tests",
+            "failed": 1,
+            "skipped": 11,
+            "total": 12
+          }
+        ]
+      },
+      {
+        "label": "observer-controls",
+        "exit": 0,
+        "durationSeconds": 3.041,
+        "counts": [
+          {
+            "kind": "Test Files",
+            "passed": 1,
+            "total": 1
+          },
+          {
+            "kind": "Tests",
+            "passed": 14,
+            "skipped": 107,
+            "total": 121
+          }
+        ]
+      },
+      {
+        "label": "installed-causal-controls",
+        "exit": 1,
+        "durationSeconds": 8.41,
+        "counts": [
+          {
+            "kind": "Test Files",
+            "failed": 1,
+            "total": 1
+          },
+          {
+            "kind": "Tests",
+            "failed": 7,
+            "passed": 1,
+            "skipped": 10,
+            "total": 18
+          }
+        ]
+      },
+      {
+        "label": "observer-settlement-controls",
+        "exit": 0,
+        "durationSeconds": 3.145,
+        "counts": [
+          {
+            "kind": "Test Files",
+            "passed": 1,
+            "total": 1
+          },
+          {
+            "kind": "Tests",
+            "passed": 15,
+            "skipped": 107,
+            "total": 122
+          }
+        ]
+      },
+      {
+        "label": "installed-correlated-controls",
+        "exit": 1,
+        "durationSeconds": 8.448,
+        "counts": [
+          {
+            "kind": "Test Files",
+            "failed": 1,
+            "total": 1
+          },
+          {
+            "kind": "Tests",
+            "failed": 1,
+            "passed": 7,
+            "skipped": 10,
+            "total": 18
+          }
+        ]
+      },
+      {
+        "label": "installed-native-transport-control",
+        "exit": 0,
+        "durationSeconds": 5.562,
+        "counts": [
+          {
+            "kind": "Test Files",
+            "passed": 1,
+            "total": 1
+          },
+          {
+            "kind": "Tests",
+            "passed": 1,
+            "skipped": 17,
+            "total": 18
+          }
+        ]
+      },
+      {
+        "label": "signer-fetch-contracts",
+        "exit": 1,
+        "durationSeconds": 4.241,
+        "counts": [
+          {
+            "kind": "Test Files",
+            "failed": 1,
+            "passed": 1,
+            "total": 2
+          },
+          {
+            "kind": "Tests",
+            "failed": 1,
+            "passed": 104,
+            "skipped": 91,
+            "total": 196
+          }
+        ]
+      },
+      {
+        "label": "signer-fetch-baseline-control",
+        "exit": 0,
+        "durationSeconds": 2.79,
+        "counts": [
+          {
+            "kind": "Test Files",
+            "passed": 2,
+            "total": 2
+          },
+          {
+            "kind": "Tests",
+            "passed": 105,
+            "skipped": 76,
+            "total": 181
+          }
+        ]
+      },
+      {
+        "label": "scoped-lint",
+        "exit": 0,
+        "durationSeconds": 2.97,
+        "counts": []
+      },
+      {
+        "label": "scoped-typecheck",
+        "exit": 0,
+        "durationSeconds": 11.743,
+        "counts": []
+      },
+      {
+        "label": "scoped-format-check",
+        "exit": 1,
+        "durationSeconds": 1.627,
+        "counts": []
+      },
+      {
+        "label": "format-plan",
+        "exit": 0,
+        "durationSeconds": 7.934,
+        "counts": []
+      },
+      {
+        "label": "final-static-audit",
+        "exit": 0,
+        "durationSeconds": 0.321,
+        "counts": []
+      },
+      {
+        "label": "final-format-check",
+        "exit": 0,
+        "durationSeconds": 1.571,
+        "counts": []
+      },
+      {
+        "label": "final-lint",
+        "exit": 0,
+        "durationSeconds": 2.191,
+        "counts": []
+      }
+    ],
+    "riskLimits": [
+      "No original retry-preparation exception",
+      "Focused abort failure retained, not disposed",
+      "Mapped load/signer identity is changed; static assertion retention does not establish timing neutrality",
+      "Packed-consumer completion/result absent; timeout/exit/signal are separately attributed harness metadata"
+    ]
+  },
+  "setup": {
+    "capturedFiles": 169,
+    "jsonFilesParsed": 57,
+    "archiveEntries": 162,
+    "uniqueOriginalSources": 156,
+    "rawOutputs": 64,
+    "observations": 35,
+    "nonzeroObservations": 11,
+    "preflightFiles": 2582,
+    "maintainedChanges": [
+      ".github/actions/ci-prepare/action.yml",
+      ".github/actions/ci-setup/action.yml",
+      ".github/actions/ci-test/action.yml",
+      ".github/workflows/test.yml",
+      "README.md",
+      "package.json",
+      "scripts/ci-test-plan.mjs",
+      "scripts/ci-test-plan.test.mjs",
+      "scripts/ci-test-results.test.mjs",
+      "scripts/ci-test-workspace.test.mjs"
+    ],
+    "newMaintainedPaths": [
+      ".github/actions/ci-checkout/action.yml",
+      ".github/actions/ci-checkout/index.mjs",
+      "scripts/ci-test-checkout.test.mjs"
+    ],
+    "coordinatorDocumentChanges": [
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md",
+      "docs/tasks/20261118-111723-dependency-gated-ci-tests.md"
+    ],
+    "unchangedOriginals": 2565,
+    "transformations": {
+      "Byte-exact copy; originals retained unchanged": 154,
+      "Replace absolute repository root with <repo-root>, user home with <user-home>, full private session identifiers with <private-session-id>, and the known public example.org synthetic-auth fixture URL with https://example.org/<redacted-synthetic-auth>/; originals retained unchanged": 2,
+      "Generated exact isolated sole-line diff from protected preimage to approved full-file postimage; no other byte or mode change": 1,
+      "Generated exact unified diff for thirteen maintained paths against inherited stage-2 preflight, not against HEAD; new files use /dev/null": 1,
+      "Generated local archival metadata; no execution recertification": 4
+    },
+    "records": [
+      {
+        "label": "red-wiring",
+        "status": 1,
+        "counts": {
+          "tests": 5,
+          "suites": 0,
+          "pass": 0,
+          "fail": 5,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "inputFingerprintCount": 0
+      },
+      {
+        "label": "selected-only-fixture",
+        "status": 0,
+        "counts": {
+          "tests": 1,
+          "suites": 0,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "inputFingerprintCount": 0
+      },
+      {
+        "label": "tool-inventory",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 0
+      },
+      {
+        "label": "boundary-red",
+        "status": 1,
+        "counts": {
+          "tests": 183,
+          "suites": 0,
+          "pass": 177,
+          "fail": 6,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "inputFingerprintCount": 12
+      },
+      {
+        "label": "checkout-green",
+        "status": 1,
+        "counts": {
+          "tests": 205,
+          "suites": 0,
+          "pass": 204,
+          "fail": 1,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "inputFingerprintCount": 12
+      },
+      {
+        "label": "checkout-green-isolated",
+        "status": 0,
+        "counts": {
+          "tests": 205,
+          "suites": 0,
+          "pass": 205,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "inputFingerprintCount": 12
+      },
+      {
+        "label": "helper-contracts",
+        "status": 1,
+        "counts": {
+          "tests": 406,
+          "suites": 0,
+          "pass": 405,
+          "fail": 1,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "inputFingerprintCount": 12
+      },
+      {
+        "label": "lint-final",
+        "status": 1,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "format-check-before",
+        "status": 1,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "format-check-correct-cli",
+        "status": 1,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "format-owned-files",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "lint-green",
+        "status": 1,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "tool-prerequisites-final",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "lint-after-cause-correction",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "format-check-final",
+        "status": 1,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "format-check-after-cause-wrap",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "ci-check-final",
+        "status": 0,
+        "counts": {
+          "tests": 611,
+          "suites": 0,
+          "pass": 611,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "groups-check-final",
+        "status": 0,
+        "counts": {
+          "tests": 18,
+          "suites": 0,
+          "pass": 18,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "lint-final-fingerprint",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "yaml-check-final",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "actionlint-final",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "scope-before-archive",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "archive-initial",
+        "status": 1,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "preserve-archive-failure",
+        "status": 1,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "curation-driver-preimages",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "preserve-archive-failure-corrected",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "archive-completed",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "archive-completion-record",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "format-setup-delivery-docs",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "delivery-integrity-before-final",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "whitespace-final",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "archive-delivery-foundation",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "format-setup-delivery-final",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "delivery-integrity-final",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      },
+      {
+        "label": "scope-after-archive-final",
+        "status": 0,
+        "counts": null,
+        "inputFingerprintCount": 13
+      }
+    ]
+  },
+  "v5": {
+    "rawLog": "_tmp-05c-G8SORQ/grouped.log",
+    "mode": "0644",
+    "bytes": 252259,
+    "sha256": "1b750bce5243882f4aec8fd8e344049100e49a5c795aea5fee9620420e782bf0",
+    "groups": 12,
+    "completeScripts": 25,
+    "totals": {
+      "files": 689,
+      "tests": 21224,
+      "todo": 1,
+      "runs": 34
+    },
+    "matchesLedger": true,
+    "limits": "Historical accounting only; no suite repeated. Earlier failures, cache/resource omissions and Chromium-only selection remain in the preserved ledger; no R1/R2/setup or hosted runtime recertification."
+  },
+  "checkedSourceInventory": {
+    "entries": 582,
+    "canonicalSha256": "513e950a797f635dc13a8575e47b7427085e5cee075a31073e83fc52e1ff30fc"
+  },
+  "omissions": "Full original inventories, raw private diagnostics, unselected logs and executable dependencies remain in ignored original scratch or existing support; this summary alone cannot rerun or independently reproduce runtime/historical state.",
+  "command": [
+    "python3",
+    "_tmp-c5cr-5m91q69w/reconcile_evidence.py",
+    "_tmp-c5cr-5m91q69w/reconciliation-attempt-1.json"
+  ],
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-5m91q69w'"
+}

@@ -1,0 +1,90 @@
+{
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "failedAt": "2026-11-19T14:50:42.446322+00:00",
+  "formatterPreviewRecordedAt": "2026-11-19T14:51:58.690097+00:00",
+  "command": ["python3", "_tmp-c5f-ovtrnV/freeze-corrective-review-inputs.py", "--freeze-idle-review-ready"],
+  "exitCode": 1,
+  "scope": "Second coordinator document-only readiness attempt and serial installed read-only formatter previews; no source/probe/test/package/runtime/hosted execution",
+  "disposition": "Scope, links and privacy checks reached formatting. Prettier reported the sealed four-entry manifest and newly authored privacy-failure manifest. Read-only previews showed only command-array whitespace changes and exactly equal parsed JSON values. Preserve the sealed original unchanged and record its formatting-only exception; apply only the formatter's whitespace change to the new coordinator metadata. Retain this nonzero observation, its driver and metadata preimage. Subsequent readiness is separate, not a relabeling.",
+  "entries": [
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t/checker-failure.json",
+        "mode": "0644",
+        "bytes": 8293,
+        "sha256": "5b48cc32645e94390608afcad8ee031e70b595a80cce1ee670b8cceb4e872a0b"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/failures/readiness-formatting-check.json",
+        "mode": "0644",
+        "bytes": 8293,
+        "sha256": "5b48cc32645e94390608afcad8ee031e70b595a80cce1ee670b8cceb4e872a0b"
+      },
+      "transformation": "None; byte-exact copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t/freeze-inputs-before-formatting-fix.py",
+        "mode": "0644",
+        "bytes": 25037,
+        "sha256": "65420d3b1c7a162c90f3e8f5223ba0e48a4ae87a2d0b05df920e424dc566559b"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/drivers/freeze-inputs-before-formatting-fix.py",
+        "mode": "0644",
+        "bytes": 25037,
+        "sha256": "65420d3b1c7a162c90f3e8f5223ba0e48a4ae87a2d0b05df920e424dc566559b"
+      },
+      "transformation": "None; byte-exact copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t/readiness-failure-manifest-before-formatting.json",
+        "mode": "0644",
+        "bytes": 2947,
+        "sha256": "34ff9dbcc7b0dffbb95f959edbeaad5dab413d49107a384847910336747228a2"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/failures/readiness-failure-manifest-before-formatting.json",
+        "mode": "0644",
+        "bytes": 2947,
+        "sha256": "34ff9dbcc7b0dffbb95f959edbeaad5dab413d49107a384847910336747228a2"
+      },
+      "transformation": "None; byte-exact copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t/formatting-preservation-and-preview.json",
+        "mode": "0644",
+        "bytes": 6362,
+        "sha256": "3295ac9946985ab7b93f9ee135e79aed300641ffba28e66592f264d4cc7551f0"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/failures/readiness-formatting-preservation-and-preview.json",
+        "mode": "0644",
+        "bytes": 6362,
+        "sha256": "3295ac9946985ab7b93f9ee135e79aed300641ffba28e66592f264d4cc7551f0"
+      },
+      "transformation": "None; byte-exact copy of installed read-only formatter commands/diffs and preservation metadata; original retained unchanged"
+    }
+  ],
+  "formattedCurrentManifest": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/readiness-failure-manifest.json",
+    "mode": "0644",
+    "bytes": 2931,
+    "sha256": "a53612199b777d3e8f549387046b72866aaaa2f5156b4f005bab623a0c54559a",
+    "preimageArchivePath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/failures/readiness-failure-manifest-before-formatting.json",
+    "edit": "Only collapse the command array to the formatter's single-line spelling; parsed JSON values are unchanged"
+  },
+  "historicalFormattingException": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/manifest.json",
+    "mode": "0644",
+    "bytes": 3953,
+    "sha256": "1ba9fb6fde027bade004d9246dc00504e4a38ba508f1c12539867efa0c29123d",
+    "status": "Formatting-only exception retained; not a Prettier pass",
+    "reason": "This sealed historical byte-exact provenance manifest retains its original multiline command array; reformatting would change its recorded hash. Structured validity, privacy, modes, hashes, provenance and newline/whitespace are still checked. The failed formatter observation and exact preview diff remain preserved."
+  },
+  "omitted": "Full preview formatter stdout was not saved; redundant failed-check Git/raw streams remain only in original ignored scratch. The preview archive retains actual commands, timing, exact input/output hashes, parsed-value equality and complete whitespace diffs. No execution reproduction or historical test recertification is claimed.",
+  "historicalDriverLimit": "Do not execute the archival pre-correction driver: its formatter selection retains the recorded failure and requires original scratch state. It documents that observation only.",
+  "selfReferenceLimit": "Covers the four listed copies and the explicitly recorded current/historical metadata fingerprints, not this manifest or later corrected driver/readiness/snapshot/assignment/reviewer evidence"
+}

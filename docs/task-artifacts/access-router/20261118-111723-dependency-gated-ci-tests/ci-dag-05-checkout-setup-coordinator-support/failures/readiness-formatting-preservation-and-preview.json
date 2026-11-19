@@ -1,0 +1,107 @@
+{
+  "recordedAt": "2026-11-19T14:51:58.690097+00:00",
+  "scope": "Exact preservation of failed document formatting observation and read-only installed formatter previews; no source/probe/test/package execution",
+  "entries": [
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t/checker-failure.json",
+        "mode": "0644",
+        "bytes": 8293,
+        "sha256": "5b48cc32645e94390608afcad8ee031e70b595a80cce1ee670b8cceb4e872a0b"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/failures/readiness-formatting-check.json",
+        "mode": "0644",
+        "bytes": 8293,
+        "sha256": "5b48cc32645e94390608afcad8ee031e70b595a80cce1ee670b8cceb4e872a0b"
+      },
+      "transformation": "None; byte-exact copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t/freeze-inputs-before-formatting-fix.py",
+        "mode": "0644",
+        "bytes": 25037,
+        "sha256": "65420d3b1c7a162c90f3e8f5223ba0e48a4ae87a2d0b05df920e424dc566559b"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/drivers/freeze-inputs-before-formatting-fix.py",
+        "mode": "0644",
+        "bytes": 25037,
+        "sha256": "65420d3b1c7a162c90f3e8f5223ba0e48a4ae87a2d0b05df920e424dc566559b"
+      },
+      "transformation": "None; byte-exact copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t/readiness-failure-manifest-before-formatting.json",
+        "mode": "0644",
+        "bytes": 2947,
+        "sha256": "34ff9dbcc7b0dffbb95f959edbeaad5dab413d49107a384847910336747228a2"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/failures/readiness-failure-manifest-before-formatting.json",
+        "mode": "0644",
+        "bytes": 2947,
+        "sha256": "34ff9dbcc7b0dffbb95f959edbeaad5dab413d49107a384847910336747228a2"
+      },
+      "transformation": "None; byte-exact copy; original retained unchanged"
+    }
+  ],
+  "previews": [
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--config-path",
+        ".prettierrc",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/manifest.json"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t",
+      "startedAt": "2026-11-19T14:51:56.011429+00:00",
+      "finishedAt": "2026-11-19T14:51:57.332450+00:00",
+      "durationMs": 1321,
+      "exitCode": 0,
+      "stderrBytes": 0,
+      "input": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/manifest.json",
+        "mode": "0644",
+        "bytes": 3953,
+        "sha256": "1ba9fb6fde027bade004d9246dc00504e4a38ba508f1c12539867efa0c29123d"
+      },
+      "formatterOutputBytes": 3937,
+      "formatterOutputSha256": "23a46827db7711e1b156107ff011dce3d494bc36d40e3f0b04e9a5a21467b3a7",
+      "jsonValuesExactlyEqual": true,
+      "diff": "--- manifest.json\n+++ manifest.json.formatted-preview\n@@ -65,11 +65,7 @@\n     }\n   ],\n   \"historicalScratch\": \"_tmp-c5f-ovtrnV/setup-preservation-v4tu3oqp\",\n-  \"command\": [\n-    \"python3\",\n-    \"_tmp-c5f-ovtrnV/preserve-setup-reconciliation.py\",\n-    \"--preserve-idle-reconciliation\"\n-  ],\n+  \"command\": [\"python3\", \"_tmp-c5f-ovtrnV/preserve-setup-reconciliation.py\", \"--preserve-idle-reconciliation\"],\n   \"omitted\": [\n     \"Full coordinator baseline and historical source trees (unchanged originals remain locally retained; the setup archive retains the matching original file table)\",\n     \"Redundant Git command streams, dependencies, caches, tool binaries, fixture Git objects and execution state\"\n"
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--config-path",
+        ".prettierrc",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/readiness-failure-manifest.json"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t",
+      "startedAt": "2026-11-19T14:51:57.360081+00:00",
+      "finishedAt": "2026-11-19T14:51:58.689787+00:00",
+      "durationMs": 1329,
+      "exitCode": 0,
+      "stderrBytes": 0,
+      "input": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/readiness-failure-manifest.json",
+        "mode": "0644",
+        "bytes": 2947,
+        "sha256": "34ff9dbcc7b0dffbb95f959edbeaad5dab413d49107a384847910336747228a2"
+      },
+      "formatterOutputBytes": 2931,
+      "formatterOutputSha256": "a53612199b777d3e8f549387046b72866aaaa2f5156b4f005bab623a0c54559a",
+      "jsonValuesExactlyEqual": true,
+      "diff": "--- readiness-failure-manifest.json\n+++ readiness-failure-manifest.json.formatted-preview\n@@ -2,11 +2,7 @@\n   \"recordedAt\": \"2026-11-19T14:49:21.881027284Z\",\n   \"ownerAlias\": \"CI-DAG-05 remediation coordinator\",\n   \"failedAt\": \"2026-11-19T14:47:17.964504+00:00\",\n-  \"command\": [\n-    \"python3\",\n-    \"_tmp-c5f-ovtrnV/freeze-corrective-review-inputs.py\",\n-    \"--freeze-idle-review-ready\"\n-  ],\n+  \"command\": [\"python3\", \"_tmp-c5f-ovtrnV/freeze-corrective-review-inputs.py\", \"--freeze-idle-review-ready\"],\n   \"exitCode\": 1,\n   \"scope\": \"First coordinator document-only readiness attempt; no helper/package/source/runtime/hosted execution\",\n   \"disposition\": \"Checker false positive: an unanchored external-temp privacy pattern matched the tmp/ segment in an already sanitized repository-local socket path at ci-dag-05-local-evidence.md:162. Correct only absolute-path token matching; do not alter the historical log, implementation, tests or expectations. Retain this failure and its exact pre-correction driver; a later readiness result is a separate observation, not a relabeling of this one.\",\n"
+    }
+  ]
+}

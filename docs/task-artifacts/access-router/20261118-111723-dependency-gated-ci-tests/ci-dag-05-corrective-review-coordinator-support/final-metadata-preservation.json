@@ -1,0 +1,93 @@
+{
+  "preservedAt": "2026-11-19T19:05:38.980515+00:00",
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "purpose": "Final metadata-reader failure/preimage, corrected driver and actual passing receipt; separate from initial 21-payload and later eight-payload manifests",
+  "entries": [
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/final-coordinator-metadata.json",
+        "mode": "0644",
+        "bytes": 1375,
+        "sha256": "43c5f320ef7171d2141f99c0f21d0d125c69feac97bad754d70150a4013abc4b"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/receipts/coordinator-final-metadata-attempt-1.json",
+        "mode": "0644",
+        "bytes": 1375,
+        "sha256": "43c5f320ef7171d2141f99c0f21d0d125c69feac97bad754d70150a4013abc4b"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/verify-final-coordinator-metadata.attempt-1.py",
+        "mode": "0644",
+        "bytes": 14235,
+        "sha256": "0fe6e12104f37aa470fd74268af81283040f48cf0980e2ef161f35a05da4ee5e"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/verify-final-coordinator-metadata.py",
+        "mode": "0644",
+        "bytes": 14235,
+        "sha256": "0fe6e12104f37aa470fd74268af81283040f48cf0980e2ef161f35a05da4ee5e"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/verify-final-coordinator-metadata.py",
+        "mode": "0644",
+        "bytes": 15792,
+        "sha256": "e212635596f9ddc3f98be438a2701d8d66c54e5b6728ef2b3340672f900f6660"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/verify-final-coordinator-metadata.corrected.py",
+        "mode": "0644",
+        "bytes": 15792,
+        "sha256": "e212635596f9ddc3f98be438a2701d8d66c54e5b6728ef2b3340672f900f6660"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/final-coordinator-metadata-attempt-2.json",
+        "mode": "0644",
+        "bytes": 6482,
+        "sha256": "ab652a5cb539b90efc0dc840311a7b472b4c2a38f1caaf326ede2505ffa62354"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/coordinator-final-metadata.json",
+        "mode": "0644",
+        "bytes": 6482,
+        "sha256": "ab652a5cb539b90efc0dc840311a7b472b4c2a38f1caaf326ede2505ffa62354"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged"
+    }
+  ],
+  "entryCount": 4,
+  "failedAttempt": {
+    "receipt": "receipts/coordinator-final-metadata-attempt-1.json",
+    "metadataAssertionsReported": 6692,
+    "exitCodeObserved": 1,
+    "discrepancy": "Final bounded privacy-pattern scan",
+    "disposition": "The copied document-reader comment at drivers/check-coordinator-documents.py:155 mentions a bare system-temp parent prefix, not a supplied absolute path. The new final reader now requires a following non-whitespace component for the absolute-path branch; credential/session patterns remain unchanged. Associated failure/preimage/capture bookkeeping and precise error-path reporting were corrected. All original data, historical drivers, review results, maintained files and the first failure/preimage remain unchanged. The first attempt stopped before the single new-manifest formatter API, so no quality command was repeated."
+  },
+  "correctedAttempt": {
+    "receipt": "coordinator-final-metadata.json",
+    "metadataAssertionsReported": 6798,
+    "exitCodeObserved": 0,
+    "verdict": "PASS: final coordinator metadata/diff/privacy/scope only; CHANGES REQUIRED / BLOCKED remains",
+    "supportFilesAtCapture": 35,
+    "strictJsonFilesAtCapture": 14,
+    "independentlyReconstructedDocumentPreimages": 7,
+    "unchangedMaintainedFingerprints": 24,
+    "unchangedHistoricalSeals": 33,
+    "unchangedReviewerFiles": 9
+  },
+  "captureBoundary": "The passing final receipt captures 35 coordinator-support files/14 JSON before its later exact copy and this new manifest. Its own digest is external here, not self-sealed. Initial 21-entry, later eight-entry and final-reader four-entry provenance are distinct capture sets; the final-reader entries intentionally identify already preserved failure/driver files plus the new successful receipt. This newly authored manifest is separately checked, not included in the earlier formatter selection.",
+  "omitted": "No extra tests/probes or raw runtime state. Scratch preimages remain unchanged; empty successful stderr and duplicate transcripts are omitted. Metadata counters are evidence assertions, not package-test totals.",
+  "reproductionLimit": "Read-only metadata/diff preservation only. Historical/project/reviewer drivers were not executed. No maintained formatting retry, validator/package/native/Node-20/runner or hosted acceptance is granted. Current Q1/runtime/R2/R3 blockers and spent execution allowances remain unchanged.",
+  "preservationMethod": "New coordinator stdlib exclusive byte-copy, regular-file fingerprints and JSON curation in the recorded tool call; no historical driver execution or overwrite",
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-coord-3ovrro4e'"
+}

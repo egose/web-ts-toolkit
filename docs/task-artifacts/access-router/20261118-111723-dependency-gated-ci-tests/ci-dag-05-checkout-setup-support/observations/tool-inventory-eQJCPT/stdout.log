@@ -1,0 +1,247 @@
+{
+  "versions": {
+    "node --version": {
+      "status": 0,
+      "stdout": "v26.12.1\n",
+      "stderr": ""
+    },
+    "pnpm --version": {
+      "status": 0,
+      "stdout": "11.24.0\n",
+      "stderr": ""
+    },
+    "git --version": {
+      "status": 0,
+      "stdout": "git version 2.43.0\n",
+      "stderr": ""
+    },
+    "pre-commit --version": {
+      "status": 0,
+      "stdout": "pre-commit 4.6.2\n",
+      "stderr": ""
+    },
+    "pnpm exec eslint --version": {
+      "status": 0,
+      "stdout": "v10.12.0\n",
+      "stderr": ""
+    },
+    "pnpm exec prettier --version": {
+      "status": 0,
+      "stdout": "4.0.0-alpha.13\n",
+      "stderr": ""
+    }
+  },
+  "actionlintFiles": [
+    {
+      "path": "<repo-root>/_tmp-c3-Uo71M6/actionlint-final.log",
+      "bytes": 295,
+      "sha256": "9614b37e3710ed521bf93407564af077317cbf16ba79388dea28721a4f357c92"
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-04-accept-HHjMox/actionlint/actionlint",
+      "bytes": 5132440,
+      "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-04-accept-HHjMox/actionlint/actionlint.tar.gz",
+      "bytes": 2080472,
+      "sha256": "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757",
+      "archivedBinary": {
+        "bytes": 5132440,
+        "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+      }
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-04-actionlint-39Hu8X/actionlint",
+      "bytes": 5132440,
+      "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-04-actionlint-39Hu8X/actionlint.tar.gz",
+      "bytes": 2080472,
+      "sha256": "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757",
+      "archivedBinary": {
+        "bytes": 5132440,
+        "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+      }
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-04-actionlint-qyMOCh/actionlint",
+      "bytes": 5132440,
+      "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-04-actionlint-qyMOCh/actionlint.tar.gz",
+      "bytes": 2080472,
+      "sha256": "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757",
+      "archivedBinary": {
+        "bytes": 5132440,
+        "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+      }
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-05-actionlint-akF9y9/actionlint",
+      "bytes": 5132440,
+      "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-05-actionlint-akF9y9/actionlint_1.7.7_linux_amd64.tar.gz",
+      "bytes": 2080472,
+      "sha256": "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757",
+      "archivedBinary": {
+        "bytes": 5132440,
+        "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+      }
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-05-actionlint-akF9y9/man/actionlint.1",
+      "bytes": 7274,
+      "sha256": "65cebc89141500d3eb9cf675aa891de22bcc761f4225c9132ca2fcbf9bdf1966"
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-05-coord-2TVsC6/actionlint",
+      "bytes": 5132440,
+      "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-05-coord-2TVsC6/actionlint.tar.gz",
+      "bytes": 2080472,
+      "sha256": "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757",
+      "archivedBinary": {
+        "bytes": 5132440,
+        "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+      }
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-coordinator-actionlint-oeVGNA/actionlint",
+      "bytes": 5132440,
+      "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-dag-coordinator-actionlint-oeVGNA/actionlint_1.7.7_linux_amd64.tar.gz",
+      "bytes": 2080472,
+      "sha256": "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757",
+      "archivedBinary": {
+        "bytes": 5132440,
+        "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+      }
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-test-actionlint-c3-gtdsYS/actionlint",
+      "bytes": 5132440,
+      "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-test-actionlint-c3-gtdsYS/actionlint.tar.gz",
+      "bytes": 2080472,
+      "sha256": "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757",
+      "archivedBinary": {
+        "bytes": 5132440,
+        "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+      }
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-test-finalchecks-ohckum/actionlint-download.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-test-finalchecks-ohckum/actionlint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-test-finalchecks-ohckum/actionlint.tar.gz",
+      "bytes": 2080472,
+      "sha256": "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757",
+      "archivedBinary": {
+        "bytes": 5132440,
+        "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+      }
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-test-finalchecks-ohckum/tools/actionlint",
+      "bytes": 5132440,
+      "sha256": "9f7dedb4e23f89f2922073d1a6720405b7b520d4f5832ebb96f0d55a2958886c"
+    },
+    {
+      "path": "<repo-root>/_tmp-ci-test-finalchecks-ohckum/tools/man/actionlint.1",
+      "bytes": 7274,
+      "sha256": "65cebc89141500d3eb9cf675aa891de22bcc761f4225c9132ca2fcbf9bdf1966"
+    },
+    {
+      "path": "<repo-root>/_tmp-r5-zlqZHs/actionlint-precheck-result.json",
+      "bytes": 258,
+      "sha256": "603cdf1d5ad5a8e273d6e50f37720d644e8781419cae3be2df3a287b6cfb9c66"
+    },
+    {
+      "path": "<repo-root>/_tmp-r5-zlqZHs/actionlint-result.json",
+      "bytes": 456,
+      "sha256": "29863121c278814c79b0422bdc3b7599c90be7f9afbee8062a1ff294ff923763"
+    },
+    {
+      "path": "<repo-root>/_tmp-r5-zlqZHs/actionlint.log",
+      "bytes": 94,
+      "sha256": "f6d2718d09c84c4d0237eb0e6f16775b0a4374a8b67976ef0541b850d3d224ed"
+    }
+  ],
+  "existingAsdfNodeInstalls": [
+    "22.2.0",
+    "26.10.0",
+    "26.11.1",
+    "26.12.0",
+    "26.12.1",
+    "26.13.0",
+    "26.7.0",
+    "26.8.1"
+  ],
+  "preCommitCache": [
+    {
+      "directory": "<user-home>/.cache/pre-commit/repoz337kd_x",
+      "pyEnvironments": []
+    },
+    {
+      "directory": "<user-home>/.cache/pre-commit/repovarkysl6",
+      "pyEnvironments": [
+        "<user-home>/.cache/pre-commit/repovarkysl6/py_env-python3.15",
+        "<user-home>/.cache/pre-commit/repovarkysl6/py_env-python3.14"
+      ]
+    },
+    {
+      "directory": "<user-home>/.cache/pre-commit/repo4pwiss7d",
+      "pyEnvironments": [
+        "<user-home>/.cache/pre-commit/repo4pwiss7d/py_env-python3.14"
+      ]
+    },
+    {
+      "directory": "<user-home>/.cache/pre-commit/repon8chns7p",
+      "pyEnvironments": []
+    },
+    {
+      "directory": "<user-home>/.cache/pre-commit/repoi1f85gat",
+      "pyEnvironments": [
+        "<user-home>/.cache/pre-commit/repoi1f85gat/py_env-python3.15",
+        "<user-home>/.cache/pre-commit/repoi1f85gat/py_env-python3.14"
+      ]
+    },
+    {
+      "directory": "<user-home>/.cache/pre-commit/repo5xkhs3s3",
+      "pyEnvironments": [
+        "<user-home>/.cache/pre-commit/repo5xkhs3s3/py_env-python3.14"
+      ]
+    },
+    {
+      "directory": "<user-home>/.cache/pre-commit/repo3aru3ozk",
+      "pyEnvironments": [
+        "<user-home>/.cache/pre-commit/repo3aru3ozk/py_env-python3.15",
+        "<user-home>/.cache/pre-commit/repo3aru3ozk/py_env-python3.14"
+      ]
+    },
+    {
+      "directory": "<user-home>/.cache/pre-commit/reposbmcqwh2",
+      "pyEnvironments": [
+        "<user-home>/.cache/pre-commit/reposbmcqwh2/py_env-python3.14"
+      ]
+    }
+  ]
+}

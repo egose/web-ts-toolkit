@@ -1,0 +1,32 @@
+--- _tmp-r1-mwGWUn/broadcast-probe.mjs
++++ _tmp-r1-mwGWUn/broadcast-probe.mjs
+@@ -39,0 +40,2 @@
++    listening: channel._iL, messageCallbackPresent: Boolean(channel._state.messagesCallback),
++    createdMicros: channel._state.time, listeningMicros: channel._state.messagesCallbackTime,
+@@ -90,0 +93,6 @@
++  const trace = [];
++  const record = (stage, details = {}) => {
++    const event = { stage, elapsedMs: Math.round(performance.now() - started), ...details };
++    trace.push(event);
++    console.log(JSON.stringify({ probeEvent: event }));
++  };
+@@ -96,0 +105 @@
++    record('helper-prepared', { resourceDirectory: relative(root, resourceDirectory) });
+@@ -104,0 +114 @@
++    record('sender-ready', { observation: senderObservation });
+@@ -118,0 +129 @@
++      record(`receiver-${message?.stage}`, { observation: message?.observation, received: message?.message });
+@@ -122,0 +134 @@
++      record('receiver-exit', { code, signal });
+@@ -127 +139,4 @@
+-    deadline = setTimeout(() => fail(new Error('Controller exceeded its bounded deadline')), deadlineMs);
++    deadline = setTimeout(() => {
++      record('deadline', { childStdout: Buffer.concat(stdout).toString(), childStderr: Buffer.concat(stderr).toString() });
++      fail(new Error('Controller exceeded its bounded deadline'));
++    }, deadlineMs);
+@@ -130,0 +146,3 @@
++    record('sender-post-complete', {
++      readers: Object.values(sender._state.otherReaderClients).map((client) => ({ writable: client.writable, destroyed: client.destroyed })),
++    });
+@@ -151,0 +170 @@
++      trace,

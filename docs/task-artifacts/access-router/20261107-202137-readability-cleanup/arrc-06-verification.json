@@ -11,7 +11,7 @@
     "FORCE_COLOR": "0"
   },
   "runtime": {
-    "node": "v26.12.1", "pnpm": "11.18.0", "vitest": "4.1.11",
+    "node": "v26.12.1", "pnpm": "11.24.0", "vitest": "4.1.11",
     "typescript": "6.0.3", "tsup": "8.5.1", "platform": "linux", "arch": "x64"
   },
   "execution": {

@@ -1,0 +1,43 @@
+{
+  "reviewAlias": "CI-DAG-05 fresh corrective-review session",
+  "phase": "post-curation-final-metadata",
+  "command": [
+    "python3",
+    "_tmp-c5cr-5m91q69w/check_delivery_metadata.py",
+    "_tmp-c5cr-5m91q69w/delivery-final-metadata.json"
+  ],
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-5m91q69w'",
+  "startedAt": "2026-11-19T17:56:00.615597+00:00",
+  "finishedAt": "2026-11-19T17:56:00.787475+00:00",
+  "result": "PASS",
+  "checks": 5922,
+  "problems": [],
+  "selection": {
+    "files": 9,
+    "markdownFiles": 2,
+    "jsonFiles": 5,
+    "failureStreams": 2,
+    "localLinks": 31,
+    "anchors": 1,
+    "reviewedReceiptReferences": 23,
+    "standaloneInventoryReceipts": 56,
+    "protectedRegularFiles": 2771,
+    "maintainedFingerprints": 24,
+    "historicalSeals": 33,
+    "formatterInputs": 7,
+    "finalSummaryFingerprint": {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/delivery-check.json",
+      "mode": "0644",
+      "bytes": 13411,
+      "sha256": "ac8af8f775fb10458ee8e3a0a01ca82974d053c7b62834b2275223fdb91e4c4a"
+    },
+    "reportFingerprint": {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review.md",
+      "mode": "0644",
+      "bytes": 23426,
+      "sha256": "94ad040620b4f27a3852415a5a59ce2880d95271c1dd6357f2aa145b706d0a9b"
+    }
+  },
+  "limits": "Final reviewer-owned deliverables, existing read-only receipts and immutable protected scope only. No product imports, tests, original historical/helper execution, source/native/runner probes, build/resource/install/fetch/hosted/publication/settings operation. This external receipt is after summary curation; no deliverable was written and no self-seal is claimed."
+}

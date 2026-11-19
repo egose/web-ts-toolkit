@@ -46,7 +46,7 @@ Use this skill for the app's safety rails: tests, docs, environment defaults, an
 - The backend watch (`pnpm server`) covers both `api/` and `src/shared/`, so
   shared schema changes reload backend behavior.
 - Generated projects use a release-synchronized `pnpm-lock.yaml`, Node
-  `^22.13.0 || >=24.0.0`, and pnpm `11.18.0`; keep docs and scripts on
+  `^22.13.0 || >=24.0.0`, and pnpm `11.24.0`; keep docs and scripts on
   `pnpm install --frozen-lockfile` unless the lockfile policy changes.
 
 ## Workflow

@@ -66,7 +66,7 @@ binding/original-request injection, inheritance and rejected write selectors.
 ## Executed V2 commands and results
 
 All commands ran **serially from repository root**, with installed dependencies and
-MongoDB memory-server prerequisites available. Node `v26.12.1`, pnpm `11.18.0`,
+MongoDB memory-server prerequisites available. Node `v26.12.1`, pnpm `11.24.0`,
 Vitest `4.1.11`. No install was run by this child; packed-consumer suites performed
 their normal isolated consumer installs.
 

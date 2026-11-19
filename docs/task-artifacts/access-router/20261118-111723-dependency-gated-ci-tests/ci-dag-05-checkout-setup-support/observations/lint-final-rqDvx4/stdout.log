@@ -1,0 +1,7 @@
+
+<repo-root>/.github/actions/ci-checkout/index.mjs
+  211:74  error  There is no `cause` attached to the symptom error being thrown  preserve-caught-error
+  510:73  error  There is no `cause` attached to the symptom error being thrown  preserve-caught-error
+
+✖ 2 problems (2 errors, 0 warnings)
+

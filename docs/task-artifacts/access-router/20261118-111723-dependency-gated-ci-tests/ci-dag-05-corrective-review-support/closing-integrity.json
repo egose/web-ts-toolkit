@@ -1,0 +1,114 @@
+{
+  "reviewAlias": "CI-DAG-05 fresh corrective-review session",
+  "purpose": "Curated closing protected-input inventory, not runtime acceptance or coordinator reconciliation.",
+  "originalRecord": {
+    "path": "_tmp-c5cr-5m91q69w/closing-inventory-seal.json",
+    "mode": "0644",
+    "bytes": 3960,
+    "sha256": "821d52619834a0a53225cb5c17d689fa1950ea0d0c53f0f541ba343367ba1887"
+  },
+  "inventoryRecorder": {
+    "path": "_tmp-c5cr-5m91q69w/verify_seal.py",
+    "mode": "0644",
+    "bytes": 6965,
+    "sha256": "308d099261d161ca06ba7938cf765ac20775fdd0663929d13bf2359a6940fc2c"
+  },
+  "phase": "closing-inventory",
+  "command": [
+    "python3",
+    "_tmp-c5cr-5m91q69w/verify_seal.py",
+    "closing-inventory",
+    "_tmp-c5cr-5m91q69w/closing-inventory-seal.json"
+  ],
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-5m91q69w'",
+  "startedAt": "2026-11-19T17:45:08.362110+00:00",
+  "finishedAt": "2026-11-19T17:45:08.547660+00:00",
+  "result": "PASS",
+  "immutableSnapshot": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-inputs.json",
+    "mode": "0644",
+    "bytes": 610017,
+    "sha256": "ad378fec69c87bb1b750c9f1bb3b47b23861ebf4f1d40a3aabb9ebe4678ef696"
+  },
+  "protectedRegularFiles": 2771,
+  "observedProtectedFilesTableSha256": "0ff69a3db18fc13dbebe0107f4dc3dc03151520dd1a263da180feee31c56a7c2",
+  "expectedProtectedFilesTableSha256": "0ff69a3db18fc13dbebe0107f4dc3dc03151520dd1a263da180feee31c56a7c2",
+  "maintainedFingerprintsMatched": 24,
+  "historicalSealsMatched": 33,
+  "readinessPairs": {
+    "readinessCheck.source": {
+      "mode": "0644",
+      "bytes": 24755,
+      "sha256": "ca8e25a8f3ddc19b6ec76b355a5125795368f21da1977a587d26a091c30dccfa"
+    },
+    "readinessCheck.archive": {
+      "mode": "0644",
+      "bytes": 24755,
+      "sha256": "ca8e25a8f3ddc19b6ec76b355a5125795368f21da1977a587d26a091c30dccfa"
+    },
+    "coordinatorReadinessDriver.source": {
+      "mode": "0644",
+      "bytes": 26896,
+      "sha256": "b548dfa6b491fd6d37a8804afa787aa26471b84fc52f9ab03c102f44c578dc0b"
+    },
+    "coordinatorReadinessDriver.archive": {
+      "mode": "0644",
+      "bytes": 26896,
+      "sha256": "b548dfa6b491fd6d37a8804afa787aa26471b84fc52f9ab03c102f44c578dc0b"
+    }
+  },
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+  "gitStatusMatchesSnapshot": true,
+  "nonRegularGitVisiblePaths": {},
+  "allowedGitVisibleAdditions": [
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-assignment.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-inputs.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/README.md",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/checks.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/closing-integrity.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/delivery-check.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/evidence-reconciliation.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/inputs.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/maintained-prettier.stderr.log",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/maintained-prettier.stdout.log",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review.md"
+  ],
+  "unexpectedGitVisibleAdditions": [],
+  "reviewerOwnedAdditionCount": 9,
+  "otherPermittedAdditionCount": 2,
+  "scratch": "_tmp-c5cr-5m91q69w",
+  "scratchIgnored": true,
+  "drift": { "files": [], "historical": [], "maintained": [] },
+  "problems": [],
+  "inventoryRecordCountAtCapture": {
+    "total": 55,
+    "beforeReportCreation": 52,
+    "supportFinalizationEntry": 1,
+    "supportFinalizationResume": 1,
+    "closingInventory": 1,
+    "allPassed": true,
+    "limit": "Inventory records are not test counts; final delivery-only consistency checks are separate."
+  },
+  "supportFinalizationResume": {
+    "originalRecord": {
+      "path": "_tmp-c5cr-5m91q69w/support-finalization-resume-seal.json",
+      "mode": "0644",
+      "bytes": 3709,
+      "sha256": "2cb23d560905dd66646828313e1a2314c5b9943ae2a50b2b28d4a339cd5edf83"
+    },
+    "command": [
+      "python3",
+      "_tmp-c5cr-5m91q69w/verify_seal.py",
+      "support-finalization-resume",
+      "_tmp-c5cr-5m91q69w/support-finalization-resume-seal.json"
+    ],
+    "startedAt": "2026-11-19T17:40:38.193768+00:00",
+    "finishedAt": "2026-11-19T17:40:38.388386+00:00",
+    "result": "PASS",
+    "problems": []
+  },
+  "captureBoundary": "All nine reviewer-owned names were present at capture; their new content, including this curated record and the then-being-finalized delivery summary, is outside the immutable protected table. Subsequent writes are restricted to those deliverables. Their selected final fingerprints and a later protected-scope check are recorded separately in delivery-check.json. This is not a self-seal or byte-exact copy of the original JSON.",
+  "limits": "Git-visible regular files plus expressly sealed ignored originals; ignored dependencies/build/cache state is not inventoried. The snapshot is checked separately because it excludes itself. No source/runtime/hosted probe or historical driver was executed."
+}

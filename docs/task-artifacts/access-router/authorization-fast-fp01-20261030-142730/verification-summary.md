@@ -46,7 +46,7 @@ counts **46 / 48 / 6** respectively; declared import/require name sets
 **186 / 322 / 17**. Compiler-resolved declaration exports include types, not just
 runtime values. No private helpers/new flags exported; former fusion absent.
 
-Tools: Node `v26.12.1`, pnpm `11.18.0`, tsup `8.5.1`, TypeScript `6.0.3`, Vitest
+Tools: Node `v26.12.1`, pnpm `11.24.0`, tsup `8.5.1`, TypeScript `6.0.3`, Vitest
 `4.1.11`. Measured runtime versions resolved **beside preserved candidate**, not
 from version strings in package.json: Mongoose **9.11.4**, Express **5.2.1**, Zod
 **4.4.3**; workspace utils/router versions are placeholders with real content hashes.

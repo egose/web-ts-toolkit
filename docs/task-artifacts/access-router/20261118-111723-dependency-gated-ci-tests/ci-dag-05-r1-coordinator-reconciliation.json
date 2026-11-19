@@ -1,0 +1,99 @@
+{
+  "checkedAt": "2026-11-19T05:03:55.724Z",
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "verdict": "R1 delivered evidence reconciled; independent acceptance and hosted setup remain outstanding",
+  "scratch": "_tmp-c5f-ovtrnV/r1-reconcile-on7A9j",
+  "command": [
+    "node",
+    "_tmp-c5f-ovtrnV/reconcile-r1.mjs"
+  ],
+  "readOnlyArchiveVerification": {
+    "command": [
+      "node",
+      "_tmp-r1-mwGWUn/seal-evidence.mjs",
+      "verify"
+    ],
+    "started": "2026-11-19T05:03:54.084Z",
+    "durationMs": 1639,
+    "exit": 0,
+    "checkedAt": "2026-11-19T05:03:55.501Z",
+    "manifest": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/manifest.json",
+    "manifestSha256": "c69bfcc7f009f05227be44301efc9a4682cbf910a5c81c7a7b103c7cb14e7398",
+    "archivedPayloadAndDocumentHashes": 21,
+    "retainedSourceHashes": 48,
+    "structuredJsonFiles": 7,
+    "links": {
+      "markdownFiles": 3,
+      "localLinks": 46,
+      "anchors": 1,
+      "externalUrlsNotFetched": [
+        "https://raw.githubusercontent.com/nodejs/node/v26.12.1/deps/v8/src/base/utils/random-number-generator.h",
+        "https://raw.githubusercontent.com/nodejs/node/v26.12.1/deps/v8/src/numbers/conversions.cc",
+        "https://raw.githubusercontent.com/nodejs/node/v26.12.1/deps/v8/src/numbers/math-random.cc"
+      ]
+    },
+    "changedExistingFiles": [
+      "scripts/ci-test-artifacts.mjs",
+      "scripts/ci-test-artifacts.test.mjs",
+      "scripts/ci-test-workspace.mjs",
+      "scripts/ci-test-workspace.test.mjs",
+      "README.md"
+    ],
+    "unchangedProtectedRegularFiles": 2531,
+    "unchangedAttestationRegularFiles": 90,
+    "newDurableFiles": 22,
+    "allChecksPassed": true
+  },
+  "bothBaselines": {
+    "regularFiles": 2536,
+    "r1PreflightChanged": [
+      "README.md",
+      "scripts/ci-test-artifacts.mjs",
+      "scripts/ci-test-artifacts.test.mjs",
+      "scripts/ci-test-workspace.mjs",
+      "scripts/ci-test-workspace.test.mjs"
+    ],
+    "r1PreflightUnchanged": 2531,
+    "fixPhaseChanged": [
+      "README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+      "docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+      "scripts/ci-test-artifacts.mjs",
+      "scripts/ci-test-artifacts.test.mjs",
+      "scripts/ci-test-workspace.mjs",
+      "scripts/ci-test-workspace.test.mjs"
+    ],
+    "fixPhaseUnchanged": 2527,
+    "earlierCoordinatorDifferences": [
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+      "docs/tasks/20261118-111723-dependency-gated-ci-tests.md"
+    ],
+    "newDurableFiles": 22,
+    "unchangedAttestationRegularFiles": 90
+  },
+  "historicalIntegrity": {
+    "headUnchanged": true,
+    "reportUnchanged": true,
+    "reviewedFingerprintsMatched": 28
+  },
+  "socketContractRecalculation": {
+    "node": "26.12.1",
+    "v8": "14.6.202.34-node.40",
+    "radixMarginAfter21Digits": 5.931615286377675,
+    "fixedSuffixBytes": 40,
+    "uuidReserveBytes": 22,
+    "maxTmpdirBytes": 45,
+    "compactAllocationSuffixBytes": 11,
+    "maxRealCheckoutRootBytes": 34,
+    "actualCoordinatorCheckoutRootBytes": 33,
+    "representativeHostedCheckoutRootBytes": 47,
+    "representativeHostedTmpdirBytes": 58,
+    "representativeHostedRejected": true,
+    "limitation": "Arithmetic/source review and saved 33-byte-root transport probe; not a hosted run or maximum-UUID runtime test"
+  },
+  "noPackageResourceOrFullSuiteExecution": true
+}

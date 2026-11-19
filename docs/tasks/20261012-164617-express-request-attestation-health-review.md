@@ -69,7 +69,7 @@ claimed vulnerability.
 Baseline actually run from `<repo-root>`:
 
 - `git status --short`: clean.
-- `node --version`: `v26.10.0`; `pnpm --version`: `11.18.0`.
+- `node --version`: `v26.10.0`; `pnpm --version`: `11.24.0`.
 - `pnpm --filter @web-ts-toolkit/express-request-attestation test:node`:
   **15 files / 346 tests passed**. This consumes the existing build; a fresh build
   and other lanes were not run during analysis.
@@ -2265,7 +2265,7 @@ Required commands, run from `<repo-root>` in the required serial order:
    reports. The database lanes include local validation and injected-failure
    controls; those controls are not presented as live server-failure evidence.
    Actual live success is established by their real service/client/ledger and HTTP
-   checks, not the Node lane's stubs. Node was **v26.10.0**, pnpm **11.18.0**,
+   checks, not the Node lane's stubs. Node was **v26.10.0**, pnpm **11.24.0**,
    Docker server **29.7.2**, tsup **8.5.1**, Vitest **4.1.11**; the supplementary
    native browser probe confirmed Chromium **151.0.7922.34**. Existing Node
    localStorage and Vite dynamic-import notices were nonblocking.
@@ -2451,7 +2451,7 @@ Final combined commands, executed from `<repo-root>` **serially after RATT-11/12
    validation, injected cancellation/failure controls and Node's HTTP module-loader
    seam are not counted as live backend/native browser-module proof. The dedicated
    service checks use actual Redis/MongoDB, and Chromium's HTTP tests use native
-   Fetch and native imports. Node **v26.10.0**, pnpm **11.18.0**, Docker server
+   Fetch and native imports. Node **v26.10.0**, pnpm **11.24.0**, Docker server
    **29.7.2**, tsup **8.5.1**, Vitest **4.1.11** and installed Chromium
    **151.0.7922.34** were confirmed. Existing Node localStorage and Vite
    dynamic-import notices were nonblocking.

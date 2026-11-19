@@ -28,7 +28,7 @@
   ],
   "fixtureHash": "fbc80e87b6312af243e74f96395c57fc6ce49b8181d0f7be6e775ad8b7fc7eb3",
   "sealedBaselineBundleHash": "bedc39ab29d52573945451bf8bd1f6404c8228394a3b72589febf153bd55fbf4",
-  "runtime": { "node": "v26.12.1", "pnpmActual": "11.18.0", "rootPackageManager": "pnpm@11.18.0" },
+  "runtime": { "node": "v26.12.1", "pnpmActual": "11.24.0", "rootPackageManager": "pnpm@11.24.0" },
   "retainedMaintainedFiles": [
     {
       "path": "packages/access-router/test/invariants/write-input-structural-boundaries.unit.test.ts",

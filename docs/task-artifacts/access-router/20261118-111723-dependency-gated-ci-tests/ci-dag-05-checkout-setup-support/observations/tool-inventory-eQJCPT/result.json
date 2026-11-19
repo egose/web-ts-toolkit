@@ -1,0 +1,15 @@
+{
+  "label": "tool-inventory",
+  "command": [
+    "python3",
+    "_tmp-c5-setup-stage2-oNPuwiq6/tools.py"
+  ],
+  "cwd": "<repo-root>",
+  "tmpdir": "_tmp-c5-setup-stage2-oNPuwiq6/tool-inventory-eQJCPT/tmp",
+  "startedAt": "2026-11-19T11:39:55.127Z",
+  "finishedAt": "2026-11-19T11:40:26.931Z",
+  "durationMs": 31797,
+  "status": 0,
+  "signal": null,
+  "error": null
+}

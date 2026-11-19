@@ -1,0 +1,102 @@
+{
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "startedAt": "2026-11-19T19:03:34.193816+00:00",
+  "finishedAt": "2026-11-19T19:03:34.657176+00:00",
+  "verdict": "PASS: final coordinator metadata/diff/privacy/scope only; CHANGES REQUIRED / BLOCKED remains",
+  "command": [
+    "python3",
+    "_tmp-c5cr-coord-3ovrro4e/verify-final-coordinator-metadata.py",
+    "_tmp-c5cr-coord-3ovrro4e/final-coordinator-metadata-attempt-2.json"
+  ],
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-coord-3ovrro4e'",
+  "metadataAssertions": 6798,
+  "problems": [],
+  "initialPayloads": 21,
+  "initialPayloadBytes": 383653,
+  "laterPayloads": 8,
+  "laterPayloadBytes": 144389,
+  "coordinatorSupportFilesAtCapture": 35,
+  "strictJsonFilesAtCapture": 14,
+  "changedCoordinatorDocuments": 7,
+  "unchangedProtectedOriginals": 2764,
+  "unchangedMaintainedFingerprints": 24,
+  "unchangedHistoricalSeals": 33,
+  "unchangedReviewerFiles": 9,
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+  "independentlyReconstructedSevenPreimageHashes": {
+    "docs/tasks/20261118-111723-dependency-gated-ci-tests.md": "67a328c506080f7acfcc8ab6216e35617ccf69feadab7a654550b0718c85306e",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md": "adc002cbf3342f363249e3522cfcaf08f70a20b0789100d175f6e10ee2b093ce",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md": "925035d953a5c79b44cfdc630f2676864466a9b2edfe33732404de71a14d6e02",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md": "8da278286d7882e70c8c616b4c1956dd2c0f06fd71b0ce6a61868fb2e35b67d1",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md": "16de64041844c2acc95631d3939e08ce807a87cc9e4aa2790f07a7a29da659fa",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md": "9125dbfcfe3ab62815b6947de72360316c8a98f3209f75080300196e82dc61c3",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md": "e19893042c9865807e1aa10b2f3d77d1088cd77469d6d21f9f9bbd65c68afce4"
+  },
+  "eightDocumentLinkAnchorCheck": {
+    "scannedFiles": 30,
+    "markdownFiles": 8,
+    "strictJsonFiles": 10,
+    "localLinks": 188,
+    "anchors": 6,
+    "existingExternalHttpsReferencesNotFetched": 2
+  },
+  "nineFileDocumentCliFormatterExit": 0,
+  "laterManifestApiFormatter": {
+    "unchanged": true,
+    "formatterVersion": "4.0.0-alpha.13"
+  },
+  "laterManifestCuration": "Parsed JSON equal to original scratch source; installed formatter applied only to this new metadata, not immutable receipts or maintained workflow",
+  "laterManifest": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/documentation-support-manifest.json",
+    "mode": "0644",
+    "bytes": 8770,
+    "sha256": "dc7fbdbf42e0949d0ce62b24642a47f09c2bd97b64adced509044e85ce6a64fd"
+  },
+  "documentReceipt": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/coordinator-document-check.json",
+    "mode": "0644",
+    "bytes": 20662,
+    "sha256": "064025bc519bc63407e1b2aa9fdce124d0641b36f92605708287ccafe79124fe"
+  },
+  "helperSourceArchivePair": {
+    "source": {
+      "path": "_tmp-c5cr-coord-3ovrro4e/verify-final-coordinator-metadata.py",
+      "mode": "0644",
+      "bytes": 15792,
+      "sha256": "e212635596f9ddc3f98be438a2701d8d66c54e5b6728ef2b3340672f900f6660"
+    },
+    "archive": {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/verify-final-coordinator-metadata.corrected.py",
+      "mode": "0644",
+      "bytes": 15792,
+      "sha256": "e212635596f9ddc3f98be438a2701d8d66c54e5b6728ef2b3340672f900f6660"
+    }
+  },
+  "initialFinalReaderFailure": {
+    "receipt": {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/receipts/coordinator-final-metadata-attempt-1.json",
+      "mode": "0644",
+      "bytes": 1375,
+      "sha256": "43c5f320ef7171d2141f99c0f21d0d125c69feac97bad754d70150a4013abc4b"
+    },
+    "sourcePreimage": {
+      "path": "_tmp-c5cr-coord-3ovrro4e/verify-final-coordinator-metadata.attempt-1.py",
+      "mode": "0644",
+      "bytes": 14235,
+      "sha256": "0fe6e12104f37aa470fd74268af81283040f48cf0980e2ef161f35a05da4ee5e"
+    },
+    "archivePreimage": {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/verify-final-coordinator-metadata.py",
+      "mode": "0644",
+      "bytes": 14235,
+      "sha256": "0fe6e12104f37aa470fd74268af81283040f48cf0980e2ef161f35a05da4ee5e"
+    },
+    "disposition": "The copied document-reader comment's bare system-temp parent-prefix mention was treated as a supplied absolute path. Only this new final reader's path-token matching now requires a following non-whitespace component; credential/session patterns, historical files and every retained failure remain unchanged. The first attempt stopped before the new-manifest formatter API, so no quality command was repeated."
+  },
+  "formatterApiScriptBytes": 549,
+  "formatterApiScriptSha256": "1d1b3cd090aff443c57d5b770d7b1c2827fb1828f943eca5b47be0c38b706bf3",
+  "captureBoundary": "Final preserved support and seven updated coordinator documents before this external receipt's later byte-exact copy. Own digest and later copy are excluded. The 21 initial and eight later manifest entries remain separate; the final metadata driver/source pair is separately fingerprinted here.",
+  "limits": "Only this new stdlib metadata reader, read-only Git metadata and an installed formatter API on the single newly authored documentation manifest ran. No archived/reviewer/project driver, validator/package/maintained-formatting rerun, source/native/Node-20/runner probe, installation/resource/network/hosted/publication/settings work. Historical four-entry formatting exception remains not a pass; maintained workflow Q1 remains unresolved. Scope reconciliation does not grant acceptance."
+}

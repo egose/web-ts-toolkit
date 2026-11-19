@@ -1,0 +1,79 @@
+{
+  "reviewAlias": "CI-DAG-05 fresh corrective-review session",
+  "phase": "verify",
+  "startedAt": "2026-11-19T17:55:27.688Z",
+  "finishedAt": "2026-11-19T17:55:27.867Z",
+  "command": [
+    "node",
+    "_tmp-c5cr-5m91q69w/format_delivery.mjs",
+    "verify",
+    "_tmp-c5cr-5m91q69w/delivery-final-format.json"
+  ],
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-5m91q69w'",
+  "formatterVersion": "4.0.0-alpha.13",
+  "selectedFiles": 7,
+  "markdownFiles": 2,
+  "jsonFiles": 5,
+  "excludedCompleteFailureStreams": 2,
+  "result": "PASS",
+  "records": [
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review.md",
+      "unchanged": true,
+      "inputBytes": 23426,
+      "inputSha256": "94ad040620b4f27a3852415a5a59ce2880d95271c1dd6357f2aa145b706d0a9b",
+      "formattedBytes": 23426,
+      "formattedSha256": "94ad040620b4f27a3852415a5a59ce2880d95271c1dd6357f2aa145b706d0a9b"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/README.md",
+      "unchanged": true,
+      "inputBytes": 4303,
+      "inputSha256": "96eeaa436b38016945f0bd27af067b0d6a5b0b64d472032ede7514b474d94425",
+      "formattedBytes": 4303,
+      "formattedSha256": "96eeaa436b38016945f0bd27af067b0d6a5b0b64d472032ede7514b474d94425"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/inputs.json",
+      "unchanged": true,
+      "inputBytes": 12373,
+      "inputSha256": "0dea5253b0996a8c7b060be7234bc5ae27a47f4ff25cf067193fc4c9b8282386",
+      "formattedBytes": 12373,
+      "formattedSha256": "0dea5253b0996a8c7b060be7234bc5ae27a47f4ff25cf067193fc4c9b8282386"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/checks.json",
+      "unchanged": true,
+      "inputBytes": 18571,
+      "inputSha256": "1f4d2d6ad4df3b0a81d45bb601e4aacc01b5ea0f22bedf48087d65728098e97a",
+      "formattedBytes": 18571,
+      "formattedSha256": "1f4d2d6ad4df3b0a81d45bb601e4aacc01b5ea0f22bedf48087d65728098e97a"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/evidence-reconciliation.json",
+      "unchanged": true,
+      "inputBytes": 18358,
+      "inputSha256": "b164949083d15f0ee8af6802bffa5298ba95ede495f92b07d3f64a46fea67d6c",
+      "formattedBytes": 18358,
+      "formattedSha256": "b164949083d15f0ee8af6802bffa5298ba95ede495f92b07d3f64a46fea67d6c"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/closing-integrity.json",
+      "unchanged": true,
+      "inputBytes": 5914,
+      "inputSha256": "ce05fab9529d10b2b28399edf930415c69dbdacf4b180606f8ffaa2570a20500",
+      "formattedBytes": 5914,
+      "formattedSha256": "ce05fab9529d10b2b28399edf930415c69dbdacf4b180606f8ffaa2570a20500"
+    },
+    {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/delivery-check.json",
+      "unchanged": true,
+      "inputBytes": 13411,
+      "inputSha256": "ac8af8f775fb10458ee8e3a0a01ca82974d053c7b62834b2275223fdb91e4c4a",
+      "formattedBytes": 13411,
+      "formattedSha256": "ac8af8f775fb10458ee8e3a0a01ca82974d053c7b62834b2275223fdb91e4c4a"
+    }
+  ],
+  "limits": "Installed formatter API; proposals written only to new reviewer scratch. No durable write, maintained formatting retry, tests, product imports, source/native/runner probes, installation or network. Failure logs are deliberately not formatter inputs."
+}

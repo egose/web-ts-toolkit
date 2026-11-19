@@ -39,7 +39,7 @@ Baseline reviewed on 2026-08-18:
 - `pnpm-workspace.yaml` no longer contains the stale `patchedDependencies`
   entry described by the previous revision of this task.
 - `pnpm install --frozen-lockfile` succeeds: 24 workspace projects, already up
-  to date, pnpm 11.18.0.
+  to date, pnpm 11.24.0.
 - The worktree was clean when this revision began.
 - The root commands are `pnpm build`, `pnpm test`, and `pnpm lint`.
 - Root `pnpm test` deliberately runs workspace package tests serially because

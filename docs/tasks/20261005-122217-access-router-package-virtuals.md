@@ -986,7 +986,7 @@ Acceptance criteria:
 Reviewer verification record (2026-10-06, independent reviewer; NOT granted — blocked by VIRT-12-F01):
 
 - Scope reviewed: full task file (VIRT-00 through VIRT-11 evidence + VIRT-00A D1–D8) and the combined worktree, which also contains the in-flight parallel OAV track (`docs/tasks/20261005-131819-access-router-operation-access-variants.md`, `src/operation-access.ts`, `src/acl/populate-access.ts`, `test/operation-access-*.test.ts`). No `CHANGELOG.md` changes made or required by this review.
-- VIRT acceptance re-verification (all serial, after a clean serial build; env: node v26.7.0, pnpm 11.18.0):
+- VIRT acceptance re-verification (all serial, after a clean serial build; env: node v26.7.0, pnpm 11.24.0):
   - `pnpm build` → EXIT 0 (full workspace; log `<tool-output>/build-virt12.log`).
   - `pnpm --filter @web-ts-toolkit/access-router typecheck` → EXIT 0 (rebuild + `tsc --noEmit -p tsconfig.typecheck.json`).
   - All 11 virtuals suites → 153/153 passed, run serially in 6 focused invocations: baseline 7, config 8, planner 14, finalizer 14 (43/43 in one run); direct-operations 19; populate-include 10; embedded-subdocuments 23; route-parity 15 + validation-openapi 17 (32/32); hardening 23 + performance-probe 3 (26/26).
@@ -1013,7 +1013,7 @@ Fix verification note (2026-10-06, VIRT-12-F01 fix pass): VIRT-12-F01 is now mar
 Re-review verification record (2026-10-06, independent re-reviewer; NOT granted — blocked by new P1 VIRT-12-F03):
 
 - Scope reviewed: full task file (VIRT-00 through VIRT-11 evidence + VIRT-00A D1–D8) and the combined worktree including the parallel OAV track. F01 fix claim verified in code: `src/core.ts:398` carries the effective target access verbatim (`const planAccess: PopulateTargetAccess = populateAccess;`, no coercion) into `planVirtualProjection` (`virtualAccess`/`outputAccess`/`docPermissionsAccess`, `:437-:439`) and the retained `POPULATE_TARGET_PLAN` meta (`:460-:467`); OAV files (`src/operation-access.ts`, `src/acl/populate-access.ts`) intact. No `CHANGELOG.md` changes made (only this VIRT-12 section edited).
-- Mandatory verification, all serial (env: node v26.7.0, pnpm 11.18.0; full log `<tool-output>/full-test-virt12.log`):
+- Mandatory verification, all serial (env: node v26.7.0, pnpm 11.24.0; full log `<tool-output>/full-test-virt12.log`):
   - `pnpm build` → EXIT 0 (full workspace).
   - `pnpm --filter @web-ts-toolkit/access-router typecheck` → EXIT 0.
   - All 11 virtuals suites → 153/153 passed (10-file run 143/143 + populate-include 10/10 within the 152/152 run below).
@@ -1029,7 +1029,7 @@ Fix verification note (2026-10-06, VIRT-12-F03 fix pass): VIRT-12-F03 is now mar
 Sign-off verification record (2026-10-06, independent re-reviewer; GRANTED):
 
 - Scope reviewed: full task file (VIRT-00 through VIRT-11 evidence + VIRT-00A D1–D8) and the combined worktree including the parallel OAV track. F01 fix claim re-verified in code (`src/core.ts:398` carries the effective target access verbatim, no coercion to `'read'`, into `planVirtualProjection` and the retained `POPULATE_TARGET_PLAN` meta). F03 fix re-verified in code (planner-only `src/acl/virtual-projection.ts`: new `isPersistedFetchable` mirroring candidate classification — `boolean true` fetchable, `false`/absent/non-grant object denied, `function` deferred fetchable without evaluation, `string`/`array` global-pass fetchable, doc-prefix deferred fetchable, purely-global miss denied; `fetchSet` = fetchable output + unconditional `depRelative` + always/override/join/base/identity + `_id`; `outputPersistedFields` stays broad for finalizer enforcement; child/related plans recurse through the same filter; no service-merge change, no post-fetch trimming added). No `CHANGELOG.md` changes made (only this VIRT-12 section edited).
-- Mandatory verification, all serial (env: node v26.7.0, pnpm 11.18.0):
+- Mandatory verification, all serial (env: node v26.7.0, pnpm 11.24.0):
   - `pnpm build` → EXIT 0 (full workspace).
   - `pnpm --filter @web-ts-toolkit/access-router typecheck` → EXIT 0.
   - All 11 virtuals suites (baseline 7 + config 8 + planner 14 + finalizer 14 + direct 19 + populate-include 10 + embedded 23 + route-parity 15 + validation-openapi 17 + hardening 23 + performance-probe 3) → 153/153 passed, one invocation.

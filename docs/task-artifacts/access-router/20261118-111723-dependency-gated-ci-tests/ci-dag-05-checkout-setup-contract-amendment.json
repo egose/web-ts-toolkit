@@ -1,0 +1,57 @@
+{
+  "capturedAt": "2026-11-19T13:45:59.094Z",
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "verdict": "Narrow setup helper-source contract amendment approved; implementation, final verification, delivery reconciliation and independent review remain pending",
+  "task": "docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+  "handoff": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md",
+  "originalMaintainedScopeCount": 12,
+  "amendedMaintainedScopeCount": 13,
+  "addedMaintainedPath": "scripts/ci-test-workspace.test.mjs",
+  "allowedChange": {
+    "previousLine": "      [ciActions.setup, ciActions.prepare, ciActions.test].map((path) => [",
+    "replacementLine": "      [ciActions.source, ciActions.setup, ciActions.prepare, ciActions.test].map((path) => [",
+    "purpose": "Supply the new source action metadata to the existing strict helper-contract validation; no removed or weakened assertions, R1 guard, evaluator or production-helper change"
+  },
+  "protectedPreAmendmentFingerprint": {
+    "mode": "0644",
+    "bytes": 46804,
+    "sha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285"
+  },
+  "exactExpectedPostAmendmentFingerprint": {
+    "mode": "0644",
+    "bytes": 46822,
+    "sha256": "72c310d44334852a58ba311d1157b3d843bb49d6c787c778177d6c3634431b95"
+  },
+  "immutableStage2CoordinatorBaseline": {
+    "historicalPath": "_tmp-c5f-ovtrnV/setup-stage2-oLp7U1/baseline.json",
+    "bytes": 547981,
+    "sha256": "ed5906c0c6c97b52055bcb9edae0c93120bd379446b7a33b8e2b5ff8fd164c45",
+    "protectedRegularFiles": 2582
+  },
+  "historicalSnapshot": {
+    "path": "_tmp-c5f-ovtrnV/setup-scope-amendment-M5CVmx/workspace-test-before.mjs",
+    "mode": "0644",
+    "bytes": 46804,
+    "sha256": "9638b1beb57cacac0c0f8c055e4ec96898ddbf8fc20067a61cdc8be7b09de285",
+    "omittedFromDurablePayload": true,
+    "reproductionLimit": "The complete R1 test preimage remains locally available but is not duplicated in this amendment; exact full-file before/after fingerprints and the sole authorized replacement are recorded"
+  },
+  "reportedCheckpoint": {
+    "checkoutPasses": 205,
+    "helperPasses": 405,
+    "helperFailures": 1,
+    "location": "scripts/ci-test-workspace.test.mjs:194",
+    "source": "Idle setup-agent request; saved raw logs/counts have not yet been independently reconciled",
+    "finalVerificationAndDeliveryPending": true
+  },
+  "constraints": [
+    "Add only ciActions.source to this one existing source-list line; all remaining test bytes and file mode stay exact",
+    "Preserve immutable R1 report/support/source seals; previous R1 checks describe the pre-amendment bytes and do not certify this new fingerprint",
+    "Retain the reported missing-source-metadata failure and all other failures; verify the amendment with the already authorized serial focused/helper/CI checks, without retries or package execution",
+    "No additional maintained paths, R1 guard changes, package/resource/full-workspace/hosted execution, repository commit/ref/publication/settings change or delegation is authorized"
+  ],
+  "coordinatorDriver": {
+    "historicalPath": "_tmp-c5f-ovtrnV/record-setup-scope-amendment.mjs",
+    "sha256": "b6ef9e3dc9dbb30d28b036ded2257a1a7ebf9ea10d2aa66091d5593e760d08f4"
+  }
+}

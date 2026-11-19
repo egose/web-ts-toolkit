@@ -1,0 +1,225 @@
+Curated historical check output; headings are archive annotations.
+Full logs, skipped-test listings and duplicate success output are omitted. Original line ranges are in the manifest.
+
+[conditions]
+Read-only condition record; see conditions.json. Its Redis image-inspection subcommand exited 1 (both named images absent).
+
+[initial-build; recorder exit 0]
+$ tsup --config tsup.config.ts
+CLI Building entry: src/index.ts, src/signer.ts
+CLI Using tsconfig: tsconfig.json
+CLI tsup v8.5.1
+CLI Using tsup config: <repo-root>/packages/express-request-attestation/tsup.config.ts
+CLI Target: es2022
+CLI Cleaning output folder
+CJS Build start
+ESM Build start
+CJS dist/index.js  101.96 KB
+CJS dist/signer.js 74.75 KB
+CJS ⚡️ Build success in 49ms
+ESM dist/signer.mjs 71.73 KB
+ESM dist/index.mjs  97.36 KB
+ESM ⚡️ Build success in 49ms
+DTS Build start
+DTS ⚡️ Build success in 2303ms
+DTS dist/index.d.ts                 48.60 KB
+DTS dist/signer.d.ts                29.10 KB
+DTS dist/time-policy-CquS0Zgm.d.ts  20.29 KB
+DTS dist/index.d.mts                48.61 KB
+DTS dist/signer.d.mts               29.11 KB
+DTS dist/time-policy-CquS0Zgm.d.mts 20.29 KB
+
+[diagnostic-red; recorder exit 1]
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+ × test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium: 'cross-origin missing marker exposure …' 2937ms
+   → fixture diagnostics must survive return before external assertions: expected { …(7) } to have property "diagnostics.events"
+ FAIL  test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium: 'cross-origin missing marker exposure …'
+AssertionError: fixture diagnostics must survive return before external assertions: expected { …(7) } to have property "diagnostics.events"
+ ❯ test/packed-consumer.test.ts:736:93
+    734|       });
+    735|
+    736|       expect(browser, 'fixture diagnostics must survive return before …
+       |                                                                                             ^
+    737|         'diagnostics.events',
+    738|       );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 skipped (12)
+   Start at  21:25:57
+   Duration  3.79s (transform 111ms, setup 0ms, import 673ms, tests 2.98s, environment 0ms)
+
+[observer-controls; recorder exit 0]
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+ ↓ test/fetch-client.test.ts > native Fetch ownership > stale-response ownership > aborts waiting for replacement load without disposing the shared client or sending late work
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > forwards original receivers, arguments, values and a native sign promise without mutating frozen owners 11ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves caller-selected ordinary receivers and complete arguments 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves caller-selected bound receivers and complete arguments 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves caller-selected closure receivers and complete arguments 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > leaves malformed and accessor-defined signer substitutes untouched without invoking sign accessors 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves the exact synchronous load error 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves the exact synchronous sign error 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves the exact synchronous invalidate error 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves the exact synchronous dispose error 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves the exact asynchronous load rejection and observes settlement 1ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves the exact asynchronous sign rejection and observes settlement 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > never invokes error accessors/stringification and redacts unrecognized categories 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > bounds retained events, sanitizes terminal observations and returns independent snapshots 1ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > retains a raw failure report for explicit assertions but never serializes it or the original error cause 1ms
+ Test Files  1 passed (1)
+      Tests  14 passed | 107 skipped (121)
+   Start at  21:43:22
+   Duration  1.51s (transform 621ms, setup 0ms, import 1.35s, tests 19ms, environment 0ms)
+
+[installed-causal-controls; recorder exit 1]
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+ × test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium: 'cross-origin explicit cookies recover…' 2522ms
+   → expected [ …(3) ] to deeply equal []
+ × test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium: 'cross-origin missing marker exposure …' 485ms
+   → expected [ { kind: 'request-failed', …(3) } ] to deeply equal []
+ × test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium controlled retry: 'invalidate' 466ms
+   → expected [ { kind: 'request-failed', …(3) } ] to deeply equal []
+ × test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium controlled retry: 'sign' 493ms
+   → expected [ …(2) ] to deeply equal []
+ × test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium controlled retry: 'retry-header' 486ms
+   → expected [ …(2) ] to deeply equal []
+ × test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium controlled retry: 'repeat-proof' 489ms
+   → expected [ …(2) ] to deeply equal []
+ × test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium controlled retry: 'retry-request' 524ms
+   → expected [] to have a length of 2 but got +0
+ FAIL  test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium: 'cross-origin explicit cookies recover…'
+AssertionError: expected [ …(3) ] to deeply equal []
+ FAIL  test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium: 'cross-origin missing marker exposure …'
+AssertionError: expected [ { kind: 'request-failed', …(3) } ] to deeply equal []
+ FAIL  test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium controlled retry: 'invalidate'
+AssertionError: expected [ { kind: 'request-failed', …(3) } ] to deeply equal []
+ FAIL  test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium controlled retry: 'sign'
+ FAIL  test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium controlled retry: 'retry-header'
+ FAIL  test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium controlled retry: 'repeat-proof'
+AssertionError: expected [ …(2) ] to deeply equal []
+ FAIL  test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium controlled retry: 'retry-request'
+AssertionError: expected [] to have a length of 2 but got +0
+ Test Files  1 failed (1)
+      Tests  7 failed | 1 passed | 10 skipped (18)
+   Start at  21:43:43
+   Duration  6.76s (transform 145ms, setup 0ms, import 650ms, tests 5.99s, environment 0ms)
+
+[observer-settlement-controls; recorder exit 0]
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+ ↓ test/fetch-client.test.ts > native Fetch ownership > stale-response ownership > aborts waiting for replacement load without disposing the shared client or sending late work
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > forwards original receivers, arguments, values and a native sign promise without mutating frozen owners 17ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves caller-selected ordinary receivers and complete arguments 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves caller-selected bound receivers and complete arguments 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves caller-selected closure receivers and complete arguments 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > waits for native load settlement before mapping its facade and leaves sign settlement on the original promise 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > leaves malformed and accessor-defined signer substitutes untouched without invoking sign accessors 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves the exact synchronous load error 1ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves the exact synchronous sign error 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves the exact synchronous invalidate error 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves the exact synchronous dispose error 0ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves the exact asynchronous load rejection and observes settlement 2ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > preserves the exact asynchronous sign rejection and observes settlement 1ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > never invokes error accessors/stringification and redacts unrecognized categories 1ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > bounds retained events, sanitizes terminal observations and returns independent snapshots 1ms
+ ✓ test/fetch-client.test.ts > installed browser observation-only diagnostics > retains a raw failure report for explicit assertions but never serializes it or the original error cause 1ms
+ Test Files  1 passed (1)
+      Tests  15 passed | 107 skipped (122)
+   Start at  21:49:23
+   Duration  1.36s (transform 626ms, setup 0ms, import 1.17s, tests 28ms, environment 0ms)
+
+[installed-correlated-controls; recorder exit 1]
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+ × test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium controlled retry: 'retry-request' 540ms
+   → expected 'returned' to be 'rejected' // Object.is equality
+ FAIL  test/packed-consumer.test.ts > packed-package consumer compatibility > installed Chromium controlled retry: 'retry-request'
+AssertionError: expected 'returned' to be 'rejected' // Object.is equality
+
+Expected: "rejected"
+Received: "returned"
+
+ ❯ test/packed-consumer.test.ts:968:27
+    966|     }));
+    967|
+    968|     expect(outcome.state).toBe(fault === 'retry-request' ? 'rejected' …
+       |                           ^
+    969|     expect(diagnostics.dropped).toBe(0);
+    970|     expect(native.dropped).toBe(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed | 10 skipped (18)
+   Start at  21:50:08
+   Duration  6.93s (transform 137ms, setup 0ms, import 640ms, tests 6.17s, environment 0ms)
+
+[installed-native-transport-control; recorder exit 0]
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+ Test Files  1 passed (1)
+      Tests  1 passed | 17 skipped (18)
+   Start at  21:51:02
+   Duration  3.77s (transform 220ms, setup 0ms, import 937ms, tests 2.65s, environment 0ms)
+
+[signer-fetch-contracts; recorder exit 1]
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+ × test/fetch-client.test.ts > native Fetch ownership > stale-response ownership > aborts waiting for replacement load without disposing the shared client or sending late work 508ms
+   → expected undefined to deeply equal { status: 'rejected', …(1) }
+ FAIL  test/fetch-client.test.ts > native Fetch ownership > stale-response ownership > aborts waiting for replacement load without disposing the shared client or sending late work
+AssertionError: expected undefined to deeply equal { status: 'rejected', …(1) }
+
+- Expected:
+{
+  "reason": Error {
+    "message": "caller stops waiting",
+  },
+  "status": "rejected",
+}
+
++ Received:
+undefined
+
+ ❯ test/fetch-ownership.cases.ts:793:42
+    791|             expect(cancel).not.toHaveBeenCalled();
+    792|             controller.abort(reason);
+    793|             expect(await within(result)).toEqual({ status: 'rejected',…
+       |                                          ^
+    794|             expect(client.dispose).not.toHaveBeenCalled();
+    795|             expect(original.bodyUsed).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 104 passed | 91 skipped (196)
+   Start at  21:52:44
+   Duration  2.21s (transform 729ms, setup 0ms, import 1.33s, tests 1.18s, environment 0ms)
+
+[signer-fetch-baseline-control; recorder exit 0]
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+ ✓ test/fetch-client.test.ts > native Fetch ownership > stale-response ownership > aborts waiting for replacement load without disposing the shared client or sending late work 3ms
+ Test Files  2 passed (2)
+      Tests  105 passed | 76 skipped (181)
+   Start at  21:54:48
+   Duration  1.52s (transform 647ms, setup 0ms, import 1.16s, tests 665ms, environment 0ms)
+
+[scoped-lint; recorder exit 0]
+
+[scoped-typecheck; recorder exit 0]
+$ tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.signer-browser.json && pnpm typecheck:declarations
+$ tsc --noEmit -p test-decl-consumer/tsconfig-nodenext.json && tsc --noEmit -p test-decl-consumer/tsconfig-bundler.json && tsc --noEmit -p test-decl-consumer/tsconfig-browser.json
+
+[scoped-format-check; recorder exit 1]
+Checking formatting...
+[warn] packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs
+[warn] packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs
+[warn] packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs
+[warn] packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts
+[warn] packages/express-request-attestation/test/installed-browser-harness.ts
+[warn] packages/express-request-attestation/test/packed-consumer.test.ts
+[warn] Code style issues found in 6 files. Run Prettier with --write to fix.
+
+[format-plan; recorder exit 0]
+
+[final-static-audit; recorder exit 0]
+
+[final-format-check; recorder exit 0]
+Checking formatting...
+All matched files use Prettier code style!
+
+[final-lint; recorder exit 0]

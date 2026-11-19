@@ -1,0 +1,4 @@
+Checking formatting...
+[warn] scripts/ci-test-workspace.mjs
+[warn] scripts/ci-test-workspace.test.mjs
+[warn] Code style issues found in 2 files. Run Prettier with --write to fix.

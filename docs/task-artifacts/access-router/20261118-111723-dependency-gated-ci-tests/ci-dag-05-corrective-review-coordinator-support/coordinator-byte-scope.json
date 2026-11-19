@@ -1,0 +1,476 @@
+{
+  "checkedAt": "2026-11-19T17:56:59.355047+00:00",
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "verdict": "Idle reviewer report/support bytes and allowed scope reconciled; behavioral findings and saved-command reconciliation are separate, not test or rollout recertification",
+  "scope": "Read-only Git metadata, file hashes/modes, new report/support privacy, JSON validity and local links; no import/test/build/resource/source/runtime/tool/hosted/publication execution",
+  "command": [
+    "python3",
+    "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c/reconcile-idle-corrective-review.py",
+    "--reviewer-idle-confirmed"
+  ],
+  "cwd": ".",
+  "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+  "reviewInputs": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-inputs.json",
+    "mode": "0644",
+    "bytes": 610017,
+    "sha256": "ad378fec69c87bb1b750c9f1bb3b47b23861ebf4f1d40a3aabb9ebe4678ef696"
+  },
+  "assignment": {
+    "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-assignment.json",
+    "mode": "0644",
+    "bytes": 4742,
+    "sha256": "697c18c1d6085870b8187eed4b0b8cc6ee915f9fd70f1b9ccd54ad8994d1cce1"
+  },
+  "launchSeal": {
+    "path": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c/launch-seal.json",
+    "mode": "0644",
+    "bytes": 1155,
+    "sha256": "6e89f7233b97cde411adbce91c52ebfdad99e8a2f87443ef233f2ddbf5768157"
+  },
+  "protectedOriginals": 2771,
+  "unchangedOriginals": 2771,
+  "historicalInputsAndSealsMatched": 33,
+  "allCorrectiveMaintainedFingerprintsMatched": 24,
+  "readinessAndDriverSourceCopiesMatched": {
+    "readinessCheck": {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/setup-readiness-4np6186g/handoff-readiness.json",
+        "mode": "0644",
+        "bytes": 24755,
+        "sha256": "ca8e25a8f3ddc19b6ec76b355a5125795368f21da1977a587d26a091c30dccfa"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/handoff-readiness.json",
+        "mode": "0644",
+        "bytes": 24755,
+        "sha256": "ca8e25a8f3ddc19b6ec76b355a5125795368f21da1977a587d26a091c30dccfa"
+      },
+      "transformation": "None; byte-exact copy; source retained unchanged"
+    },
+    "coordinatorReadinessDriver": {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/freeze-corrective-review-inputs.py",
+        "mode": "0644",
+        "bytes": 26896,
+        "sha256": "b548dfa6b491fd6d37a8804afa787aa26471b84fc52f9ab03c102f44c578dc0b"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/drivers/freeze-corrective-review-inputs.py",
+        "mode": "0644",
+        "bytes": 26896,
+        "sha256": "b548dfa6b491fd6d37a8804afa787aa26471b84fc52f9ab03c102f44c578dc0b"
+      },
+      "transformation": "None; byte-exact historical driver; not runnable from archive alone"
+    }
+  },
+  "reviewerNewFileCount": 9,
+  "reviewerFiles": {
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/README.md": {
+      "mode": "0644",
+      "bytes": 4303,
+      "sha256": "96eeaa436b38016945f0bd27af067b0d6a5b0b64d472032ede7514b474d94425"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/checks.json": {
+      "mode": "0644",
+      "bytes": 18571,
+      "sha256": "1f4d2d6ad4df3b0a81d45bb601e4aacc01b5ea0f22bedf48087d65728098e97a"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/closing-integrity.json": {
+      "mode": "0644",
+      "bytes": 5914,
+      "sha256": "ce05fab9529d10b2b28399edf930415c69dbdacf4b180606f8ffaa2570a20500"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/delivery-check.json": {
+      "mode": "0644",
+      "bytes": 13411,
+      "sha256": "ac8af8f775fb10458ee8e3a0a01ca82974d053c7b62834b2275223fdb91e4c4a"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/evidence-reconciliation.json": {
+      "mode": "0644",
+      "bytes": 18358,
+      "sha256": "b164949083d15f0ee8af6802bffa5298ba95ede495f92b07d3f64a46fea67d6c"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/inputs.json": {
+      "mode": "0644",
+      "bytes": 12373,
+      "sha256": "0dea5253b0996a8c7b060be7234bc5ae27a47f4ff25cf067193fc4c9b8282386"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/maintained-prettier.stderr.log": {
+      "mode": "0644",
+      "bytes": 110,
+      "sha256": "894b457c0fe401b1e7193511b9d30175f7042fe2a8bb7229589f6e96f9fb2511"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/maintained-prettier.stdout.log": {
+      "mode": "0644",
+      "bytes": 23,
+      "sha256": "ebe82dad128d5e5d8936334ceac09492f3c60bd9e0b4a16cc7fd7075513b33de"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review.md": {
+      "mode": "0644",
+      "bytes": 23426,
+      "sha256": "94ad040620b4f27a3852415a5a59ce2880d95271c1dd6357f2aa145b706d0a9b"
+    }
+  },
+  "allowedNewCoordinatorRecord": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-assignment.json",
+  "allAddedPaths": [
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-assignment.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-inputs.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/README.md",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/checks.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/closing-integrity.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/delivery-check.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/evidence-reconciliation.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/inputs.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/maintained-prettier.stderr.log",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/maintained-prettier.stdout.log",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review.md"
+  ],
+  "allCurrentRegularFiles": 2782,
+  "currentFilesTableSha256": "73422362ef1fe1f18176be77f25e2714942c08a39faf2eb93fac73ad55d49b68",
+  "newDocumentsChecked": [
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/README.md",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review.md"
+  ],
+  "newJsonFilesChecked": [
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-assignment.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/checks.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/closing-integrity.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/delivery-check.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/evidence-reconciliation.json",
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/inputs.json"
+  ],
+  "localLinks": 31,
+  "anchors": 1,
+  "privacyJsonLinksAndMetadataWhitespace": "passed; raw/diff evidence not reformatted",
+  "gitStatusMatchedInitialSnapshot": true,
+  "checksMadeNoGitVisibleEdits": true,
+  "commands": [
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:58.841255+00:00",
+      "finishedAt": "2026-11-19T17:56:58.844532+00:00",
+      "exitCode": 0,
+      "stdoutBytes": 46,
+      "stdoutSha256": "f6ab54fedf155289ca38b92f4fab8a5c5a92bcbb647c4b9a773edd69503fd7d6",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:58.858705+00:00",
+      "finishedAt": "2026-11-19T17:56:58.862174+00:00",
+      "exitCode": 0,
+      "stdoutBytes": 41,
+      "stdoutSha256": "d9fc09c66e8f9d79791308f3960d7c07e38589b227a43bdd643e2247bdeeeafa",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "for-each-ref",
+        "--format=%(objectname) %(refname)"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:58.862645+00:00",
+      "finishedAt": "2026-11-19T17:56:58.866089+00:00",
+      "exitCode": 0,
+      "stdoutBytes": 8156,
+      "stdoutSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "status",
+        "--short"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:58.866181+00:00",
+      "finishedAt": "2026-11-19T17:56:58.877818+00:00",
+      "exitCode": 0,
+      "stdoutBytes": 1344,
+      "stdoutSha256": "ee96fed08f62dbef2db568b6c1367c50042daae4b695d0b970d810ec6454cd19",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "ls-files",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "-z"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:58.877950+00:00",
+      "finishedAt": "2026-11-19T17:56:58.887501+00:00",
+      "exitCode": 0,
+      "stdoutBytes": 198337,
+      "stdoutSha256": "0e79fa2f723c21dd7cf8f9bd3ba14fbbd21959873fdf8c29cc16c4c9bae66533",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/README.md"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:59.123083+00:00",
+      "finishedAt": "2026-11-19T17:56:59.126941+00:00",
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/checks.json"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:59.127154+00:00",
+      "finishedAt": "2026-11-19T17:56:59.130650+00:00",
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/closing-integrity.json"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:59.130705+00:00",
+      "finishedAt": "2026-11-19T17:56:59.133287+00:00",
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/delivery-check.json"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:59.133350+00:00",
+      "finishedAt": "2026-11-19T17:56:59.136638+00:00",
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/evidence-reconciliation.json"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:59.136705+00:00",
+      "finishedAt": "2026-11-19T17:56:59.139966+00:00",
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/inputs.json"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:59.140025+00:00",
+      "finishedAt": "2026-11-19T17:56:59.142932+00:00",
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/maintained-prettier.stderr.log"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:59.142996+00:00",
+      "finishedAt": "2026-11-19T17:56:59.145093+00:00",
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/maintained-prettier.stdout.log"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:59.145131+00:00",
+      "finishedAt": "2026-11-19T17:56:59.148196+00:00",
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review.md"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:59.148295+00:00",
+      "finishedAt": "2026-11-19T17:56:59.151166+00:00",
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "ls-files",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "-z"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:59.183808+00:00",
+      "finishedAt": "2026-11-19T17:56:59.193230+00:00",
+      "exitCode": 0,
+      "stdoutBytes": 198337,
+      "stdoutSha256": "0e79fa2f723c21dd7cf8f9bd3ba14fbbd21959873fdf8c29cc16c4c9bae66533",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:59.351074+00:00",
+      "finishedAt": "2026-11-19T17:56:59.352911+00:00",
+      "exitCode": 0,
+      "stdoutBytes": 41,
+      "stdoutSha256": "d9fc09c66e8f9d79791308f3960d7c07e38589b227a43bdd643e2247bdeeeafa",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "for-each-ref",
+        "--format=%(objectname) %(refname)"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c",
+      "startedAt": "2026-11-19T17:56:59.352957+00:00",
+      "finishedAt": "2026-11-19T17:56:59.354977+00:00",
+      "exitCode": 0,
+      "stdoutBytes": 8156,
+      "stdoutSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    }
+  ],
+  "checker": {
+    "path": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c/reconcile-idle-corrective-review.py",
+    "mode": "0644",
+    "bytes": 12933,
+    "sha256": "e3d5be82b4c315459150040b2559058671c823becc971dd1a2dcad17b42e3136"
+  },
+  "selfReferenceLimit": "This result is written after input capture; it excludes itself, future curated copies/status edits and subsequent coordinator evidence",
+  "limits": [
+    "Does not independently rerun reviewer CI/group/quality checks or establish original R2 causality/timing neutrality",
+    "Does not certify full native short-root, Node-20 or runner/main/post behavior or any R3 hosted/maintainer rollout decision",
+    "Ignored dependencies, caches, builds, fixture state, tool binaries and redundant metadata streams are omitted; not archive-only execution reproduction"
+  ]
+}

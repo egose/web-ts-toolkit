@@ -1,0 +1,109 @@
+{
+  "checkedAt": "2026-11-19T11:15:57.160Z",
+  "scope": "Read-only stage-1 preflight/proposal reconciliation; no helper/package/resource/source operation, install, build, project-ref change or hosted execution",
+  "scratch": "_tmp-c5f-ovtrnV/setup-stage1-ktSGrU",
+  "inputFingerprints": {
+    "_tmp-c5-setup-ozh7l6on/stage-1-proposal.md": {
+      "mode": "0644",
+      "bytes": 29344,
+      "sha256": "5513e1d9022d0b158e20ce9424e79003b6c292d21e8c92433c10f90b74f471bf"
+    },
+    "_tmp-c5-setup-ozh7l6on/preflight.json": {
+      "mode": "0644",
+      "bytes": 540399,
+      "sha256": "2d7e808826ce5a6de639593070944453ee0c2b1cb20a7d5cbec6125a903a91a8"
+    },
+    "_tmp-c5-setup-ozh7l6on/stage-1-fingerprints.json": {
+      "mode": "0644",
+      "bytes": 6335,
+      "sha256": "e8ed30684e90b41c1e9a582fecd31604a0ebab36d00d26e958becd57ffc4429c"
+    }
+  },
+  "protectedRegularFiles": 2581,
+  "unchangedProtectedRegularFiles": 2581,
+  "modeCounts": {
+    "0755": 5,
+    "0644": 2576
+  },
+  "changedProtectedFiles": [],
+  "addedOrMissingGitListedPaths": [],
+  "originalSealsMatched": 10,
+  "sealFingerprints": {
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-finishing-review.md": {
+      "mode": "0644",
+      "bytes": 40181,
+      "sha256": "f96fa3f21bd701a1862823eae388c78fb189f296bd6f40c4cfe975767f3ba02b"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/manifest.json": {
+      "mode": "0644",
+      "bytes": 30069,
+      "sha256": "c69bfcc7f009f05227be44301efc9a4682cbf910a5c81c7a7b103c7cb14e7398"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/manifest.json": {
+      "mode": "0644",
+      "bytes": 47449,
+      "sha256": "ed4ebcd0bc529eefc1f4b3a0d548eb8798ebd332bcc9ab9522ef1a80d869d2d0"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-coordinator-reconciliation.json": {
+      "mode": "0644",
+      "bytes": 24579,
+      "sha256": "f8efbfbfd4c0db94e36873fe0fc2f3a61ddcfadc506e1b7202333fa08128af8e"
+    },
+    "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-pre-setup-coordinator-reconciliation.json": {
+      "mode": "0644",
+      "bytes": 17240,
+      "sha256": "cbf392a1ed6c15526d864ba594b365acf804b10ddae208e9056776707166f7fe"
+    },
+    "_tmp-fix-w72mgx/baseline.json": {
+      "mode": "0644",
+      "bytes": 352863,
+      "sha256": "2eb59aea94f09b1655ab1bcc011b41161570ff5ce21a930f62ecde0393296627"
+    },
+    "_tmp-05c-G8SORQ/summary.txt": {
+      "mode": "0644",
+      "bytes": 229,
+      "sha256": "3709ee3f0c6a7d958c58218a67c2d3a3aeded8d3a7ed7d6c019a18006154e32d"
+    },
+    "_tmp-05c-G8SORQ/lint.log": {
+      "mode": "0644",
+      "bytes": 235,
+      "sha256": "192904497e1d404db5e88f37fa40626e70af5ed75752856c8c986155c6bf8f26"
+    },
+    "_tmp-05c-G8SORQ/build.log": {
+      "mode": "0644",
+      "bytes": 87465,
+      "sha256": "4d57b5ff1d77843945bc09fa6b85959a18b3e00e592f505b38a8b0bf36d23759"
+    },
+    "_tmp-05c-G8SORQ/grouped.log": {
+      "mode": "0644",
+      "bytes": 252259,
+      "sha256": "1b750bce5243882f4aec8fd8e344049100e49a5c795aea5fee9620420e782bf0"
+    }
+  },
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "headUnchanged": true,
+  "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+  "projectRefsUnchanged": true,
+  "inheritedStatusEntries": 26,
+  "inheritedStatusUnchanged": true,
+  "originalRealRootUtf8Bytes": 33,
+  "productionSelectionOrMaterializationExecuted": false,
+  "documentCheck": {
+    "path": "_tmp-c5f-ovtrnV/check-oPX4in/coordinator-reconciliation.json",
+    "mode": "0644",
+    "bytes": 17618,
+    "sha256": "a1030263576cd09bb97b47854ecd12c7ccf088b9a06ce941212c8578b66d9f07",
+    "checkedAt": "2026-11-19T11:14:58.223Z",
+    "changedFiles": 14,
+    "addedFiles": 45,
+    "documents": 15,
+    "localLinks": 195,
+    "anchors": 12
+  },
+  "coordinatorDriver": {
+    "path": "_tmp-c5f-ovtrnV/reconcile-setup-stage1.mjs",
+    "mode": "0644",
+    "bytes": 7339,
+    "sha256": "99c547a80458d4efa230943163bcf9359438515298f06e2bc5d1345f6357ac90"
+  }
+}

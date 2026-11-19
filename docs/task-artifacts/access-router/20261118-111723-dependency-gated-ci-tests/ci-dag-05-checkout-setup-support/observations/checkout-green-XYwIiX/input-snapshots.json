@@ -1,0 +1,14 @@
+{
+  ".github/actions/ci-checkout/index.mjs": {
+    "bytes": 31162,
+    "sha256": "3359022688cf0b4c6b0de3cb07bec9dce189eb68a961a150d8da9114e34bf0e0",
+    "snapshot": "_tmp-c5-setup-stage2-oNPuwiq6/checkout-green-XYwIiX/inputs/.github/actions/ci-checkout/index.mjs",
+    "snapshotSha256": "3359022688cf0b4c6b0de3cb07bec9dce189eb68a961a150d8da9114e34bf0e0"
+  },
+  "scripts/ci-test-checkout.test.mjs": {
+    "bytes": 59638,
+    "sha256": "5848296056ce7290671c41cb50bc1ebfb9e3ad51be9ce6bbc19a098a0a6ced19",
+    "snapshot": "_tmp-c5-setup-stage2-oNPuwiq6/checkout-green-XYwIiX/inputs/scripts/ci-test-checkout.test.mjs",
+    "snapshotSha256": "5848296056ce7290671c41cb50bc1ebfb9e3ad51be9ce6bbc19a098a0a6ced19"
+  }
+}

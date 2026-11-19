@@ -1,0 +1,714 @@
+--- review-input/docs/tasks/20261118-111723-dependency-gated-ci-tests.md
++++ coordinator-closeout/docs/tasks/20261118-111723-dependency-gated-ci-tests.md
+@@ -360,7 +360,7 @@
+ 
+ Remediation preflight: unchanged `HEAD` and a fresh ignored scratch snapshot cover **2,536 protected regular files** (including the sealed report and coordinator addenda). Read-only inspection also found that BroadcastChannel's `Math.random().toString(36).substring(2)` reader UUID can exceed the observed 10-11 characters; sampled supported finite values produced up to 21. Treat the 51-byte observed suffix as evidence, not a proven universal upper bound. Checkout-local allocation must explicitly reject unsupported byte budgets; a representative hosted checkout shape calculated from the repository name is 47 bytes, not an observed hosted path. These constraints must be reconciled in R1's design rather than silently assuming the short grouped V5 covered them.
+ 
+-Assigned remediation sequence: **R1 resource-helper implementation agent** first; then a fresh **R2 attestation investigation agent**; then the subsequently authorized fresh checkout-setup agent; then a fresh non-implementer corrective reviewer. R1 is delivered, idle and coordinator-reconciled, **not independently accepted**. R2 was launched only after R1 reconciliation and is now **delivered, idle and coordinator-reconciled—not resolved or independently accepted**. The **fresh checkout-setup agent delivered read-only stage 1, is idle and coordinator-reconciled, and is confirmed for stage-2 continuation in the same session**; implementation/check execution has not started at this confirmation record. Corrective review remains pending, not assigned. The [separate coordination record](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md), [R2 handoff](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-handoff.md) and [delivered investigation](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-investigation.md) record its bounded scope. The first failure exposed `stale-key` to page JavaScript, with one discovery and no replacement request. `src/attested-fetch.ts` (`isStaleKeyRetryCandidate`, retry preparation) intentionally returns the untouched first response on reload/sign/construction failure; the saved log does not retain that internal error. Injected phenotypes do not identify that unrecorded exception. This observation does not resolve R2 or authorize speculative production changes.
++Historical remediation sequence at stage-1 confirmation: **R1 resource-helper implementation agent** first; then a fresh **R2 attestation investigation agent**; then the subsequently authorized fresh checkout-setup agent; then a fresh non-implementer corrective reviewer. R1 and R2 were delivered, idle and coordinator-reconciled, not independently accepted; R2 was not resolved. Setup stage 2 was confirmed for continuation in the same session, not yet started at that record; corrective review was pending/unassigned then. The later delivery and review results below supersede that assignment state, not the original evidence. The [separate coordination record](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md), [R2 handoff](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-handoff.md) and [delivered investigation](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-investigation.md) record its bounded scope. The first failure exposed `stale-key` to page JavaScript, with one discovery and no replacement request. `src/attested-fetch.ts` (`isStaleKeyRetryCandidate`, retry preparation) intentionally returns the untouched first response on reload/sign/construction failure; the saved log does not retain that internal error. Injected phenotypes do not identify that unrecorded exception. This observation does not resolve R2 or authorize speculative production changes.
+ 
+ Subsequent checkout-setup scope authorization: the user selected **Local setup fix** after being told that the 34-byte real-root limit rejects the calculated 47-byte hosted path. A fresh setup implementation agent may make minimal CI setup/workflow/helper-contract changes and focused local verification for a shorter **real** checkout, after R2 is idle and coordinator-reconciled and before fresh independent corrective review. Read-only stage 1 is delivered and reconciled; its minimal candidate and exact validation/test-only amendments are **coordinator-confirmed for stage 2**, not implemented or certified. Preserve the original pinned-SHA checkout/action resolution and cleanup, exact source/artifact identity, independent jobs and complete scripts. A symlink alias, external `TMPDIR` fallback, weakened guard or undocumented override is not authorized. The [setup handoff](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md) records the boundary and verification questions. No commit, push, dispatch, settings change or hosted execution is authorized by this decision; actual hosted usability remains unverified.
+ 
+@@ -378,7 +378,18 @@
+ 
+ Subsequent stage-2 delivery reconciliation (**2026-11-19**): the same setup implementer delivered its [new report](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup.md) and support and is idle. The [coordinator byte/scope check](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-stage2-coordinator-reconciliation.json) passed at **14:29:16.540Z**, retaining **2,582 original files / 2,568 unchanged**, exactly **10 maintained changes + three new maintained files**, and separately accounting for **four coordinator-document changes + one coordinator JSON addition**. Original modes/seals, HEAD/refs, all 31 job IDs/order, independent raw job blocks, exact validation-filename addition, dependency/eligibility graph prefix and evaluator negative assertions matched. The [saved-evidence reconciliation](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-stage2-coordinator-evidence.json) passed at **14:33:42.048567+00:00** for **169 setup files / 57 JSON files / 162 archive entries / 156 original sources / 64 raw outputs**, with **35 serial observations** and all **11 initial nonzero results** retained. Exact final fingerprints, the thirteen-path diff, only the approved R1-test line and two result-test changes, reversible archival redaction and local source/archive transformations reconciled. Saved final **611 CI / 18 group-validation checks** and focused quality checks match the thirteen maintained fingerprints; the coordinator did not rerun tests or source operations. [Curated coordinator support](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/README.md) preserves exact successful JSON copies and inspected drivers separately from the unchanged delivery report and historical seals.
+ 
+-Current corrective-review readiness: R1, R2 and setup are **delivered, idle and coordinator-reconciled**, not independently accepted. The fresh non-implementer [corrective-review brief](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md) is ready for assignment after the coordinator document check and immutable input snapshot; no reviewer is assigned at this readiness record. Positive full native short-root execution, Node-20 execution compatibility and actual runner/main/post behavior remain unverified. R2's original cause, focused abort failure, observer timing neutrality and incomplete packed-consumer verification remain undisposed; **any further package execution, including focused lanes, needs renewed explicit authorization**. A separate source probe/runtime installation or hosted execution is not authorized. Fresh bounded serial CI/group validation and focused lint/document/YAML checks are within the review boundary. CI-DAG-05 stays **in_progress and blocked before independent corrective/final rollout acceptance**; R3 and required maintainer decisions remain outstanding.
++Historical corrective-review readiness: R1, R2 and setup were **delivered, idle and coordinator-reconciled**, not independently accepted. The fresh non-implementer [corrective-review brief](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md) was ready after the coordinator document check and immutable input snapshot; the reviewer was unassigned at that prelaunch capture. Its subsequent launch/delivery is recorded below. The readiness check passed **8 documents / 10 JSON / 154 links / 7 anchors**, retaining both initial readiness failures and the historical four-entry coordinator-manifest formatting exception. That exception is **not a Prettier pass**. Readiness and input fingerprints remain historical and are not rewritten by later coordinator status edits.
++
++Current corrective-review result and coordinator closeout (**2026-11-19**): the fresh non-implementer reviewer launched at **14:56:47.674093+00:00**, after the sequential R1/R2/setup idle deliveries and reconciliation, then delivered the [independent report](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review.md) and stopped idle. Verdict: **CHANGES REQUIRED / BLOCKED**. Independent acceptance is limited to R1's supported-depth allocation/rejection contract, R2's narrow bounded diagnostic surface, and setup's reviewed local source/ownership/wiring contracts. This is **not** complete requirement-9 runtime acceptance, R2 causal/risk resolution, CI-DAG-05 completion or coordinator rollout acceptance.
++
++- [Coordinator byte/scope reconciliation](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/coordinator-byte-scope.json) matched **2,771 protected originals / 24 maintained fingerprints / 33 historical inputs**, only **nine reviewer additions**, unchanged bytes/modes/HEAD/refs and **31 links / one anchor / six JSON**. Its **2,782-file** capture precedes these seven authorized coordinator-document edits, including the setup handoff's historical/current status labeling.
++- [Independent saved-evidence reconciliation](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/coordinator-saved-evidence.json) passed without executing historical drivers or repeating validators/packages/probes. All six serial one-shot receipts, twelve retained streams, counts/selections/failures, both reviewer audit attempts, curation and final delivery receipts matched; the **582-source** inventory was independently reconstructed. Reviewer checks retain **611 CI / 18 group passes**, ESLint on **17 paths** exit 0, Prettier on **24 paths** exit 1, and workflow-only actionlint exit 0 with shellcheck/pyflakes disabled.
++- Reviewer audit counters **3,257 / 3,507**, static counters **476 JSON / 482 stdout**, delivery counters **449 / 591 / 5,922**, and inventory stages **52 / 53 / 55 / 56** are distinct saved capture/accounting facts, **not maintained-test totals**. Raw reviewer output was not persisted: raw/retained equality is recorder metadata; retained stream identities/counts were independently read. The formatter's **1,630-byte intermediate summary** is not the final **13,411-byte summary**; final-byte receipts were separately reconciled.
++- [New coordinator support](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/README.md) preserves **21 exact selected payloads**, inspected drivers, both reviewer audit attempts and the coordinator reader's own initial empty-selector failure/preimage followed by its corrected pass. No original receipt, failure, driver, report or historical seal was rewritten.
++
++Remaining blockers: **Q1**, fresh maintained Prettier failure on `.github/workflows/test.yml`, with no baseline establishing it as pre-existing; **runtime**, positive full native short-root execution, actual Node-20 execution and real Actions main/post/installer/action-resolution behavior; **R2**, original cause, focused abort failure, observer timing neutrality and incomplete packed-consumer verification; **R3**, authorized hosted healthy/fault/preparation/validation/cancellation/missing/skipped evidence, artifact/scheduling/required-check confirmation, comparable measurements and maintainer risk/budget/rollout decisions.
++
++Current authorization is **saved-evidence reconciliation and coordinator documentation only**. R2's complete-package allowance and the reviewer's one CI/group-validator allowances are spent. **Renewed explicit authorization is required before workflow correction, corrective delegation, any additional package/focused execution, source/native/runner probe, runtime/tool installation or hosted execution.** No commit, push, dispatch, publication or settings change is authorized. Preserve complete scripts/rebuilds, worker limits, independent lanes, precise dependent skipping, fail-closed `unit-test`, multi-instance coverage and security/business-effect assertions. CI-DAG-05 remains **in_progress, blocked before corrective/final rollout acceptance**; no coordinator acceptance has been granted.
+ 
+ Kind: improvement
+ 
+--- review-input/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md
++++ coordinator-closeout/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md
+@@ -1,10 +1,13 @@
+ # CI-DAG-05 local remediation coordination
+ 
+-Updated: **2026-11-19T14:36:13.970069+00:00**. Owner alias: **CI-DAG-05 remediation
+-coordinator**. The user's necessary-fixes request authorizes sequential fresh R1
+-and R2 agents, the subsequently authorized checkout-setup agent, then fresh
+-non-implementer corrective review. This record is not
+-independent acceptance, hosted execution or rollout authorization.
++Updated: **2026-11-19T18:39:57.778517+00:00**. Owner alias: **CI-DAG-05 remediation
++coordinator**. The authorized sequential R1/R2/setup implementation and fresh
++non-implementer review have delivered and stopped idle. The
++[fresh verdict](ci-dag-05-corrective-review.md) is **CHANGES REQUIRED / BLOCKED**;
++coordinator byte/scope and saved-evidence reconciliation are complete. Current
++authority covers saved-evidence reconciliation and coordinator documentation
++only, not correction, further delegation, runtime or hosted work. No coordinator
++acceptance or rollout authorization is recorded.
+ 
+ Related: [authoritative task](../../../tasks/20261118-111723-dependency-gated-ci-tests.md#task-ci-dag-05-verify-rollout-measure-tradeoffs-and-update-testing-guidance),
+ [sealed finishing review](ci-dag-05-finishing-review.md),
+@@ -12,6 +15,10 @@
+ [R2 investigation handoff](ci-dag-05-r2-handoff.md).
+ 
+ ## R1 delivered and reconciled, not independently accepted
++
++This section is the **historical R1 delivery-stage record**. The fresh review's
++later, narrowly scoped independent R1 acceptance is recorded at the end; it does
++not recertify full native-root or hosted execution.
+ 
+ The R1 implementation agent is idle. The coordinator inspected the complete
+ manifest, retained results/failures, implementation and probe diffs, formatter
+@@ -137,14 +144,12 @@
+ 
+ ## Next execution and unresolved acceptance
+ 
+-R2 is **delivered, idle and coordinator-reconciled—not resolved or independently
+-accepted**. The coordinator alone updates task/status documents. The fresh setup
+-implementer delivered read-only stage 1, is idle and coordinator-reconciled, and
+-is confirmed for stage-2 continuation after this confirmation's document check.
+-Implementation has not started at this record. After its idle, reconciled delivery, a fresh
+-non-implementer reviews all corrective bytes. R1 is not accepted merely because
+-its checks passed; the unresolved R2 cause/abort/verification limits remain part
+-of that review and maintainer disposition.
++**Historical stage-1 next-execution record:** R2 was delivered, idle and
++coordinator-reconciled, not resolved or independently accepted. Setup stage 2 was
++confirmed for same-session continuation, not yet started at that record. The later
++idle/reconciled setup delivery and fresh review below supersede those pending
++assignments. Passing implementation checks alone were not acceptance; unresolved
++R2 cause/abort/verification limits still require disposition.
+ 
+ ### Subsequently authorized local checkout setup
+ 
+@@ -328,14 +333,15 @@
+ separate additions outside those results' captured sets; delivery/report/support
+ and all historical seals are not rewritten to change earlier pending language.
+ 
+-### Latest execution and acceptance state
+-
+-All three implementation agents are delivered, idle and reconciled. The
+-[fresh corrective-review brief](ci-dag-05-corrective-review-handoff.md) is ready for
+-assignment after the coordinator document check and exact input snapshot. The
+-reviewer is **not yet assigned at this readiness record** and must not be an
+-R1/R2/setup implementer; no further delegation is permitted. The coordinator owns
+-status/index/handoff edits and will reconcile the report before acceptance updates.
++### Prelaunch readiness (historical)
++
++All three implementation agents were delivered, idle and reconciled. The
++[fresh corrective-review brief](ci-dag-05-corrective-review-handoff.md) was ready
++after the coordinator document check and exact input snapshot. The reviewer was
++unassigned at that readiness capture, not at today's closeout. Subsequent readiness
++passed **8 documents / 10 JSON / 154 links / 7 anchors** while retaining both initial
++failures and the sealed four-entry manifest's formatting exception. The exception
++is **not a Prettier pass**; old readiness/document hashes are historical.
+ 
+ This satisfies setup's delivery/evidence-reconciliation prerequisite, not its
+ independent behavioral acceptance. **Positive full native short-root success,
+@@ -348,3 +354,67 @@
+ YAML checks are within the fresh review boundary. CI-DAG-05 remains **in_progress,
+ blocked before independent corrective and final rollout acceptance**. R3 and the
+ maintainer's required-check/risk/rollout/measurement decisions remain outstanding.
++
++## Fresh corrective review delivered and coordinator-reconciled
++
++The [launch assignment](ci-dag-05-corrective-review-assignment.json) records a fresh
++non-implementer launch at **2026-11-19T14:56:47.674093+00:00**, following the
++sequential R1/R2/setup idle deliveries and reconciliation. The
++[new report](ci-dag-05-corrective-review.md) and
++[reviewer support](ci-dag-05-corrective-review-support/README.md) are delivered;
++the reviewer is idle. **CHANGES REQUIRED / BLOCKED** is the current verdict.
++
++- **R1:** independent acceptance of the scoped allocation/rejection contract under
++  the inspected pinned native-random assumptions, not full RxDB/native-root or
++  hosted success. The **34-byte real-root / 45-byte TMPDIR** limits remain.
++- **R2:** bounded diagnostic surface accepted narrowly. Original causality, focused
++  abort failure, shared-load timing neutrality and missing packed-consumer completion
++  remain undisposed; no production fix or complete package pass is accepted.
++- **Setup:** reviewed local source/ownership/wiring contracts accepted. Requirement
++  9 remains incomplete: positive full native short-root, actual Node-20 execution
++  and real runner main/post/installer/action-resolution behavior are unverified.
++- **Q1:** maintained Prettier on all 24 corrective paths failed only for
++  `.github/workflows/test.yml`, exit 1. No baseline establishes a pre-existing
++  failure. This is separate from the historical coordinator-manifest exception.
++- **R3:** hosted healthy/fault/preparation/validation/cancellation/missing/skipped
++  evidence, scheduling/artifact/required-check confirmation, comparable measurement
++  and maintainer risk/budget/rollout decisions remain missing.
++
++The [coordinator byte/scope receipt](ci-dag-05-corrective-review-coordinator-support/coordinator-byte-scope.json)
++matched **2,771 originals / 24 maintained fingerprints / 33 historical seals**,
++only **nine reviewer additions**, unchanged HEAD/refs/modes/bytes and **31 links /
++one anchor / six JSON**. The **2,782-file** capture precedes the seven later
++coordinator-document updates; it is not a claim that those documents still match
++their pre-update fingerprints.
++
++The [separate saved-evidence receipt](ci-dag-05-corrective-review-coordinator-support/coordinator-saved-evidence.json)
++independently matched six serial one-shot receipts and twelve retained streams,
++**611 CI / 18 group passes**, 17-path ESLint exit 0, 24-path Prettier exit 1 and
++workflow-only actionlint exit 0 with shellcheck/pyflakes disabled. Both reviewer
++audits remain **3,257 checks / exit 1 / seven discrepancies** and **3,507 checks /
++exit 0**, with the **582-source** inventory independently reconstructed. The seven
++dispositions concern reviewer stage/diff/formatting assumptions, not demonstrated
++implementation defects. No historical driver or validator/package/probe was rerun.
++
++Raw reviewer execution streams were not persisted. Raw/retained equality is
++**recorder metadata**; retained bytes, hashes, excerpts and counts were independently
++read. Static **476/482**, delivery **449/591/5,922**, and inventory **52/53/55/56**
++counts are distinct accounting/capture facts, not maintained-test totals. The
++seven-file formatter's historical **1,630-byte** summary differs from the final
++**13,411-byte** summary; saved final-byte checks match the latter.
++
++[Coordinator support](ci-dag-05-corrective-review-coordinator-support/README.md)
++preserves **21 exact payloads / 383,653 bytes**, including inspected drivers,
++successful receipts, both reviewer audit attempts and the coordinator reader's
++own initial empty-selector failure/preimage followed by its corrected pass. This
++is curated evidence, not an archive-only reproducer. Original reports/support,
++launch/snapshot, earlier coordinator receipts, failures and historical seals remain
++unchanged; later status edits have separate scope evidence.
++
++**Execution is closed pending renewed explicit authorization.** R2's package
++allowance and the reviewer's one CI/group-validator allowances are spent. Obtain
++renewed explicit authorization before workflow correction, corrective delegation,
++additional package/focused execution, source/native/runner probes, runtime/tool
++installation or hosted execution. No commit/push/dispatch/publication/settings
++change is authorized. CI-DAG-05 stays **in_progress, blocked before corrective and
++final rollout acceptance**; reconciliation grants no coordinator acceptance.
+--- review-input/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md
++++ coordinator-closeout/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md
+@@ -1,12 +1,27 @@
+ # CI-DAG-05 fresh corrective-review handoff
+ 
+-Prepared: **2026-11-18T21:11:04-08:00**. This is preparation, **not an assignment or
+-review result**. Start only after the R2 implementation/investigation agent is idle
+-and coordinator-reconciled, and the subsequently authorized short-checkout setup
+-agent is idle and coordinator-reconciled. The reviewer must be fresh and not an
+-R1/R2/setup implementer. No further delegation.
+-
+-Coordinator prerequisite update (**2026-11-19T00:12:43-08:00**): R2 is
++Prepared: **2026-11-18T21:11:04-08:00**. The original brief was preparation only.
++**Current state: review delivered, idle and coordinator-reconciled; CHANGES
++REQUIRED / BLOCKED.** The [actual assignment](ci-dag-05-corrective-review-assignment.json)
++records the fresh non-implementer launch at **2026-11-19T14:56:47.674093+00:00**,
++after R1/R2/setup idle delivery and reconciliation. The
++[independent report](ci-dag-05-corrective-review.md) and
++[coordinator support](ci-dag-05-corrective-review-coordinator-support/README.md)
++record scoped acceptance and remaining blockers. No assignment is pending now.
++The execution instructions below are **historical review boundaries, not replay
++authorization**; no further delegation is authorized.
++
++The reviewer accepted only R1's supported-depth allocation/rejection contract,
++R2's narrow bounded diagnostic surface and setup's reviewed local contracts.
++Q1's maintained workflow-formatting failure, full native-root/Node-20/runner
++acceptance, unresolved R2 cause/abort/timing/incomplete packed-consumer verification
++and R3 hosted/maintainer prerequisites remain. No CI-DAG-05 completion, coordinator
++acceptance or rollout authorization is granted. The one CI/group-validator
++allowances and R2's package allowance are spent; renewed explicit authorization is
++required before correction/delegation, package/focused execution, source/native/
++runner probes, runtime/tool installation or hosted execution.
++
++Historical coordinator prerequisite update (**2026-11-19T00:12:43-08:00**): R2 is
+ **delivered, idle and coordinator-reconciled—not resolved or independently
+ accepted**. Subsequent confirmation update: setup's read-only stage 1 is delivered,
+ idle and coordinator-reconciled; stage-2 continuation is confirmed but not yet
+@@ -33,7 +48,7 @@
+ serial checks before accepting any local correction. Reviewer assignment still
+ waits for the setup agent's idle delivery and coordinator reconciliation.
+ 
+-Current prerequisite update (**2026-11-19**): the same setup session delivered
++Historical prelaunch prerequisite update (**2026-11-19**): the same setup session delivered
+ its [new report](ci-dag-05-checkout-setup.md) and support and is idle. Both
+ [coordinator byte/scope](ci-dag-05-checkout-setup-stage2-coordinator-reconciliation.json)
+ and [saved-evidence reconciliation](ci-dag-05-checkout-setup-stage2-coordinator-evidence.json)
+@@ -49,6 +64,17 @@
+ ready for assignment after the coordinator document check and immutable input
+ snapshot; the reviewer is **unassigned at this readiness record**. All delivered
+ reports/support and historical seals remain unchanged.
++
++Subsequent coordinator reconciliation matched **2,771 originals / 24 maintained
++fingerprints / 33 historical inputs**, only nine reviewer additions, six serial
++one-shot receipts and the independently reconstructed **582-source** evidence
++inventory. Saved **611 CI / 18 group passes** remain reviewer executions; the
++coordinator repeated no validator/package/probe. Raw reviewer streams were not
++persisted; raw/retained equality is recorder metadata, distinct from independently
++readable retained streams. Earlier readiness and pending/unassigned wording
++describe their capture times. The unchanged
++[input snapshot](ci-dag-05-corrective-review-inputs.json) seals pre-update documents;
++these later coordinator edits are separately accounted, not retroactive resealing.
+ 
+ ## Objective and authority
+ 
+@@ -151,6 +177,10 @@
+ 
+ ## Proportionate independent verification and delivery
+ 
++**Historical instructions for the completed review only.** Its one-shot CI/group
++allowances are spent. Current work is limited to saved-evidence reconciliation and
++coordinator documentation; this section authorizes no new check, probe or delegate.
++
+ Begin read-only; snapshot exact reviewed bytes and `HEAD`. Inspect originals,
+ archives, counts, diffs, scopes and fingerprints before trusting agent claims.
+ Use fresh ignored checkout-local `_tmp*` scratch and set absolute runtime `TMPDIR`.
+--- review-input/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md
++++ coordinator-closeout/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md
+@@ -1,16 +1,35 @@
+ # CI-DAG-05 short-real-checkout setup handoff
++
++**Current state: setup and fresh corrective review delivered, idle and
++coordinator-reconciled; CHANGES REQUIRED / BLOCKED.** The
++[corrective report](ci-dag-05-corrective-review.md) accepts the reviewed local
++source/ownership/wiring contracts, not complete requirement-9 runtime acceptance.
++Positive full native short-root success, actual Node-20 execution and real Actions
++main/post/installer/action-resolution behavior remain unverified. Q1's maintained
++workflow-formatting failure, unresolved R2 and R3/maintainer prerequisites still
++block CI-DAG-05; no coordinator acceptance is granted.
++[Coordinator support](ci-dag-05-corrective-review-coordinator-support/README.md)
++reconciles saved evidence without repeating tests/probes. No setup/reviewer
++assignment remains pending.
++
++The original confirmations, inspection facts and execution instructions below
++are **historical**, not new implementation/check authorization. Current authority
++is saved-evidence reconciliation and coordinator documentation only; all corrective
++delegation, workflow correction, package/focused execution, source/native/runner
++probes, runtime/tool installation and hosted execution require renewed explicit
++authorization. Reviewer CI/group and R2 package allowances are spent.
+ 
+ Prepared: **2026-11-18T21:18:28-08:00** as an unassigned brief. Assignment update:
+ **2026-11-19T00:24:04-08:00**, a fresh implementation agent was launched in **read-only
+ preflight/design stage 1**. Confirmation update: **2026-11-19T03:17:48-08:00**, its
+-design-only delivery is idle and coordinator-reconciled; stage 2 is confirmed for
+-continuation in the same session after this note's document check, not delivered.
++design-only delivery was idle and coordinator-reconciled; stage 2 was confirmed for
++continuation in the same session, not yet delivered at that confirmation record.
+ The user selected
+ **Local setup fix**, authorizing minimal
+-local CI setup correction and focused verification, not hosted work. Start a fresh
+-setup implementation agent only after the R2 agent is idle and its delivery is
+-coordinator-reconciled; fresh non-implementer corrective review follows setup
+-delivery/reconciliation. No further delegation.
++local CI setup correction and focused verification, not hosted work. The fresh
++setup implementation started only after R2 idle delivery/reconciliation; fresh
++non-implementer review followed setup idle delivery/reconciliation. That sequence
++has completed; no further delegation is authorized.
+ 
+ ## Confirmed stage-2 boundary
+ 
+@@ -97,7 +116,7 @@
+ assignment at that check. The subsequently confirmed stage-1 launch is recorded
+ above; setup delivery and fresh independent review remain outstanding.
+ 
+-Subsequent delivery/readiness update (**2026-11-19**): stage 2 was delivered in
++Historical prelaunch delivery/readiness update (**2026-11-19**): stage 2 was delivered in
+ the same setup session and the agent is idle. Separate [coordinator byte/scope](ci-dag-05-checkout-setup-stage2-coordinator-reconciliation.json)
+ and [saved-evidence checks](ci-dag-05-checkout-setup-stage2-coordinator-evidence.json)
+ passed at **14:29:16.540Z** and **14:33:42.048567+00:00**. They reconcile exactly
+@@ -108,8 +127,8 @@
+ coordinator test or source operation. [Curated coordinator support](ci-dag-05-checkout-setup-coordinator-support/README.md)
+ preserves the exact results separately; the delivered report/support and original
+ seals retain their historical language and bytes. The [fresh reviewer brief](ci-dag-05-corrective-review-handoff.md)
+-is ready for assignment after the document check and input snapshot, not yet
+-assigned at this readiness record. Native short-root success, Node-20 execution,
++was ready after the document check and input snapshot, unassigned at that
++historical readiness record. Native short-root success, Node-20 execution,
+ runner/main/post and all R1/R2/R3 acceptance limits remain outstanding. No further
+ setup/package/resource/source-probe/runtime-installation/hosted execution is
+ authorized by delivery reconciliation.
+@@ -129,7 +148,7 @@
+ The user now authorizes a minimal local setup correction; actual hosted evidence
+ remains R3 and is unauthorized/unavailable.
+ 
+-Read-only coordinator inspection of the pinned action confirms `path` resolves
++Historical pre-implementation coordinator inspection of the pinned action confirms `path` resolves
+ inside `GITHUB_WORKSPACE` and is rejected if outside it. A nested checkout input
+ cannot shorten that root. Its post action retains the original repository path for
+ cleanup; local composite paths also resolve from the original action workspace.
+@@ -140,8 +159,9 @@
+   cleanup uses `stateHelper.RepositoryPath`.
+ - `scripts/ci-test-plan.mjs`: `checkout`, `mainWorkflowJobs`,
+   `helperStepContracts`, strict workflow/composite validation.
+-- `.github/actions/ci-setup/action.yml`: version-file/package-manager lookup and
+-  install/setup currently run from the default original workspace.
++- `.github/actions/ci-setup/action.yml`: before this correction, version-file/
++  package-manager lookup and install/setup ran from the default original workspace.
++  The delivered selected-root bindings have separate reviewed fingerprints.
+ - `.github/actions/ci-prepare/action.yml` and `ci-test/action.yml`: full build,
+   verified restore/resource setup and complete-script runner.
+ - `.github/workflows/test.yml`: 28 main jobs and three preserved independent jobs;
+@@ -210,6 +230,12 @@
+ 
+ ## Verification and handoff
+ 
++These are the **historical implementation verification instructions**. The saved
++final **611 CI / 18 group passes** and thirteen maintained fingerprints were
++reconciled, then independently reviewed. Deep fixture success and `using: node20`
++metadata do not satisfy the missing genuine native-root/Node-20/runner criteria.
++Do not replay this section without renewed explicit authorization.
++
+ Begin read-only and capture exact protected preflight plus unchanged `HEAD`. Inspect
+ the final R2 handoff supplied at launch; do not overlap its files. Use focused
+ repository-backed helper/plan tests, `pnpm test:ci:check`, `pnpm test:groups:check`,
+--- review-input/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md
++++ coordinator-closeout/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md
+@@ -1,6 +1,6 @@
+ # CI-DAG-05 rollout verification and handoff
+ 
+-**Current status: in progress; R1/R2 are delivered, idle and coordinator-reconciled, not independently accepted; R2 is not resolved.** The [independent finishing report](ci-dag-05-finishing-review.md) remains unchanged. The corrected helper rejects the calculated representative hosted checkout depth. The fresh setup agent's [read-only stage 1 is reconciled](ci-dag-05-checkout-setup-stage1-coordinator-reconciliation.json) and stage-2 continuation is confirmed; no implementation has started at that confirmation record. Setup delivery and fresh independent corrective review remain pending. R2's [investigation](ci-dag-05-r2-investigation.md), [support](ci-dag-05-r2-support/README.md) and [coordinator result](ci-dag-05-r2-coordinator-reconciliation.json) retain its unresolved cause, focused abort failure and interrupted complete-package verification. **No additional package execution is authorized**; R3's hosted V6/maintainer decisions remain unavailable. [Remediation coordination](ci-dag-05-remediation-coordination.md) records corrections separately from the historical review, not as finishing acceptance or rollout authorization.
++**Current status: in progress; CHANGES REQUIRED / BLOCKED.** R1/R2/setup and the fresh non-implementer reviewer are delivered, idle and coordinator-reconciled. The [corrective report](ci-dag-05-corrective-review.md) accepts only R1's scoped allocation/rejection contract, R2's bounded diagnostic surface and setup's reviewed local contracts. Q1's maintained workflow-formatting failure, positive full native-root/Node-20/runner acceptance, unresolved R2 and R3 hosted/maintainer prerequisites remain. [Coordinator support](ci-dag-05-corrective-review-coordinator-support/README.md) preserves byte/scope and independent saved-evidence reconciliation, not coordinator acceptance or rollout authorization. The [sealed finishing report](ci-dag-05-finishing-review.md) remains unchanged. Current authority is **saved-evidence reconciliation and coordinator documentation only**. Renewed explicit authorization is required before workflow correction/delegation, any package/focused execution, source/native/runner probe, runtime/tool installation or hosted execution; reviewer CI/group allowances and R2's package allowance are spent. No commit/push/dispatch/publication/settings change is authorized.
+ 
+ Historical pre-finishing-review status:
+ 
+@@ -9,14 +9,15 @@
+ ## Scope, source, and authorization boundaries
+ 
+ - Source reviewed: the uncommitted working tree at `HEAD` `0fda5197c5b950e865af73681225c8bbf5533775`, including the CI-DAG-02/03/04 implementation already accepted locally by the coordinator.
+-- The active workflow and the delivered key files still match the CI-DAG-04 fingerprints: `.github/workflows/test.yml` `c9408a1b25912416d25f95cefa609410bbf0c9852551803a9bf710ab69017aaf`, `scripts/ci-test-results.mjs` `fe0c33a9379e2a44ef2d458b66d254773b4c7519cccb9c1660512e593410b9da`, `scripts/ci-test-results.test.mjs` `225a786ce4421d498f2feab1cc0d612c8452251282d8f86f8b6eaa2ddf9b24c6`, `scripts/ci-test-plan.test.mjs` `cf938b1f3b6adc0812f70fd23a4cc710ef3177df2c3c2813a0eb94ec557296fb`, and `package.json` `f3793110d566df545710024d37c207fc4b592aa57c5a5667fdcb7b5df6733d80`.
+-- The independent pass changed only `README.md`, `AGENTS.md`, and this evidence bundle. Coordinator finishing edits also update the authoritative task's continuation record. No workflow, CI helper, package test script, group runner, rebuild, worker/file-serialization control, dependency or branch-protection change was made during CI-DAG-05.
++- **Current corrective maintained identities** are the 24 entries in the unchanged [review input snapshot](ci-dag-05-corrective-review-inputs.json) and [review input summary](ci-dag-05-corrective-review-support/inputs.json). The workflow is SHA-256 `694a1798730ac2b9fd7253cf88d1e77e0773ea9b23f4d83c1a5b0a180cbcfb3c`; the production evaluator remains `fe0c33a9379e2a44ef2d458b66d254773b4c7519cccb9c1660512e593410b9da`. These source hashes remain current after coordinator-only documentation updates; pre-update coordinator-document hashes are historical.
++- **Historical CI-DAG-04 fingerprints, not current corrective certification:** workflow `c9408a1b25912416d25f95cefa609410bbf0c9852551803a9bf710ab69017aaf`, result tests `225a786ce4421d498f2feab1cc0d612c8452251282d8f86f8b6eaa2ddf9b24c6`, plan tests `cf938b1f3b6adc0812f70fd23a4cc710ef3177df2c3c2813a0eb94ec557296fb`, root manifest `f3793110d566df545710024d37c207fc4b592aa57c5a5667fdcb7b5df6733d80`. Later authorized R1/R2/setup deltas have separate reviewed fingerprints.
++- The historical integration pass before remediation changed only `README.md`, `AGENTS.md`, this bundle and coordinator task documentation. Subsequent R1/R2/setup corrections are separately reconciled; no package production change, reduced complete script/rebuild, worker-limit change, group-safety weakening, dependency change or branch-protection change is claimed.
+ - Local toolchain: Node `26.12.1`, pnpm `11.24.0`, npm `11.20.0`, pre-commit `4.6.2`, Docker `29.9.3`, Linux x64, 16 logical CPUs. Firefox/Chromium Playwright browsers and the referenced Redis images were available; WebKit was not confirmed. These are local facts, not hosted-runner facts.
+ - All scratch work used fresh repo-local ignored `_tmp*` directories confirmed with `git check-ignore`, with `TMPDIR` set inside the same scratch directory. The first two V5 attempts used `_tmp-ci-dag-05-*`; the short-path attempt used `_tmp-05c-*`. No separate build/test invocations or numbered groups overlapped in one checkout; safe concurrent members within each group are intentional. The main checkout was reserved for read-only/validation commands while V5 ran in an isolated copy.
+ 
+ ## Verification results
+ 
+-The V1 row records the six-document pre-review check; post-addendum V1 is recorded with the fresh-review result below.
++This table is **historical pre-finishing-review verification**, not current corrective certification. The V1 row records the six-document check; later addendum checks are separately recorded. Current review retains 611 CI / 18 group passes and the Q1 maintained formatting failure; none was repeated by the coordinator.
+ 
+ | Check                        | Command or procedure                                                                                                                                                                  | Result                                                                                                                                                                    |
+ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+@@ -28,7 +29,7 @@
+ | V5: preserved local coverage | Fresh isolated copy; sequentially `pnpm lint`, `pnpm build`, `pnpm test:grouped`                                                                                                      | See the V5 execution record below.                                                                                                                                        |
+ | V6: actual Actions behavior  | Authorized hosted run(s)                                                                                                                                                              | **Not performed. Blocked/unauthorized; see rollout blockers.**                                                                                                            |
+ 
+-Coordinator reproduced V2 and V3 on the primary checkout after the independent documentation draft; V4 was reproduced against the unchanged workflow and composites. Targeted ESLint on all eight CI helper/test files passed. Subsequent changes were documentation-only; the accepted source fingerprints still match. No failure was observed in these maintained checks.
++At that historical stage, the coordinator reproduced V2/V3 and V4 against then-unchanged implementation; eight-path ESLint passed and the CI-DAG-04 fingerprints matched. Those observations do not certify later corrective bytes or override the fresh Q1 failure.
+ 
+ ### Local gate-logic review
+ 
+@@ -129,13 +130,13 @@
+ 
+ ## Acceptance-criteria review
+ 
+-| Criterion                                                                                                                | Local status                                      | Evidence or blocker                                                                                                                                                                                                                                    |
+-| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+-| V1-V6 pass with exact results, or the task remains blocked with the missing prerequisite identified                      | **Blocked on R1/R2, V6 and finishing acceptance** | Local V1-V5 execution and limits are recorded. The fresh finishing review returned changes required for R1; the attestation risk and unauthorized V6 remain. CI-DAG-05 is in progress, not completed.                                                  |
+-| Live evidence demonstrates dependent skipping and unrelated continuation; healthy run covers every main tested workspace | **Not met**                                       | Only local production-evaluator/static-graph evidence exists. No hosted run, scheduler, graph UI, or cancellation evidence exists.                                                                                                                     |
+-| Documentation agrees with actual scheduling, including that matrix `max-parallel` is not a workflow-wide cap             | **Met locally**                                   | `README.md` and `AGENTS.md` distinguish local serial/grouped/group commands, isolated gated CI, validation-vs-suite commands, artifact prerequisites, full-script preservation, independent lanes, and the `max-parallel`/no-global-cap behavior.      |
+-| Measured outcome/tradeoff report and maintainer-visible required-check rollout/rollback instructions exist               | **Partially met; hosted measurement blocked**     | This report records local measurements, the CI-DAG-01 baseline, why they are not comparable, and the required V6 measurement plan. `README.md`/`AGENTS.md` contain rollout and rollback instructions. No hosted outcome or billing measurement exists. |
+-| Curated evidence retained and sanitized                                                                                  | **Met locally**                                   | This handoff and the linked local-evidence ledger retain counts, provenance and sanitized failures. Raw logs, dependencies, generated consumers and caches are omitted; original scratch is unchanged.                                                 |
++| Criterion                                                                                                                | Local status                                   | Evidence or blocker                                                                                                                                                                                                                                    |
++| ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
++| V1-V6 pass with exact results, or the task remains blocked with the missing prerequisite identified                      | **Blocked on Q1/runtime/R2/R3 and acceptance** | Historical V1-V5 and fresh scoped review are recorded. Workflow formatting, native/Node-20/runner evidence, R2 disposition and unauthorized V6 remain; no coordinator acceptance or completion is granted.                                             |
++| Live evidence demonstrates dependent skipping and unrelated continuation; healthy run covers every main tested workspace | **Not met**                                    | Only local production-evaluator/static-graph evidence exists. No hosted run, scheduler, graph UI, or cancellation evidence exists.                                                                                                                     |
++| Documentation agrees with actual scheduling, including that matrix `max-parallel` is not a workflow-wide cap             | **Met locally**                                | `README.md` and `AGENTS.md` distinguish local serial/grouped/group commands, isolated gated CI, validation-vs-suite commands, artifact prerequisites, full-script preservation, independent lanes, and the `max-parallel`/no-global-cap behavior.      |
++| Measured outcome/tradeoff report and maintainer-visible required-check rollout/rollback instructions exist               | **Partially met; hosted measurement blocked**  | This report records local measurements, the CI-DAG-01 baseline, why they are not comparable, and the required V6 measurement plan. `README.md`/`AGENTS.md` contain rollout and rollback instructions. No hosted outcome or billing measurement exists. |
++| Curated evidence retained and sanitized                                                                                  | **Met locally**                                | This handoff and the linked local-evidence ledger retain counts, provenance and sanitized failures. Raw logs, dependencies, generated consumers and caches are omitted; original scratch is unchanged.                                                 |
+ 
+ ## Rollout blockers and required authorizations
+ 
+@@ -143,9 +144,10 @@
+ 2. **Controlled fault cases.** Healthy, root/mid-graph failure, preparation failure, cancellation, and missing/skipped-result evidence must be produced without weakening the permanent package tests or leaving injection enabled. This requires maintainer authorization and a reviewed temporary mechanism.
+ 3. **Artifact service and required-check UI.** The live run must confirm exact run/attempt/checkout-scoped artifact upload/download and digest rejection behavior. A maintainer must confirm the repository's required-check context still targets `unit-test`; any branch-protection change needs separate authorization.
+ 4. **Cost/quota and performance.** Hosted timings, aggregate runner minutes, artifact storage/retention, account concurrency, billing, and budget thresholds are unknown. No rollout performance or cost claim can be made without maintainer-provided evidence and approval.
+-5. **Independent finishing acceptance and coordinator acceptance.** The provider interruption and blocked resumes remain historical. The fresh non-implementer finishing review is delivered with a changes-required verdict, not acceptance. R1/R2 delivery is coordinator-reconciled; the authorized setup delivery must follow, then all corrective bytes return to a fresh non-implementer reviewer. Coordinator reconciliation is not independent acceptance. Final acceptance also requires the outstanding R2 risk/verification decisions and V6 evidence.
++5. **Corrective/final acceptance.** Both independent reviews are delivered and unchanged; the fresh corrective verdict remains **CHANGES REQUIRED / BLOCKED**. R1/R2/setup/review idle deliveries are coordinator-reconciled; no setup or reviewer assignment remains pending. Narrow independent R1/diagnostic/setup-contract acceptance does not satisfy runtime/R2/Q1/R3 prerequisites or grant coordinator/final rollout acceptance.
+ 6. **Intermittent attestation risk disposition and incomplete verification (R2).** The original packed Chromium recovery cause remains unresolved after the delivered bounded investigation and awaits explicit maintainer risk disposition. A focused Node abort failure remains undisposed. The sole complete package invocation passed **867 tests** across four lanes but saved no packed-consumer result; its allowance is spent and **any additional package execution requires renewed explicit authorization**. The observer adds one mapped load reaction and is not proven timing-neutral. The TODO and Chromium-only V5 selection are retained coverage limits, not silently expanded certification.
+-7. **Resource-helper supported-depth acceptance and checkout setup (R1).** The original unguarded allocation finding is retained in the sealed review. R1 now allocates compact `_tmpXXXXXX`, enforces a **45-byte UTF-8 `TMPDIR` / 34-byte real-root** budget and retains bounded/regression evidence, but the calculated **47-byte representative hosted root is rejected**. The user authorized a minimal shorter-real-checkout setup correction; implementation and fresh independent acceptance are pending. The short-path grouped V5 used another allocation and does not certify the helper/setup. Preserve isolation, complete scripts, multi-instance coverage and normal failure behavior; actual hosted usability/cleanup/artifact-service evidence remains unavailable.
++7. **Native/runtime checkout acceptance.** R1's compact `_tmpXXXXXX`, **45-byte UTF-8 `TMPDIR` / 34-byte real-root** allocation/rejection contract is independently accepted within its pinned assumptions; the calculated **47-byte original hosted root remains rejected**. The shorter real-sibling setup is delivered/reconciled and its local contracts reviewed, not pending implementation. Positive full native short-root success, actual Node-20 execution and Actions main/post/installer/action-resolution behavior remain unverified. The historical grouped V5 and two-process transport observation do not certify them. Preserve isolation, complete scripts, multi-instance coverage and failure behavior.
++8. **Maintained formatting (Q1).** Fresh Prettier selected all 24 corrective maintained paths and exited 1, warning only for `.github/workflows/test.yml`. No baseline establishes it as pre-existing; it is not a demonstrated semantic workflow failure. Correction/delegation and subsequent corrective evidence require renewed explicit authorization. The historical four-entry coordinator-manifest formatting exception is separate and is not a Prettier pass.
+ 
+ ## Rollback contract
+ 
+@@ -158,7 +160,7 @@
+ - No hosted wall-time, critical-path, runner-minute, billing, quota, or cost improvement is claimed. Local V5 times are not hosted measurements.
+ - No claim that the observed local `express-request-attestation` browser flake is fixed, understood, or eliminated. It is retained as an intermittent local risk; the focused and group reruns are isolation evidence, not a root-cause resolution.
+ - No package test, workflow gate, rebuild, worker limit, serialization control, or failure-injection behavior was weakened or permanently changed.
+-- No branch-protection or repository-settings change was made. No external independent-review certification is claimed; the coordinator owns final acceptance.
++- No branch-protection or repository-settings change was made. Independent review is delivered with scoped acceptance and an overall blocked verdict; the coordinator has granted no final acceptance.
+ 
+ ## Coordinator reconciliation before fresh finishing review
+ 
+@@ -180,7 +182,7 @@
+ 
+ ### Authorized local remediation after finishing review
+ 
+-The user subsequently requested necessary fixes. The [authoritative task](../../../tasks/20261118-111723-dependency-gated-ci-tests.md#task-ci-dag-05-verify-rollout-measure-tradeoffs-and-update-testing-guidance) authorizes sequential fresh agents for R1 correction, bounded R2 investigation and fresh independent review of changed bytes. Proportionate affected validators/package lanes and local runtime probes are allowed; commits, pushes, dispatches, settings changes, hosted execution and unjustified full-workspace reruns remain prohibited. Coordinator owns reconciliation. The pre-fix snapshot records unchanged `HEAD` and **2,536 protected regular files**, including the sealed report. Earlier no-fix/no-probe statements describe the finishing review itself.
++**Historical remediation authorization, superseded by the current execution limits above:** the user requested necessary fixes and sequential fresh agents for R1 correction, bounded R2 investigation and independent review. Proportionate local checks/probes were allowed then; their subsequent allowances and restrictions are recorded in the [authoritative task](../../../tasks/20261118-111723-dependency-gated-ci-tests.md#task-ci-dag-05-verify-rollout-measure-tradeoffs-and-update-testing-guidance). This paragraph grants no remaining package/probe/delegation allowance. The original pre-fix snapshot records unchanged `HEAD` and **2,536 protected regular files**, including the sealed report. Earlier no-fix/no-probe statements describe the finishing review itself.
+ 
+ R1's [delivery](ci-dag-05-r1-remediation.md) and [coordinator reconciliation](ci-dag-05-remediation-coordination.md) retain **134 helper / 326 CI / 18 group checks**, byte-boundary regressions, the bounded two-process transport probe and all preceding failures. Five implementation/document files changed relative to R1's preflight (**2,531 unchanged**); the earlier baseline also includes four coordinator addenda (**2,527 unchanged**). No attestation file, sealed report, historical log or `HEAD` changed. The 45-byte helper `TMPDIR` budget supports at most **34-byte real checkout roots**; the **calculated 47-byte representative hosted root is rejected**. A shorter real hosted checkout needs separate scope/authorization and fresh hosted evidence. The R1 agent is idle; fresh R2 investigation follows the [durable handoff](ci-dag-05-r2-handoff.md), before independent corrective review. No R1/CI-DAG-05 acceptance is recorded.
+ 
+@@ -189,8 +191,8 @@
+ review. Minimal local setup/workflow/helper-contract changes may create and use a
+ shorter real, verified checkout while preserving original action resolution/cleanup,
+ artifact/source identity, complete scripts and independent jobs. The
+-[setup handoff](ci-dag-05-checkout-setup-handoff.md) is prepared; the agent is not yet
+-assigned. This resolves only the local scope decision, not R1 acceptance or hosted
++[setup handoff](ci-dag-05-checkout-setup-handoff.md) was prepared; the agent was not yet
++assigned at that historical scope-decision record. This resolved only local scope, not hosted
+ evidence. No symlink/external-`TMPDIR` workaround, commit/push/dispatch/settings change
+ or hosted run is authorized.
+ 
+@@ -204,7 +206,8 @@
+ identity and shared facade equivalence remain, but one mapped load reaction changes
+ original signer/load identity and is **not proven timing-neutral**. R2 is idle;
+ **any additional package execution, including focused lanes, requires renewed
+-explicit authorization**. Setup and independent review remain pending, and R3
++explicit authorization**. Setup and independent review were pending at that
++historical R2 delivery record; both have subsequently delivered/reconciled. R3
+ still blocks final finishing/rollout acceptance.
+ 
+ ## Subsequent setup delivery and corrective-review readiness
+@@ -225,8 +228,8 @@
+ [Curated coordinator support](ci-dag-05-checkout-setup-coordinator-support/README.md)
+ preserves successful checks separately from unchanged delivery reports/support and
+ historical seals. The [fresh independent corrective review](ci-dag-05-corrective-review-handoff.md)
+-is ready for assignment after the document check and input snapshot, not yet
+-assigned at this readiness record. Positive full native short-root success,
++was ready after the document check and input snapshot, not yet
++assigned at that **historical prelaunch readiness** record. Positive full native short-root success,
+ Node-20 execution, actual runner main/post, R1 acceptance, R2 original cause/
+ abort/timing-neutrality/incomplete packed-consumer disposition and all R3/maintainer
+ rollout prerequisites remain outstanding. Further package execution, including
+@@ -234,4 +237,42 @@
+ not authorized. CI-DAG-05 remains **in progress, blocked before independent
+ corrective and final rollout acceptance**.
+ 
+-Maintained regression checks live in `scripts/ci-test-plan.test.mjs`, `scripts/ci-test-artifacts.test.mjs`, `scripts/ci-test-workspace.test.mjs`, `scripts/ci-test-results.test.mjs`, and local group-safety tests. Durable evidence includes the checked-in workflow/helpers/tests, README/AGENTS, this handoff, the [local-evidence ledger](ci-dag-05-local-evidence.md), the independent finishing report and preceding handoffs. Original scratch copies/raw logs/probe tooling are unchanged and omitted, not required for maintained regression checks; this summary is not a self-contained rerun bundle. Hosted V6 additionally needs authorized access, controlled-fault review, runner/browser/database prerequisites, required-check confirmation and budget approval. Fresh finishing review is delivered, but independent acceptance remains withheld until R1 is corrected and changed bytes are reviewed; attestation-risk disposition and V6 remain separate prerequisites.
++## Current corrective review and coordinator reconciliation
++
++The fresh non-implementer reviewer launched at **2026-11-19T14:56:47.674093+00:00**
++after the sequential R1/R2/setup idle/reconciled deliveries, delivered the
++[new report](ci-dag-05-corrective-review.md) and stopped idle. Verdict:
++**CHANGES REQUIRED / BLOCKED**, with only scoped R1 allocation/rejection, narrow
++R2 diagnostics and local setup contracts accepted. Requirement-9 runtime behavior,
++R2 disposition, Q1 and R3 remain outstanding.
++
++[Byte/scope reconciliation](ci-dag-05-corrective-review-coordinator-support/coordinator-byte-scope.json)
++matched **2,771 originals / 24 maintained fingerprints / 33 historical inputs**,
++nine reviewer additions and unchanged bytes/modes/HEAD/refs. Its **2,782-file**
++capture precedes these seven coordinator-document edits.
++[Independent saved-evidence reconciliation](ci-dag-05-corrective-review-coordinator-support/coordinator-saved-evidence.json)
++matched all six serial one-shot receipts/twelve retained streams, **611 CI / 18
++group passes**, 17-path ESLint exit 0, 24-path Prettier exit 1 and workflow-only
++actionlint exit 0 with shellcheck/pyflakes disabled. The **582-source** inventory,
++both reviewer audit attempts, retained failures, curation and actual final delivery
++receipts reconcile without executing historical drivers or repeating checks.
++
++Raw reviewer execution streams were not persisted; their equality to retained
++bytes/hashes is recorder metadata, not an independently readable raw witness.
++Static **476/482**, reviewer audits **3,257/3,507**, delivery **449/591/5,922**, and
++inventory **52/53/55/56** counters remain distinct from maintained-test totals.
++The **1,630-byte intermediate** formatter summary is not the **13,411-byte final**
++summary; saved final-byte verification matches the latter.
++[Coordinator support](ci-dag-05-corrective-review-coordinator-support/README.md)
++preserves successful results, inspected drivers and initial audit failures/
++preimages unchanged. Historical readiness and CI-DAG-04 fingerprints are labeled
++historical, not presented as current corrective certification.
++
++Only saved-evidence reconciliation and coordinator documentation are currently
++authorized. The reviewer's CI/group allowances and R2's package allowance are
++spent; renew authorization before correction/delegation, package/focused execution,
++source/native/runner probes, runtime/tool installation or hosted execution. No
++coordinator acceptance, commit, push, dispatch, publication or settings change is
++recorded.
++
++Maintained regression checks live in `scripts/ci-test-plan.test.mjs`, `scripts/ci-test-artifacts.test.mjs`, `scripts/ci-test-workspace.test.mjs`, `scripts/ci-test-results.test.mjs`, `scripts/ci-test-checkout.test.mjs`, and local group-safety tests. Durable evidence includes the checked-in workflow/helpers/tests, README/AGENTS, this handoff, the [local-evidence ledger](ci-dag-05-local-evidence.md), both unchanged independent reports and coordinator support. Original scratch copies/raw logs/probe tooling remain unchanged and partly omitted; this is not a self-contained rerun bundle. Hosted V6 additionally needs authorized access, controlled-fault review, runner/browser/database prerequisites, required-check confirmation and budget approval. Current independent acceptance is scoped, and Q1/runtime/R2/R3 still block CI-DAG-05/final rollout acceptance.
+--- review-input/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md
++++ coordinator-closeout/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md
+@@ -9,28 +9,27 @@
+ A subsequent [fresh independent finishing review](ci-dag-05-finishing-review.md)
+ confirmed the saved accounting and returned **CHANGES REQUIRED/BLOCKED** for R1's
+ resource-helper socket-path budget. The coordinator ledger below preserves the
+-earlier reconciliation; the fresh-review addendum records the current blocker.
+-
+-Subsequent local remediation is now authorized by the user: sequential R1
+-correction, bounded R2 investigation and renewed independent review. This ledger
+-preserves the original runs unchanged; new results will be recorded separately.
+-No hosted execution, commit/push/dispatch/settings change or unjustified full
+-suite rerun is authorized. See the [task](../../../tasks/20261118-111723-dependency-gated-ci-tests.md#task-ci-dag-05-verify-rollout-measure-tradeoffs-and-update-testing-guidance)
+-for scope and the handoff for the pre-fix snapshot. R1 is now delivered and
+-coordinator-reconciled, not independently accepted. The
+-[separate remediation record](ci-dag-05-remediation-coordination.md) retains new
+-134-helper / 326-CI / 18-group results, original/archive reconciliation and the
+-34-byte real-checkout-root limit. The calculated 47-byte representative hosted
+-root is rejected; a scope decision and hosted evidence remain outstanding.
+-A fresh R2 agent is actively investigating under the
+-[bounded handoff](ci-dag-05-r2-handoff.md); R3 is unperformed.
+-
+-Subsequent local scope decision: the user authorizes the
+-[short-real-checkout setup correction](ci-dag-05-checkout-setup-handoff.md), after
+-R2 idleness/reconciliation and before fresh independent corrective review. The
+-setup agent is pending, not assigned; no new setup or hosted result is recorded.
+-The authorization decision is resolved, but implementation and hosted evidence
+-remain outstanding. Earlier scope-blocked statements describe their original time.
++earlier reconciliation; its finishing-review addendum records that historical blocker.
++
++**Current state:** the sequential R1/R2/setup implementations and fresh
++non-implementer corrective review are delivered, idle and coordinator-reconciled.
++The [corrective report](ci-dag-05-corrective-review.md) returns **CHANGES REQUIRED /
++BLOCKED**, accepting only scoped R1 allocation/rejection, narrow diagnostics and
++local setup contracts. Q1 workflow formatting, native/Node-20/runner acceptance,
++unresolved R2 and R3 hosted/maintainer prerequisites remain. No setup/reviewer
++assignment is pending and no R2 investigation is still running.
++
++The [separate coordination record](ci-dag-05-remediation-coordination.md) and
++[coordinator support](ci-dag-05-corrective-review-coordinator-support/README.md)
++retain new results independently of this historical V5 ledger. Original runs,
++coverage rows and log fingerprints are unchanged, not recertified by later review.
++Current authorization is **saved-evidence reconciliation and coordinator
++documentation only**. Reviewer CI/group allowances and R2's package allowance are
++spent; correction/delegation, package/focused execution, source/native/runner probes,
++runtime/tool installation and hosted work require renewed explicit authorization.
++No commit/push/dispatch/publication/settings change or unjustified full-suite rerun
++is authorized. Earlier remediation/scope-blocked statements describe their capture
++times, not current permission.
+ 
+ ## Provenance and limits
+ 
+@@ -272,13 +271,12 @@
+ or identify its unrecorded retry-preparation exception.
+ 
+ The fresh [short-real-checkout setup agent](ci-dag-05-checkout-setup-handoff.md)
+-delivered read-only stage 1 and is idle and
++delivered read-only stage 1 and was idle and
+ [coordinator-reconciled](ci-dag-05-checkout-setup-stage1-coordinator-reconciliation.json);
+-stage-2 continuation is confirmed, not yet started at that record. Delivery and
+-[fresh independent corrective review](ci-dag-05-corrective-review-handoff.md) remain
+-pending. R1 independent acceptance, R2 cause/abort/verification disposition and R3's
+-hosted/required-check/risk/budget evidence still block final finishing/rollout
+-acceptance. Historical review, R1/R2 delivery reports and seals remain unchanged.
++stage 2 was confirmed, not yet started at that historical record. Setup delivery
++and fresh review were pending then; both subsequently delivered/reconciled. R2
++cause/abort/verification and R3's hosted/required-check/risk/budget evidence still
++block final acceptance. Historical review, R1/R2 reports and seals remain unchanged.
+ 
+ The subsequent [pre-setup document/scope reconciliation](ci-dag-05-pre-setup-coordinator-reconciliation.json)
+ passed for **15 documents / 189 local links / 12 anchors**, with all inspected
+@@ -309,10 +307,39 @@
+ [Curated coordinator support](ci-dag-05-checkout-setup-coordinator-support/README.md)
+ preserves exact results/drivers separately from unchanged delivered reports and
+ historical seals. This later status/evidence record is not covered by those earlier
+-input captures. The fresh non-implementer review is ready for assignment after the
+-document check and immutable snapshot, not assigned at this readiness record.
++input captures. The fresh non-implementer review was ready after the
++document check and immutable snapshot, unassigned at that historical readiness record.
+ Positive full native short-root success, Node-20 execution, actual runner main/post,
+ R1 independent acceptance, unresolved R2 cause/abort/timing-neutrality/incomplete
+ package disposition and all R3 rollout evidence remain outstanding. R2's allowance
+ is spent; further package execution (including focused lanes), a separate source
+ probe, runtime installation or hosted work requires renewed explicit authorization.
++
++## Fresh corrective-review coordinator addendum
++
++The fresh reviewer launched at **2026-11-19T14:56:47.674093+00:00**, delivered and
++stopped idle after the sequential reconciled implementation deliveries. Its blocked
++verdict is now coordinator-reconciled, not merely pending review.
++
++[Byte/scope reconciliation](ci-dag-05-corrective-review-coordinator-support/coordinator-byte-scope.json)
++matched **2,771 originals / 24 maintained fingerprints / 33 historical seals**
++and nine reviewer additions, with unchanged HEAD/refs/bytes/modes.
++[Independent saved-evidence reconciliation](ci-dag-05-corrective-review-coordinator-support/coordinator-saved-evidence.json)
++matched all six serial one-shot receipts, twelve retained streams, both reviewer
++audits, the **582-source** inventory and final delivery capture boundaries without
++executing historical drivers or repeating validators/packages/probes. Saved **611
++CI / 18 group passes**, ESLint exit 0, maintained Prettier exit 1 and workflow-only
++actionlint exit 0 remain reviewer results. Raw execution output was not persisted:
++raw/retained equality is recorder metadata; retained streams/counts were independently
++read. Inventory **52/53/55/56**, static **476/482**, audit **3,257/3,507** and
++delivery **449/591/5,922** counts are accounting facts, not new test executions.
++
++The historical third V5 still totals **12 groups / 25 full scripts / 34 Vitest
++invocations / 689 file executions / 21,224 passes / one unchanged TODO**. That
++different allocation and earlier byte set do not certify full native-root/Node-20/
++runner acceptance, R2 causality/timing/completeness or hosted rollout.
++The new [support index](ci-dag-05-corrective-review-coordinator-support/README.md)
++preserves successful reconciliations and initial audit failures separately. The
++historical four-entry manifest exception is not a Prettier pass or Q1 disposition.
++These seven later coordinator-document edits are outside the earlier review snapshot
++and receipt captures; unchanged source/report/history hashes remain protected.
+--- review-input/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md
++++ coordinator-closeout/docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md
+@@ -1,6 +1,15 @@
+ # Dependency-gated CI evidence bundle
+ 
+ Related plan: [20261118-111723 dependency-gated CI tests](../../../tasks/20261118-111723-dependency-gated-ci-tests.md).
++
++**Current status: CHANGES REQUIRED / BLOCKED.** R1/R2/setup and the fresh
++non-implementer reviewer are delivered, idle and coordinator-reconciled. Independent
++acceptance is scoped to R1's allocation/rejection contract, R2's bounded diagnostic
++surface and setup's local contracts, not complete runtime/R2/rollout acceptance.
++Q1 workflow formatting, native short-root/Node-20/runner evidence, unresolved R2
++and R3 hosted/maintainer prerequisites remain. No coordinator acceptance is granted.
++Current work is reconciliation/documentation only; execution/correction/delegation
++requires renewed explicit authorization.
+ 
+ ## Contents
+ 
+@@ -11,14 +20,17 @@
+ - [CI-DAG-05 integration, verification, and rollout handoff](ci-dag-05-handoff.md): saved independent local review and coordinator finishing reconciliation, V1-V5 execution/coverage limits, artifact/required-check review, baseline-vs-DAG measurement limits and V6 plan, and independent-review/rollout blockers.
+ - [CI-DAG-05 saved local execution ledger](ci-dag-05-local-evidence.md): all three V5 phase results, 25-workspace file/test-execution totals, existing TODO and browser selection, source agreement, sanitized failure/isolation evidence, saved 146-check gate-review summary and coordinator validation.
+ - [CI-DAG-05 independent finishing review](ci-dag-05-finishing-review.md): fresh non-implementer review, exact input fingerprints and saved-evidence reconciliation, 310/18 bounded validation checks, and a **CHANGES REQUIRED/BLOCKED** verdict for resource-helper socket-path R1, unresolved attestation R2 and unauthorized rollout/maintainer prerequisites R3.
+-- [CI-DAG-05 R1 remediation](ci-dag-05-r1-remediation.md) and [support archive](ci-dag-05-r1-support/README.md): scoped helper correction, byte-budget derivation/regressions, 134-helper / 326-CI / 18-group results, retained failures and bounded two-process transport evidence; delivered, not independently accepted.
++- [CI-DAG-05 R1 remediation](ci-dag-05-r1-remediation.md) and [support archive](ci-dag-05-r1-support/README.md): scoped helper correction, byte-budget derivation/regressions, 134-helper / 326-CI / 18-group results, retained failures and bounded two-process transport evidence; later independently accepted only for the pinned supported-depth allocation/rejection contract.
+ - [CI-DAG-05 remediation coordination](ci-dag-05-remediation-coordination.md): R1/R2 evidence/scope reconciliation, unsupported representative hosted depth, spent R2 package allowance, unresolved failures and the authorized setup/review sequence. Exact coordinator copies: [R1](ci-dag-05-r1-coordinator-reconciliation.json) and [R2](ci-dag-05-r2-coordinator-reconciliation.json).
+ - [CI-DAG-05 pre-setup coordinator check](ci-dag-05-pre-setup-coordinator-reconciliation.json): exact historical document/scope result after propagating R2's reconciled status; setup prerequisite satisfied, not independent acceptance or package recertification.
+ - [CI-DAG-05 setup stage-1 coordinator check](ci-dag-05-checkout-setup-stage1-coordinator-reconciliation.json): exact read-only reconciliation of the fresh agent's design/preflight; 2,581 protected files and ten seals unchanged, no source operation or test execution.
+ - [CI-DAG-05 R2 investigation](ci-dag-05-r2-investigation.md) and [support archive](ci-dag-05-r2-support/README.md): eight test/fixture changes, bounded diagnostics/causal controls, retained focused abort failure and interrupted package verification; delivered, idle and coordinator-reconciled, not resolved or independently accepted.
+ - [CI-DAG-05 checkout setup handoff](ci-dag-05-checkout-setup-handoff.md): original stage-1 confirmation, subsequent thirteen-path amendment and now idle/reconciled stage-2 delivery; independent/native-runtime/hosted acceptance remains outstanding.
+ - [CI-DAG-05 checkout setup delivery](ci-dag-05-checkout-setup.md) and [support](ci-dag-05-checkout-setup-support/README.md): exact selected-source real-sibling mechanism, thirteen maintained fingerprints, saved 611-CI / 18-group passes, retained failures and unverified native/Node-20/runner behavior; unchanged implementer report with historical pending-coordinator language.
+-- [CI-DAG-05 setup coordinator support](ci-dag-05-checkout-setup-coordinator-support/README.md): exact [byte/scope](ci-dag-05-checkout-setup-stage2-coordinator-reconciliation.json) and [saved-evidence](ci-dag-05-checkout-setup-stage2-coordinator-evidence.json) copies; 2,582 protected originals and 169 delivered setup files reconciled without rerunning tests/source operations. The [fresh corrective-review brief](ci-dag-05-corrective-review-handoff.md) is ready for assignment after document checks and input snapshot, not yet assigned at this readiness record.
++- [CI-DAG-05 setup coordinator support](ci-dag-05-checkout-setup-coordinator-support/README.md): exact [byte/scope](ci-dag-05-checkout-setup-stage2-coordinator-reconciliation.json) and [saved-evidence](ci-dag-05-checkout-setup-stage2-coordinator-evidence.json) copies; 2,582 originals and 169 setup files reconciled without rerunning tests/source operations. Its pending-review/readiness wording is historical; later review is delivered.
++- [CI-DAG-05 corrective-review brief](ci-dag-05-corrective-review-handoff.md), [launch assignment](ci-dag-05-corrective-review-assignment.json) and [immutable inputs](ci-dag-05-corrective-review-inputs.json): sequential idle/reconciled prerequisites, actual fresh non-implementer launch and pre-update protected fingerprints; allowances are spent, not replay instructions.
++- [CI-DAG-05 independent corrective review](ci-dag-05-corrective-review.md) and [reviewer support](ci-dag-05-corrective-review-support/README.md): **CHANGES REQUIRED / BLOCKED**, scoped R1/diagnostic/setup-contract acceptance, 611-CI / 18-group passes, retained workflow-formatting failure and runtime/R2/R3 limits.
++- [CI-DAG-05 corrective-review coordinator support](ci-dag-05-corrective-review-coordinator-support/README.md): exact [byte/scope](ci-dag-05-corrective-review-coordinator-support/coordinator-byte-scope.json) and [independent saved-evidence](ci-dag-05-corrective-review-coordinator-support/coordinator-saved-evidence.json) receipts, reconstructed 582-source inventory, six serial one-shot receipts/retained counts, both audit attempts, final-byte capture boundaries and inspected drivers; no validator/package/probe rerun or coordinator acceptance.
+ - [CI-DAG-03 browser diagnostic evidence](ci-dag-03-browser-diagnostic.md): retained Chromium crash observations, root/checkout-owner comparison, sanitized stderr, runtime prerequisites and verification limits.
+ 
+ ## Provenance and status
+@@ -46,7 +58,7 @@
+ execution remains unauthorized and unverified. The scope decision is resolved,
+ not the setup delivery, independent acceptance or R3 rollout prerequisites.
+ 
+-Subsequent stage-2 delivery/readiness (**2026-11-19**): the same setup agent is
++Historical stage-2 delivery/readiness (**2026-11-19**): the same setup agent was
+ delivered and idle; coordinator byte/scope and saved-evidence checks passed at
+ **14:29:16.540Z** and **14:33:42.048567+00:00**. They reconcile **10 maintained
+ changes + three new maintained files**, all thirteen final fingerprints, exact
+@@ -63,8 +75,37 @@
+ package execution, standalone source probe, runtime installation or hosted work is
+ authorized by reconciliation.
+ 
++Current corrective-review closeout (**2026-11-19**): the fresh non-implementer
++reviewer launched at **14:56:47.674093+00:00**, delivered and stopped idle. The
++coordinator byte/scope check matched **2,771 originals / 24 maintained fingerprints /
++33 historical inputs**, nine reviewer additions and unchanged bytes/modes/HEAD/refs;
++its **2,782-file** capture precedes the seven later coordinator-document updates.
++Separate independent saved-evidence reconciliation matched the six serial one-shot
++receipts and twelve retained streams, **611 CI / 18 group passes**, 17-path ESLint
++exit 0, 24-path Prettier exit 1 and workflow-only actionlint exit 0 with shellcheck/
++pyflakes disabled. The **582-source** inventory, both reviewer audit attempts,
++curation and final delivery receipts reconcile without historical-driver execution.
++Raw reviewer output was not persisted: raw/retained equality is recorder metadata,
++not an independently readable raw witness. Static **476/482**, audit **3,257/3,507**,
++delivery **449/591/5,922** and inventory **52/53/55/56** counts remain distinct from
++maintained-test totals. Intermediate and final formatter-summary identities are
++separately retained.
++
++The new coordinator support preserves **21 exact payloads / 383,653 bytes**,
++including successful results, inspected drivers and initial audit failures/
++preimages. The historical four-entry setup coordinator-manifest exception is **not
++a Prettier pass** and is separate from Q1's current maintained workflow failure.
++R1's scoped correction, narrow diagnostics and local setup contracts are independently
++reviewed, but Q1, positive full native-root/actual Node-20/runner behavior, R2
++causality/abort/timing/incomplete packed-consumer disposition and all R3/maintainer
++rollout decisions still block CI-DAG-05. No coordinator acceptance is granted.
++Reviewer CI/group and R2 package allowances are spent; renewed explicit authorization
++is required before correction/delegation, further package/focused execution, source/
++native/runner probes, runtime/tool installation or hosted execution. No commit,
++push, dispatch, publication or settings change is authorized.
++
+ Baseline timings summarize public Actions runs `44367139569` and `44367149484`, attempt 1; metadata reports the reviewed head SHA, but the PR's actual tested merge SHA was not established. Grouping validation passed locally (18 tests, 12 safe groups, 25 workspaces). Existing ignored output counts/modes are inventory only, not fresh-build evidence. Detailed run logs, resource measurements, billing, and quota information were unavailable.
+ 
+ This is a **summary-only** archive, not a self-contained reproduction bundle. Raw API responses/logs, dependency trees, caches, generated consumers, compiled outputs, browser/database binaries/state, and local tool installations were omitted. The design's future commands require the repository, appropriate dependencies/platform, and authorized access; API recalculation additionally requires the referenced remote metadata to remain available.
+ 
+-Useful design and comparison instructions are preserved directly here; ignored scratch contains only disposable verification/cache material. Follow the [artifact preservation workflow](../../README.md) for later sanitized acceptance evidence, keep historical observations distinguishable from new runs, and do not overwrite this design to imply retrospective certification.
++Useful designs, comparisons and reconciled receipts are preserved here. Ignored original scratch remains necessary for full historical evidence reconstruction, but not to read the curated findings; omitted dependencies/raw state prevent archive-only runtime reproduction. Follow the [artifact preservation workflow](../../README.md), keep historical observations distinguishable from new checks, and never rewrite sealed evidence to imply retrospective certification.

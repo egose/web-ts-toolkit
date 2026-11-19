@@ -155,7 +155,7 @@ describe('release-like packed consumer', () => {
       };
       expect(generatedManifest.name).toBe('packed-app');
       expect(generatedManifest.engines.node).toBe('^22.13.0 || >=24.0.0');
-      expect(generatedManifest.packageManager).toBe('pnpm@11.18.0');
+      expect(generatedManifest.packageManager).toBe('pnpm@11.24.0');
       expect(readFileSync(resolve(generatedDir, 'api', 'src', 'config.ts'), 'utf8')).toContain(
         `export const DB_NAME = ${JSON.stringify(generatedDbName)};`,
       );

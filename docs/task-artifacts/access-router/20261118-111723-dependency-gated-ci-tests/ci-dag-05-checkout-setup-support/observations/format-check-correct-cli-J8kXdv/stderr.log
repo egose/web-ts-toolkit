@@ -1,0 +1,5 @@
+[warn] .github/actions/ci-checkout/index.mjs
+[warn] scripts/ci-test-checkout.test.mjs
+[warn] scripts/ci-test-plan.mjs
+[warn] scripts/ci-test-plan.test.mjs
+[warn] Code style issues found in 4 files. Run Prettier with --write to fix.

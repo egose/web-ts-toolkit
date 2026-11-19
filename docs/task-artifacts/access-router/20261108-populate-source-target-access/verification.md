@@ -11,7 +11,7 @@ checks preceded DOCS-03's documentation/JSDoc edits; its handoff records affecte
 checks after those changes. No commit or release was created.
 
 Commands ran serially from the repository root with installed workspace
-dependencies, Node `v26.12.1` and pnpm `11.18.0`. Scratch was checkout-local and
+dependencies, Node `v26.12.1` and pnpm `11.24.0`. Scratch was checkout-local and
 confirmed ignored. Replace the quoted `<repo-root>` placeholder before reuse.
 
 ```sh

@@ -1,0 +1,1229 @@
+{
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "startedAt": "2026-11-19T18:35:47.971058+00:00",
+  "finishedAt": "2026-11-19T18:35:49.499148+00:00",
+  "verdict": "PASS: saved-evidence reconciliation only; CHANGES REQUIRED / BLOCKED remains",
+  "command": [
+    "python3",
+    "_tmp-c5cr-coord-3ovrro4e/reconcile-saved-review.py",
+    "_tmp-c5cr-coord-3ovrro4e/saved-evidence-reconciliation-attempt-2.json"
+  ],
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-coord-3ovrro4e'",
+  "evidenceAssertions": 49097,
+  "problems": [],
+  "priorByteScopeReceipt": {
+    "path": "_tmp-c5f-ovtrnV/corrective-reconcile-e8x4a97c/coordinator-review-byte-scope.json",
+    "mode": "0644",
+    "bytes": 21133,
+    "sha256": "f2395212f8927e5220e7c1f375b33255cd2d1110cddbf9e1cfacd11c0387d460"
+  },
+  "inspectedDrivers": {
+    "run_review_check.py": {
+      "path": "_tmp-c5cr-5m91q69w/run_review_check.py",
+      "mode": "0644",
+      "bytes": 9641,
+      "sha256": "5247235b01f1611dcedbc03c28d6fe111c1b12a8830790c4170affbbe1444a2a"
+    },
+    "verify_seal.py": {
+      "path": "_tmp-c5cr-5m91q69w/verify_seal.py",
+      "mode": "0644",
+      "bytes": 6965,
+      "sha256": "308d099261d161ca06ba7938cf765ac20775fdd0663929d13bf2359a6940fc2c"
+    },
+    "reconcile_evidence.attempt-1.py": {
+      "path": "_tmp-c5cr-5m91q69w/reconcile_evidence.attempt-1.py",
+      "mode": "0644",
+      "bytes": 30517,
+      "sha256": "b61a5d4e9cb778bc726494b0118440e88d2c2ce96dda4384db00f5dd2de34636"
+    },
+    "reconcile_evidence.py": {
+      "path": "_tmp-c5cr-5m91q69w/reconcile_evidence.py",
+      "mode": "0644",
+      "bytes": 33492,
+      "sha256": "f3f19ee537fd7700524fd79b66a17230c5bb381abf38e7a9cc6ebef318dd9453"
+    },
+    "static-review.mjs": {
+      "path": "_tmp-c5cr-5m91q69w/static-review.mjs",
+      "mode": "0644",
+      "bytes": 14119,
+      "sha256": "82957877046f64f996702ccfbddaadcb0d95c82b3334e9aadaaeb30c068d8dc2"
+    },
+    "check_delivery.py": {
+      "path": "_tmp-c5cr-5m91q69w/check_delivery.py",
+      "mode": "0644",
+      "bytes": 15573,
+      "sha256": "77d14340857673bd7ee687c3922481a848b7af9593d4cc117ce526539e162caa"
+    },
+    "format_delivery.mjs": {
+      "path": "_tmp-c5cr-5m91q69w/format_delivery.mjs",
+      "mode": "0644",
+      "bytes": 3154,
+      "sha256": "1afd112025d35c7f0ca75ed9bd99a5b6f9aa6c4cd9a532016dea58617cd61cd2"
+    },
+    "run_delivery_prettier.py": {
+      "path": "_tmp-c5cr-5m91q69w/run_delivery_prettier.py",
+      "mode": "0644",
+      "bytes": 3417,
+      "sha256": "e8b02a3a4cbe3cb65a97cd98925e7e2d8e3f72cc6ba81045a7696872b51b145e"
+    },
+    "check_delivery_metadata.py": {
+      "path": "_tmp-c5cr-5m91q69w/check_delivery_metadata.py",
+      "mode": "0644",
+      "bytes": 15889,
+      "sha256": "ace043ddeba1cdaac5ad305546007de9323ba1d79ae76ef3c86df5cfc8082873"
+    }
+  },
+  "executionBoundary": {
+    "basis": "Saved receipts and direct source/AST inspection; not a comprehensive harness execution transcript",
+    "executedHere": "Only this new stdlib evidence reader and allowlisted read-only Git metadata commands",
+    "notExecutedHere": [
+      "Historical/reviewer/project drivers",
+      "validators/tests/packages/builds",
+      "formatter/linter/actionlint",
+      "source/native/Node-20/runner probes",
+      "resources/installations/network/hosted/publication/settings work"
+    ],
+    "rawStreamLimit": "Raw-at-execution bytes were not persisted. Their equality to retained streams is recorder-reported metadata, not an independently readable raw witness."
+  },
+  "sixSerialOneShotChecks": [
+    {
+      "label": "static-review",
+      "originalReceipt": {
+        "path": "_tmp-c5cr-5m91q69w/static-review.result.json",
+        "mode": "0644",
+        "bytes": 15634,
+        "sha256": "2eceedc013700534d7023a9abf8ff4ebbfa0f22ecca8ccfce2c6383be4cf6430"
+      },
+      "reservation": {
+        "path": "_tmp-c5cr-5m91q69w/static-review.started.json",
+        "mode": "0644",
+        "bytes": 6918,
+        "sha256": "14fee7b077a620a87d33999b6d94685396005a7648432edcd373c4b14a0ba8d2"
+      },
+      "command": [
+        "node",
+        "_tmp-c5cr-5m91q69w/static-review.mjs",
+        "_tmp-c5cr-5m91q69w/static-review.json"
+      ],
+      "startedAt": "2026-11-19T17:04:28.046355+00:00",
+      "finishedAt": "2026-11-19T17:04:28.839555+00:00",
+      "exitCode": 0,
+      "signalNumber": null,
+      "independentlyParsedCounts": null,
+      "streams": {
+        "stdout": {
+          "path": "_tmp-c5cr-5m91q69w/static-review.stdout.log",
+          "mode": "0644",
+          "bytes": 1659,
+          "sha256": "c2f2b8ff8983f8846505ec43ac4930d6e2a661d2efbc16d4bf7e45003c6c313e",
+          "rawEquality": "Recorder-reported only"
+        },
+        "stderr": {
+          "path": "_tmp-c5cr-5m91q69w/static-review.stderr.log",
+          "mode": "0644",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "rawEquality": "Recorder-reported only"
+        }
+      },
+      "selectedInputs": [
+        "all eight R2 maintained files and five saved preimages; graph/evaluator/workflow/package metadata static comparison"
+      ]
+    },
+    {
+      "label": "ci-contract-check",
+      "originalReceipt": {
+        "path": "_tmp-c5cr-5m91q69w/ci-contract-check.result.json",
+        "mode": "0644",
+        "bytes": 15950,
+        "sha256": "85a755a3d7b77f6a640ba8bed61ee98849903e9d06bdc9777d13615f8e2bffc1"
+      },
+      "reservation": {
+        "path": "_tmp-c5cr-5m91q69w/ci-contract-check.started.json",
+        "mode": "0644",
+        "bytes": 6854,
+        "sha256": "e502c534582317d999282a3eaa58343c33f8e10e51ab5fb97c13886df89d5017"
+      },
+      "command": [
+        "pnpm",
+        "test:ci:check"
+      ],
+      "startedAt": "2026-11-19T17:04:48.002517+00:00",
+      "finishedAt": "2026-11-19T17:05:15.649092+00:00",
+      "exitCode": 0,
+      "signalNumber": null,
+      "independentlyParsedCounts": {
+        "tests": 611,
+        "suites": 0,
+        "pass": 611,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "duration_ms": 24882.284271
+      },
+      "streams": {
+        "stdout": {
+          "path": "_tmp-c5cr-5m91q69w/ci-contract-check.stdout.log",
+          "mode": "0644",
+          "bytes": 57748,
+          "sha256": "c80f9833764938544d64c3e4fec94784df4ae5eecb965f3625082823f0534350",
+          "rawEquality": "Recorder-reported only"
+        },
+        "stderr": {
+          "path": "_tmp-c5cr-5m91q69w/ci-contract-check.stderr.log",
+          "mode": "0644",
+          "bytes": 320,
+          "sha256": "0af68c3f239fd739e0e9f0587a5b18f748dabe25d5f78b181373476d17f54402",
+          "rawEquality": "Recorder-reported only"
+        }
+      },
+      "selectedInputs": [
+        "scripts/ci-test-plan.test.mjs",
+        "scripts/ci-test-artifacts.test.mjs",
+        "scripts/ci-test-workspace.test.mjs",
+        "scripts/ci-test-results.test.mjs",
+        "scripts/ci-test-checkout.test.mjs",
+        "scripts/ci-test-plan.mjs --check",
+        "scripts/ci-test-plan.mjs --check-workflow .github/workflows/test.yml"
+      ]
+    },
+    {
+      "label": "group-validation-check",
+      "originalReceipt": {
+        "path": "_tmp-c5cr-5m91q69w/group-validation-check.result.json",
+        "mode": "0644",
+        "bytes": 15712,
+        "sha256": "a45f60e63ef9694b333d2b6cd5c14153e9eb59d57151f3f1a0aa4c43035e2268"
+      },
+      "reservation": {
+        "path": "_tmp-c5cr-5m91q69w/group-validation-check.started.json",
+        "mode": "0644",
+        "bytes": 6863,
+        "sha256": "6bcfdd876ecd282b64b065d83180420273404809205eedde3bfd5d2022eee237"
+      },
+      "command": [
+        "pnpm",
+        "test:groups:check"
+      ],
+      "startedAt": "2026-11-19T17:05:19.086015+00:00",
+      "finishedAt": "2026-11-19T17:05:23.136425+00:00",
+      "exitCode": 0,
+      "signalNumber": null,
+      "independentlyParsedCounts": {
+        "tests": 18,
+        "suites": 0,
+        "pass": 18,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "duration_ms": 2232.872939
+      },
+      "streams": {
+        "stdout": {
+          "path": "_tmp-c5cr-5m91q69w/group-validation-check.stdout.log",
+          "mode": "0644",
+          "bytes": 1604,
+          "sha256": "962dd3e545418b9016d6799185ed9c4edd5e390e93b8523d6a9fbdc9801f6dbd",
+          "rawEquality": "Recorder-reported only"
+        },
+        "stderr": {
+          "path": "_tmp-c5cr-5m91q69w/group-validation-check.stderr.log",
+          "mode": "0644",
+          "bytes": 83,
+          "sha256": "28e1a1d8d5567fb8820d6b28040398278fd40ab42937599c77e14dfe50b1af7c",
+          "rawEquality": "Recorder-reported only"
+        }
+      },
+      "selectedInputs": [
+        "scripts/test-groups.test.mjs",
+        "scripts/test-groups.mjs --check"
+      ]
+    },
+    {
+      "label": "targeted-eslint",
+      "originalReceipt": {
+        "path": "_tmp-c5cr-5m91q69w/targeted-eslint.result.json",
+        "mode": "0644",
+        "bytes": 17629,
+        "sha256": "8a9d573b7d49d26626fb3678f1c486bee41c8a830dd7035c873974fa42deb71a"
+      },
+      "reservation": {
+        "path": "_tmp-c5cr-5m91q69w/targeted-eslint.started.json",
+        "mode": "0644",
+        "bytes": 7930,
+        "sha256": "b0c52ca19ee9757ad20f9632780aef36605a5823a31ea51e297ab7c95f72e474"
+      },
+      "command": [
+        "pnpm",
+        "exec",
+        "eslint",
+        ".github/actions/ci-checkout/index.mjs",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.d.mts",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs",
+        "packages/express-request-attestation/test/fetch-client.test.ts",
+        "packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts",
+        "packages/express-request-attestation/test/installed-browser-harness.ts",
+        "packages/express-request-attestation/test/packed-consumer.test.ts",
+        "scripts/ci-test-artifacts.mjs",
+        "scripts/ci-test-artifacts.test.mjs",
+        "scripts/ci-test-checkout.test.mjs",
+        "scripts/ci-test-plan.mjs",
+        "scripts/ci-test-plan.test.mjs",
+        "scripts/ci-test-results.test.mjs",
+        "scripts/ci-test-workspace.mjs",
+        "scripts/ci-test-workspace.test.mjs"
+      ],
+      "startedAt": "2026-11-19T17:05:29.081098+00:00",
+      "finishedAt": "2026-11-19T17:05:33.449145+00:00",
+      "exitCode": 0,
+      "signalNumber": null,
+      "independentlyParsedCounts": null,
+      "streams": {
+        "stdout": {
+          "path": "_tmp-c5cr-5m91q69w/targeted-eslint.stdout.log",
+          "mode": "0644",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "rawEquality": "Recorder-reported only"
+        },
+        "stderr": {
+          "path": "_tmp-c5cr-5m91q69w/targeted-eslint.stderr.log",
+          "mode": "0644",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "rawEquality": "Recorder-reported only"
+        }
+      },
+      "selectedInputs": 17
+    },
+    {
+      "label": "maintained-prettier",
+      "originalReceipt": {
+        "path": "_tmp-c5cr-5m91q69w/maintained-prettier.result.json",
+        "mode": "0644",
+        "bytes": 18216,
+        "sha256": "e46b349ef7421f68e423f11764a2e0249cb2170b22e444603c1067eba45a9960"
+      },
+      "reservation": {
+        "path": "_tmp-c5cr-5m91q69w/maintained-prettier.started.json",
+        "mode": "0644",
+        "bytes": 8238,
+        "sha256": "317f1057e52e5b8aead2fd0fd8b509fdc7d4d0358ffe78f708ae7207f355d702"
+      },
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--check",
+        "--config-path",
+        ".prettierrc",
+        ".github/actions/ci-checkout/action.yml",
+        ".github/actions/ci-checkout/index.mjs",
+        ".github/actions/ci-prepare/action.yml",
+        ".github/actions/ci-setup/action.yml",
+        ".github/actions/ci-test/action.yml",
+        ".github/workflows/test.yml",
+        "README.md",
+        "package.json",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.d.mts",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs",
+        "packages/express-request-attestation/test/fetch-client.test.ts",
+        "packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts",
+        "packages/express-request-attestation/test/installed-browser-harness.ts",
+        "packages/express-request-attestation/test/packed-consumer.test.ts",
+        "scripts/ci-test-artifacts.mjs",
+        "scripts/ci-test-artifacts.test.mjs",
+        "scripts/ci-test-checkout.test.mjs",
+        "scripts/ci-test-plan.mjs",
+        "scripts/ci-test-plan.test.mjs",
+        "scripts/ci-test-results.test.mjs",
+        "scripts/ci-test-workspace.mjs",
+        "scripts/ci-test-workspace.test.mjs"
+      ],
+      "startedAt": "2026-11-19T17:05:37.019263+00:00",
+      "finishedAt": "2026-11-19T17:05:38.530898+00:00",
+      "exitCode": 1,
+      "signalNumber": null,
+      "independentlyParsedCounts": null,
+      "streams": {
+        "stdout": {
+          "path": "_tmp-c5cr-5m91q69w/maintained-prettier.stdout.log",
+          "mode": "0644",
+          "bytes": 24,
+          "sha256": "f563726beee093be4f60c47bb6fd71641105b841418dca69dc29b62871faa84a",
+          "rawEquality": "Recorder-reported only"
+        },
+        "stderr": {
+          "path": "_tmp-c5cr-5m91q69w/maintained-prettier.stderr.log",
+          "mode": "0644",
+          "bytes": 110,
+          "sha256": "894b457c0fe401b1e7193511b9d30175f7042fe2a8bb7229589f6e96f9fb2511",
+          "rawEquality": "Recorder-reported only"
+        }
+      },
+      "selectedInputs": 24
+    },
+    {
+      "label": "verified-actionlint",
+      "originalReceipt": {
+        "path": "_tmp-c5cr-5m91q69w/verified-actionlint.result.json",
+        "mode": "0644",
+        "bytes": 16382,
+        "sha256": "488243c2c2532af54087f17277c308d6818db60370dff2b5cb6ef594ef61fae2"
+      },
+      "reservation": {
+        "path": "_tmp-c5cr-5m91q69w/verified-actionlint.started.json",
+        "mode": "0644",
+        "bytes": 6953,
+        "sha256": "9ae479cfbd1466fb738381c3486d47bc3ab1f91028fe2d7f494a3e86c9541860"
+      },
+      "command": [
+        "_tmp-ci-dag-04-accept-HHjMox/actionlint/actionlint",
+        "-shellcheck=",
+        "-pyflakes=",
+        ".github/workflows/test.yml"
+      ],
+      "startedAt": "2026-11-19T17:05:50.502191+00:00",
+      "finishedAt": "2026-11-19T17:05:50.675247+00:00",
+      "exitCode": 0,
+      "signalNumber": null,
+      "independentlyParsedCounts": null,
+      "streams": {
+        "stdout": {
+          "path": "_tmp-c5cr-5m91q69w/verified-actionlint.stdout.log",
+          "mode": "0644",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "rawEquality": "Recorder-reported only"
+        },
+        "stderr": {
+          "path": "_tmp-c5cr-5m91q69w/verified-actionlint.stderr.log",
+          "mode": "0644",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "rawEquality": "Recorder-reported only"
+        }
+      },
+      "selectedInputs": [
+        ".github/workflows/test.yml"
+      ]
+    }
+  ],
+  "qualityFailure": {
+    "finding": "Q1",
+    "path": ".github/workflows/test.yml",
+    "reviewedFingerprint": {
+      "mode": "0644",
+      "bytes": 27606,
+      "sha256": "694a1798730ac2b9fd7253cf88d1e77e0773ea9b23f4d83c1a5b0a180cbcfb3c"
+    },
+    "exitCode": 1,
+    "baseline": "No baseline establishes a pre-existing failure",
+    "correction": "Unauthorized and not made",
+    "selectedMaintainedPaths": 24,
+    "failureArchiveStdoutBytes": 23,
+    "failureArchiveStderrBytes": 110,
+    "historicalException": "The earlier sealed four-entry coordinator-manifest formatting exception is not a Prettier pass and is separate from Q1.",
+    "actionlintLimit": "Existing local pin/member equality only; shellcheck and pyflakes disabled; no new network/signature verification"
+  },
+  "savedEvidenceAudits": {
+    "attempts": [
+      {
+        "originalReceipt": {
+          "path": "_tmp-c5cr-5m91q69w/reconciliation-attempt-1.json",
+          "mode": "0644",
+          "bytes": 19490,
+          "sha256": "fad92872b1efe436460a63e629e294ae07c13c62f681b91a00ddc7ccd14b2b35"
+        },
+        "checksReported": 3257,
+        "exitCodeAttributed": 1,
+        "problems": [
+          "R1 exact five-file implementation scope",
+          "R1 exact reconstructed implementation delta",
+          "R1 formatter encoded-lines transformation",
+          "R1 inverse formatter delta exactly matches all preformat hashes",
+          "Setup final verification thirteen-path fingerprints: lint-final",
+          "Setup saved before/after inputs: format-owned-files",
+          "Setup ten maintained changes/three new/four coordinator documents separately reconciled"
+        ]
+      },
+      {
+        "originalReceipt": {
+          "path": "_tmp-c5cr-5m91q69w/reconciliation-attempt-2.json",
+          "mode": "0644",
+          "bytes": 20363,
+          "sha256": "641001ed93b54dcf5dc65c4610b50ddc16c0778a4d4bd42743acc47b6a5a9e31"
+        },
+        "checksReported": 3507,
+        "exitCodeAttributed": 0,
+        "problems": []
+      }
+    ],
+    "firstAttemptDispositions": [
+      {
+        "problem": "R1 exact five-file implementation scope",
+        "disposition": "The later R2 preflight includes exactly four already-recorded coordinator-document differences in addition to the five R1 maintained changes; compare delivery stages separately."
+      },
+      {
+        "problem": "R1 exact reconstructed implementation delta",
+        "disposition": "GNU diff and Python difflib choose different valid zero-context blank-line hunks. Reverse every saved archive hunk against exact delivered bytes and require all five original preimages, rather than assuming textual diff-generator equality."
+      },
+      {
+        "problem": "R1 formatter encoded-lines transformation",
+        "disposition": "The encoded lines already preserve the terminal empty line; joining with LF matches the original scrubbed output without appending another LF."
+      },
+      {
+        "problem": "R1 inverse formatter delta exactly matches all preformat hashes",
+        "disposition": "All four helper preimages reconstruct. The earlier README hash predates later documentation; no formatting-only README equivalence is inferred. Separate implementation-delta reversal reconstructs the exact delivered README."
+      },
+      {
+        "problem": "Setup final verification thirteen-path fingerprints: lint-final",
+        "disposition": "The earlier failed lint-final is pre-format. The distinct successful lint-final-fingerprint, alongside the named final CI/group/format/YAML/actionlint observations, matches delivered inputs."
+      },
+      {
+        "problem": "Setup saved before/after inputs: format-owned-files",
+        "disposition": "The successful owned formatter legitimately changes four owned files and explicitly records inputsUnchangedDuringRun false; compare the exact saved flag and four-path delta, not an assumed unchanged flag."
+      },
+      {
+        "problem": "Setup ten maintained changes/three new/four coordinator documents separately reconciled",
+        "disposition": "The historical delivery records have four coordinator changes/2568 unchanged originals; the current review has seven coordinator changes/2565 unchanged originals. Their before/after inventory records are separately matched."
+      }
+    ],
+    "independentlyReconstructedSourceInventory": {
+      "entries": 582,
+      "canonicalSha256": "513e950a797f635dc13a8575e47b7427085e5cee075a31073e83fc52e1ff30fc"
+    },
+    "r1": {
+      "archiveEntries": 21,
+      "declaredSources": 48,
+      "savedRecords": [
+        {
+          "label": "before-workspace-tests",
+          "exit": 1,
+          "signal": null,
+          "counts": {
+            "tests": 51,
+            "suites": 0,
+            "pass": 50,
+            "fail": 1,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0,
+            "duration_ms": 3427.220104
+          }
+        },
+        {
+          "label": "broadcast-probe",
+          "exit": 101,
+          "signal": null,
+          "counts": {}
+        },
+        {
+          "label": "broadcast-probe-diagnostic",
+          "exit": 101,
+          "signal": null,
+          "counts": {}
+        },
+        {
+          "label": "broadcast-probe-corrected",
+          "exit": 0,
+          "signal": null,
+          "counts": {}
+        },
+        {
+          "label": "prettier-draft",
+          "exit": 1,
+          "signal": null,
+          "counts": {}
+        },
+        {
+          "label": "final-helper-tests",
+          "exit": 0,
+          "signal": null,
+          "counts": {
+            "tests": 134,
+            "suites": 0,
+            "pass": 134,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0,
+            "duration_ms": 6824.891717
+          }
+        },
+        {
+          "label": "final-ci-contracts",
+          "exit": 0,
+          "signal": null,
+          "counts": {
+            "tests": 326,
+            "suites": 0,
+            "pass": 326,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0,
+            "duration_ms": 12400.446859
+          }
+        },
+        {
+          "label": "final-groups-contracts",
+          "exit": 0,
+          "signal": null,
+          "counts": {
+            "tests": 18,
+            "suites": 0,
+            "pass": 18,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0,
+            "duration_ms": 2130.696838
+          }
+        },
+        {
+          "label": "targeted-eslint",
+          "exit": 0,
+          "signal": null,
+          "counts": {}
+        },
+        {
+          "label": "prettier-code",
+          "exit": 0,
+          "signal": null,
+          "counts": {}
+        },
+        {
+          "label": "final-prettier",
+          "exit": 1,
+          "signal": null,
+          "counts": {}
+        },
+        {
+          "label": "handoff-format-review",
+          "exit": 0,
+          "signal": null,
+          "counts": {}
+        },
+        {
+          "label": "final-prettier-corrected",
+          "exit": 0,
+          "signal": null,
+          "counts": {}
+        },
+        {
+          "label": "diff-check",
+          "exit": 0,
+          "signal": null,
+          "counts": {}
+        },
+        {
+          "label": "final-scope-check",
+          "exit": 0,
+          "signal": null,
+          "counts": {}
+        }
+      ],
+      "formatterHelperPreimages": 4,
+      "readmeFormattingOnlyProvenance": "Not established"
+    },
+    "r2": {
+      "payloads": 10,
+      "payloadBytes": 99546,
+      "declaredSources": 45,
+      "planningStagingSeals": 34,
+      "savedRecords": [
+        {
+          "label": "conditions",
+          "exit": 0,
+          "durationSeconds": 2.522,
+          "counts": []
+        },
+        {
+          "label": "initial-build",
+          "exit": 0,
+          "durationSeconds": 4.039,
+          "counts": []
+        },
+        {
+          "label": "diagnostic-red",
+          "exit": 1,
+          "durationSeconds": 5.371,
+          "counts": [
+            {
+              "kind": "Test Files",
+              "failed": 1,
+              "total": 1
+            },
+            {
+              "kind": "Tests",
+              "failed": 1,
+              "skipped": 11,
+              "total": 12
+            }
+          ]
+        },
+        {
+          "label": "observer-controls",
+          "exit": 0,
+          "durationSeconds": 3.041,
+          "counts": [
+            {
+              "kind": "Test Files",
+              "passed": 1,
+              "total": 1
+            },
+            {
+              "kind": "Tests",
+              "passed": 14,
+              "skipped": 107,
+              "total": 121
+            }
+          ]
+        },
+        {
+          "label": "installed-causal-controls",
+          "exit": 1,
+          "durationSeconds": 8.41,
+          "counts": [
+            {
+              "kind": "Test Files",
+              "failed": 1,
+              "total": 1
+            },
+            {
+              "kind": "Tests",
+              "failed": 7,
+              "passed": 1,
+              "skipped": 10,
+              "total": 18
+            }
+          ]
+        },
+        {
+          "label": "observer-settlement-controls",
+          "exit": 0,
+          "durationSeconds": 3.145,
+          "counts": [
+            {
+              "kind": "Test Files",
+              "passed": 1,
+              "total": 1
+            },
+            {
+              "kind": "Tests",
+              "passed": 15,
+              "skipped": 107,
+              "total": 122
+            }
+          ]
+        },
+        {
+          "label": "installed-correlated-controls",
+          "exit": 1,
+          "durationSeconds": 8.448,
+          "counts": [
+            {
+              "kind": "Test Files",
+              "failed": 1,
+              "total": 1
+            },
+            {
+              "kind": "Tests",
+              "failed": 1,
+              "passed": 7,
+              "skipped": 10,
+              "total": 18
+            }
+          ]
+        },
+        {
+          "label": "installed-native-transport-control",
+          "exit": 0,
+          "durationSeconds": 5.562,
+          "counts": [
+            {
+              "kind": "Test Files",
+              "passed": 1,
+              "total": 1
+            },
+            {
+              "kind": "Tests",
+              "passed": 1,
+              "skipped": 17,
+              "total": 18
+            }
+          ]
+        },
+        {
+          "label": "signer-fetch-contracts",
+          "exit": 1,
+          "durationSeconds": 4.241,
+          "counts": [
+            {
+              "kind": "Test Files",
+              "failed": 1,
+              "passed": 1,
+              "total": 2
+            },
+            {
+              "kind": "Tests",
+              "failed": 1,
+              "passed": 104,
+              "skipped": 91,
+              "total": 196
+            }
+          ]
+        },
+        {
+          "label": "signer-fetch-baseline-control",
+          "exit": 0,
+          "durationSeconds": 2.79,
+          "counts": [
+            {
+              "kind": "Test Files",
+              "passed": 2,
+              "total": 2
+            },
+            {
+              "kind": "Tests",
+              "passed": 105,
+              "skipped": 76,
+              "total": 181
+            }
+          ]
+        },
+        {
+          "label": "scoped-lint",
+          "exit": 0,
+          "durationSeconds": 2.97,
+          "counts": []
+        },
+        {
+          "label": "scoped-typecheck",
+          "exit": 0,
+          "durationSeconds": 11.743,
+          "counts": []
+        },
+        {
+          "label": "scoped-format-check",
+          "exit": 1,
+          "durationSeconds": 1.627,
+          "counts": []
+        },
+        {
+          "label": "format-plan",
+          "exit": 0,
+          "durationSeconds": 7.934,
+          "counts": []
+        },
+        {
+          "label": "final-static-audit",
+          "exit": 0,
+          "durationSeconds": 0.321,
+          "counts": []
+        },
+        {
+          "label": "final-format-check",
+          "exit": 0,
+          "durationSeconds": 1.571,
+          "counts": []
+        },
+        {
+          "label": "final-lint",
+          "exit": 0,
+          "durationSeconds": 2.191,
+          "counts": []
+        }
+      ],
+      "observations": 10,
+      "omittedSetupEvents": 100,
+      "retainedRequestFailures": 16,
+      "completePackageRecorder": "Absent; interruption metadata remains separately attributed"
+    },
+    "setup": {
+      "capturedFiles": 169,
+      "strictJsonFiles": 57,
+      "archiveEntries": 162,
+      "originalSources": 156,
+      "readableRawOutputs": 64,
+      "savedRecords": [
+        {
+          "label": "red-wiring",
+          "status": 1,
+          "counts": {
+            "tests": 5,
+            "suites": 0,
+            "pass": 0,
+            "fail": 5,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "inputFingerprintCount": 0
+        },
+        {
+          "label": "selected-only-fixture",
+          "status": 0,
+          "counts": {
+            "tests": 1,
+            "suites": 0,
+            "pass": 1,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "inputFingerprintCount": 0
+        },
+        {
+          "label": "tool-inventory",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 0
+        },
+        {
+          "label": "boundary-red",
+          "status": 1,
+          "counts": {
+            "tests": 183,
+            "suites": 0,
+            "pass": 177,
+            "fail": 6,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "inputFingerprintCount": 12
+        },
+        {
+          "label": "checkout-green",
+          "status": 1,
+          "counts": {
+            "tests": 205,
+            "suites": 0,
+            "pass": 204,
+            "fail": 1,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "inputFingerprintCount": 12
+        },
+        {
+          "label": "checkout-green-isolated",
+          "status": 0,
+          "counts": {
+            "tests": 205,
+            "suites": 0,
+            "pass": 205,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "inputFingerprintCount": 12
+        },
+        {
+          "label": "helper-contracts",
+          "status": 1,
+          "counts": {
+            "tests": 406,
+            "suites": 0,
+            "pass": 405,
+            "fail": 1,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "inputFingerprintCount": 12
+        },
+        {
+          "label": "lint-final",
+          "status": 1,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "format-check-before",
+          "status": 1,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "format-check-correct-cli",
+          "status": 1,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "format-owned-files",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "lint-green",
+          "status": 1,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "tool-prerequisites-final",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "lint-after-cause-correction",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "format-check-final",
+          "status": 1,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "format-check-after-cause-wrap",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "ci-check-final",
+          "status": 0,
+          "counts": {
+            "tests": 611,
+            "suites": 0,
+            "pass": 611,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "groups-check-final",
+          "status": 0,
+          "counts": {
+            "tests": 18,
+            "suites": 0,
+            "pass": 18,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "lint-final-fingerprint",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "yaml-check-final",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "actionlint-final",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "scope-before-archive",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "archive-initial",
+          "status": 1,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "preserve-archive-failure",
+          "status": 1,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "curation-driver-preimages",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "preserve-archive-failure-corrected",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "archive-completed",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "archive-completion-record",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "format-setup-delivery-docs",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "delivery-integrity-before-final",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "whitespace-final",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "archive-delivery-foundation",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "format-setup-delivery-final",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "delivery-integrity-final",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        },
+        {
+          "label": "scope-after-archive-final",
+          "status": 0,
+          "counts": null,
+          "inputFingerprintCount": 13
+        }
+      ],
+      "nonzeroRecords": 11,
+      "finalFingerprints": 13,
+      "historicalCoordinatorDocuments": 4,
+      "historicalUnchangedOriginals": 2568,
+      "reviewInputCoordinatorDocuments": 7,
+      "reviewInputUnchangedOriginals": 2565
+    },
+    "historicalV5": {
+      "groups": 12,
+      "completeScripts": 25,
+      "files": 689,
+      "tests": 21224,
+      "todo": 1,
+      "runs": 34
+    },
+    "limit": "Saved audit counters 3257/3507 were not rerun. Independent reconstruction of source identities, counts, stage deltas and curation does not establish runtime equivalence, R2 causality or rollout acceptance."
+  },
+  "deliveryCaptureBoundaries": {
+    "inventoryReceiptStages": {
+      "beforeReportCreation": 52,
+      "atSupportEntry": 53,
+      "atClosingCapture": 55,
+      "atLaterDeliveryScope": 56
+    },
+    "staticJsonCounterReported": 476,
+    "staticStdoutCounterReported": 482,
+    "staticCounterCause": "Six metadata fingerprint assertions after counter capture; driver inspected, not executed",
+    "recordsAuditCounterReported": 449,
+    "contentClosureCounterReported": 591,
+    "finalMetadataCounterReported": 5922,
+    "intermediateSummaryAtCliCapture": {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/delivery-check.json",
+      "mode": "0644",
+      "bytes": 1630,
+      "sha256": "9fa006edb239584d5f9789605edb723b4a25db4f7da32d1134b6b1874581e6d0"
+    },
+    "finalSummary": {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-support/delivery-check.json",
+      "mode": "0644",
+      "bytes": 13411,
+      "sha256": "ac8af8f775fb10458ee8e3a0a01ca82974d053c7b62834b2275223fdb91e4c4a"
+    },
+    "report": {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review.md",
+      "mode": "0644",
+      "bytes": 23426,
+      "sha256": "94ad040620b4f27a3852415a5a59ce2880d95271c1dd6357f2aa145b706d0a9b"
+    },
+    "savedFinalFormatReceipt": {
+      "path": "_tmp-c5cr-5m91q69w/delivery-final-format.json",
+      "mode": "0644",
+      "bytes": 3770,
+      "sha256": "b73c0ef9551912dd8177fbb3269270f15e2b81418fdfc3e371eef43ba12093ff"
+    },
+    "savedFinalMetadataReceipt": {
+      "path": "_tmp-c5cr-5m91q69w/delivery-final-metadata.json",
+      "mode": "0644",
+      "bytes": 1804,
+      "sha256": "ad734a5b1113addecffc8320e5ecf8ee9bdfbe54c5bfccc8ccbea365728916c3"
+    },
+    "formatterInputs": 7,
+    "excludedFailureStreams": 2,
+    "reviewerFiles": 9,
+    "localLinks": 31,
+    "anchors": 1,
+    "limit": "No historical intermediate summary bytes were retained. Its 1630-byte identity is receipt metadata; final 13411-byte summary has a distinct independently readable hash. Saved formatter success was not repeated."
+  },
+  "protectedScope": {
+    "originalRegularFiles": 2771,
+    "reviewedMaintainedFingerprints": 24,
+    "historicalSeals": 33,
+    "reviewerAdditions": 9,
+    "otherAllowedAdditions": 2,
+    "currentRegularFiles": 2782,
+    "currentFilesTableSha256": "73422362ef1fe1f18176be77f25e2714942c08a39faf2eb93fac73ad55d49b68",
+    "unchangedDuringCoordinatorAudit": true,
+    "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+    "projectRefsSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+    "snapshot": {
+      "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-inputs.json",
+      "mode": "0644",
+      "bytes": 610017,
+      "sha256": "ad378fec69c87bb1b750c9f1bb3b47b23861ebf4f1d40a3aabb9ebe4678ef696"
+    }
+  },
+  "readFileInventory": {
+    "entries": 3251,
+    "canonicalSha256": "ff04e99c25fea49bf022a2ed12be22fee363bc86c487e6954492ea826ba72ba4"
+  },
+  "coordinatorDriver": {
+    "path": "_tmp-c5cr-coord-3ovrro4e/reconcile-saved-review.py",
+    "mode": "0644",
+    "bytes": 55808,
+    "sha256": "f73483b6203df9af08d47edef00adbe8a12efa3c109a1e9b88cb5916f4451d2d"
+  },
+  "limits": "This new evidence reader did not execute historical/reviewer/project drivers or repeat validators, packages, quality checks or probes. Saved counters and execution facts remain attributed to their original receipts. Raw reviewer streams were not persisted; equality to retained streams is recorder metadata. Original source trees/dependencies/private diagnostics and intermediate summary bytes are not an archive-only reproducer. Independent review acceptance is scoped; Q1, native/Node-20/runner, unresolved R2 and R3 remain blockers."
+}

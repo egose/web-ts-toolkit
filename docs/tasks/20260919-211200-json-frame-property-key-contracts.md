@@ -269,7 +269,7 @@ Numbering follows each task's acceptance bullet order. PASS for an original matr
 
 #### Actual Fresh Checks and Public Probes
 
-Environment: Linux, Node **v26.7.0**, pnpm **11.18.0**, TypeScript **6.0.3**, Vitest **4.1.11**. Commands issued serially; no overlapping reviewer builds/agents.
+Environment: Linux, Node **v26.7.0**, pnpm **11.24.0**, TypeScript **6.0.3**, Vitest **4.1.11**. Commands issued serially; no overlapping reviewer builds/agents.
 
 1. **V2** `pnpm --filter @web-ts-toolkit/json-frame test` — **exit 0**, **475/475 tests, 9/9 files**, start **21:27:10**, Vitest duration **32.79s**. CJS/ESM/DTS build, strict source/NodeNext/Bundler/browser checks, runtime and existing benchmark passed. All three packed-consumer tests passed: release-transformed tarball/allowlist, staged `npm pack --dry-run --json`, installed public CJS/ESM/declaration consumers and shipped README examples. Existing non-failing Vite future-native-loader warning only; no performance comparison claim.
 2. **V3** `pnpm exec eslint "packages/json-frame/**/*.{ts,js}"` — **exit 0**, no diagnostics.
@@ -311,7 +311,7 @@ Numbering follows each task's acceptance bullets. These are current closure verd
 
 ##### Actual Closure Commands and Counts
 
-Environment: Linux, Node **v26.7.0**, pnpm **11.18.0**, TypeScript **6.0.3**, Vitest **4.1.11**. Required checks and probes ran serially; no agents or overlapping reviewer builds.
+Environment: Linux, Node **v26.7.0**, pnpm **11.24.0**, TypeScript **6.0.3**, Vitest **4.1.11**. Required checks and probes ran serially; no agents or overlapping reviewer builds.
 
 1. **V2:** `pnpm --filter @web-ts-toolkit/json-frame test` — **exit 0; 531/531 tests, 9/9 files**, Vitest start **21:46:57**, duration **42.66s**. Counts reconcile: **367 prior JFC + 51 JFP-01 + 57 JFP-02 + 54 JFP-04 runtime + 2 source-consumer compiler tests = 531**. CJS/ESM/DTS build, source/workspace strict checks, runtime, existing benchmark, both alternate source-consumer settings, release-transformed pack/allowlist and staged npm dry-run, installed CJS/ESM runtime, six installed compiler invocations (NodeNext checks both formats), browser/no-Node-ambient declarations and shipped README examples passed. Existing non-failing Vite future-native-loader warning only.
 2. **V3:** `pnpm exec eslint "packages/json-frame/**/*.{ts,js}"` — **exit 0**, no diagnostics.

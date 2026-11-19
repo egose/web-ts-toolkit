@@ -17,7 +17,7 @@
     "node": "v26.12.1",
     "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
     "esbuild": "0.28.2",
-    "pnpm": "11.18.0",
+    "pnpm": "11.24.0",
     "revision": "23848c60ab172e5d421ee651c26dce41fd9410b0",
     "productionDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
@@ -385,7 +385,7 @@
   "reviewOperationalNotes": [
     "Initial review-only frozen provenance-dist import failed on a missing workspace link. No old seal/dependency changed; sealed bytes/dependencies plus actual current imports verified equivalence.",
     "Scratch-only protocol extraction initially used a local name for a CommonJS-emitted export; corrected audit wiring passed. A discarded old-log lookup was missing; actual available JSON supplied that historical count. No maintained fix or test expectation change.",
-    "Actual pnpm 11.18.0 matches current/HEAD root packageManager and every frozen identity. The distinct .tool-versions 11.24.0 annotation correction is historical and sealed data remains unchanged.",
+    "Actual pnpm 11.24.0 matches current/HEAD root packageManager and every frozen identity. The distinct .tool-versions 11.24.0 annotation correction is historical and sealed data remains unchanged.",
     "Coordinator reports initial PATHS-05 encrypted-context failure before a delivered handoff; PATHS-05R owns actual CWO-05 results. No outcome attributed to the failed child.",
     "CWO-03 reports one read-only formatter/typecheck overlap and serial source-only repeat. This is historical, not this review's execution or a waived gate."
   ],

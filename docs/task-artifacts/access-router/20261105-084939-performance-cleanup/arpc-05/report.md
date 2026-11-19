@@ -79,7 +79,7 @@ real service authorization/finalization/local persistence-adapter work is inside
 No timed spies, counters, profiler, forced GC or concurrent build/test ran.
 
 Original baseline source/bundle and candidate source/bundle were separately sealed
-and reverified. Node `v26.12.1`, pnpm `11.18.0`, dependencies, toolchain and host
+and reverified. Node `v26.12.1`, pnpm `11.24.0`, dependencies, toolchain and host
 identities are recorded in [provenance](provenance.json) and
 [measurement protocol](timing-protocol.json). The timing fixture uses **24 `$and`
 branches**, not `$or`; the latter is separate correctness coverage.

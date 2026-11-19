@@ -691,7 +691,7 @@ feature implementation remains with DPV-01 onward. Blockers: none.
 `git status --short` showed only this task modified by the coordinator (overall
 status/delegation authorization). Preserved those edits, set DPV-00 `in_progress`
 before investigation, and preserved the pending later task sections. Observed
-HEAD `065a1f1`. Environment: Node `v26.12.1`, pnpm `11.18.0`, installed Mongoose
+HEAD `065a1f1`. Environment: Node `v26.12.1`, pnpm `11.24.0`, installed Mongoose
 `9.9.2`, Vitest `4.1.11`. No dependency installation/update was needed.
 
 **Bounded characterization:**
@@ -2620,7 +2620,7 @@ checkout path at execution):
    and `git check-ignore -v` for each new `dpv08-*.log` path;
    `.gitignore:8:_tmp*` matched. Used the existing ignored `_tmp-dpv` for logs and
    `TMPDIR`; no standalone temporary fixture was created. Node `v26.12.1`, pnpm
-   `11.18.0`; no dependency installation/change was needed.
+   `11.24.0`; no dependency installation/change was needed.
 2. `pnpm --filter @web-ts-toolkit/access-router... build` — **passed**, fresh
    five-package transitive JS/declaration baseline. Log:
    `_tmp-dpv/dpv08-baseline-build.log`.
@@ -2825,7 +2825,7 @@ acceptance/dependency record. No production edit followed the final gates.
 - Build, root test attempts/diagnostics, lint and final server typecheck were
   serialized in the exclusive window. No concurrent coordinator worker, agent,
   source edit, dependency upgrade, staged change or manual dist edit was added.
-  Runtime versions observed: Node **v26.12.1**, repository pnpm **11.18.0**.
+  Runtime versions observed: Node **v26.12.1**, repository pnpm **11.24.0**.
 
 **Actual gate results and exact counts:**
 

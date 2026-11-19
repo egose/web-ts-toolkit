@@ -11,7 +11,7 @@
     "node": "v26.12.1",
     "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
     "esbuild": "0.28.2",
-    "pnpm": "11.18.0",
+    "pnpm": "11.24.0",
     "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
     "productionDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
@@ -28,7 +28,7 @@
       "node": "v26.12.1",
       "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
       "esbuild": "0.28.2",
-      "pnpm": "11.18.0",
+      "pnpm": "11.24.0",
       "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
       "productionDiffHash": "69123f8379d22b898ab6565ddc81435519b4a66a34cdf2864cc0428f63e1db72",
       "changedSourceFiles": [
@@ -57,7 +57,7 @@
       "node": "v26.12.1",
       "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
       "esbuild": "0.28.2",
-      "pnpm": "11.18.0",
+      "pnpm": "11.24.0",
       "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
       "productionDiffHash": "abcad0ecd169edfb451a73bc44621c06a8a3c230fca00507ba07a2c653e86f3a",
       "changedSourceFiles": [
@@ -90,7 +90,7 @@
       "node": "v26.12.1",
       "nodeBinaryHash": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
       "esbuild": "0.28.2",
-      "pnpm": "11.18.0",
+      "pnpm": "11.24.0",
       "revision": "6c3ceee4433daf203d4625d70b0ef5c4b7009529",
       "productionDiffHash": "99f8912173d021cf49bf091962d4b80732e03bafef0943757d8200b3bf93a317",
       "changedSourceFiles": [

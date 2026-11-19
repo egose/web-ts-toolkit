@@ -900,7 +900,7 @@ Completion evidence (MSGR-07, fresh sequential investigation session):
 
 - **Investigation complete; actual root acceptance still FAILED.** Both runs
   executed in `<repo-root>`, using Node **v26.7.0**, pnpm
-  **11.18.0**, Vitest **4.1.11**. No isolated-copy test result was substituted.
+  **11.24.0**, Vitest **4.1.11**. No isolated-copy test result was substituted.
   Initial `ps -eo pid,ppid,lstart,args` plus
   `pwdx 1985520 1985918 1986164 1986165 2105915 2105918 2106236`
   identified the older isolated runner (the last PID had already exited).

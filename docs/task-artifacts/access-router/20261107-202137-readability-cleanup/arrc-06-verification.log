@@ -1,6 +1,6 @@
 ARRC-06 final acceptance — curated summary and selected stdout, not full raw logs.
 Working directory: <repo-root>. All commands sequential and foreground; queued jobs: 0.
-Node v26.12.1; pnpm 11.18.0; Vitest 4.1.11; TypeScript 6.0.3; tsup 8.5.1; linux x64.
+Node v26.12.1; pnpm 11.24.0; Vitest 4.1.11; TypeScript 6.0.3; tsup 8.5.1; linux x64.
 Environment overrides: TMPDIR=<repo-root>/_tmp-arrc-06-ACEtYj; NO_COLOR=1; FORCE_COLOR=0.
 Scratch ignored by .gitignore:8:_tmp*. Exact argv/times/raw-log hashes: arrc-06-verification.json.
 

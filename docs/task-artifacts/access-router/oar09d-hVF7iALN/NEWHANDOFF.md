@@ -122,7 +122,7 @@ for the fresh measurement owner. These are read-only, newly named inputs:
 - Metadata SHA256 `63c5ed2dbf4bdc2d47d06c0fb4216347d8bbd3f3eadc9bfb4b2de87cf08bc197`.
 - Protocol SHA256 `c7a523f9cb79d8574a56d688794d8d1508c7ecf05e05e0e29cb45c9f97efd28f`.
 - Old baseline ESM remains **`33662faede23acffc1a90973f51a7407df147afba76e4fbb23eeb99169df3822`**;
-  Node **26.12.1**, pnpm **11.18.0**, Mongo **8.2.6**, exact binary hashes and lock
+  Node **26.12.1**, pnpm **11.24.0**, Mongo **8.2.6**, exact binary hashes and lock
   `ef86ef24726d09f81d1262656920d6215caeb0f26e345198db2d27b8ab7ab314` unchanged.
 - **622 copied files / 575 source records / 67 outputs / 13 unchanged benchmark
   files / 134 dependencies+3,510 files / 293 tool packages+10,545 files** verified.

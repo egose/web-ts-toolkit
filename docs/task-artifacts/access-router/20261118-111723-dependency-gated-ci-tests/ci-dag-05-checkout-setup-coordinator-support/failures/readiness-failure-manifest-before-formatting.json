@@ -1,0 +1,49 @@
+{
+  "recordedAt": "2026-11-19T14:49:21.881027284Z",
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "failedAt": "2026-11-19T14:47:17.964504+00:00",
+  "command": [
+    "python3",
+    "_tmp-c5f-ovtrnV/freeze-corrective-review-inputs.py",
+    "--freeze-idle-review-ready"
+  ],
+  "exitCode": 1,
+  "scope": "First coordinator document-only readiness attempt; no helper/package/source/runtime/hosted execution",
+  "disposition": "Checker false positive: an unanchored external-temp privacy pattern matched the tmp/ segment in an already sanitized repository-local socket path at ci-dag-05-local-evidence.md:162. Correct only absolute-path token matching; do not alter the historical log, implementation, tests or expectations. Retain this failure and its exact pre-correction driver; a later readiness result is a separate observation, not a relabeling of this one.",
+  "entries": [
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/setup-readiness-he93fg7n/checker-failure.json",
+        "mode": "0644",
+        "bytes": 5690,
+        "sha256": "cf60897bc864b6ad4daa7f66c94403c936394173ec6bd823fc1cc6fa21d37533"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/failures/readiness-privacy-check.json",
+        "mode": "0644",
+        "bytes": 5690,
+        "sha256": "cf60897bc864b6ad4daa7f66c94403c936394173ec6bd823fc1cc6fa21d37533"
+      },
+      "transformation": "None; byte-exact copy; original retained unchanged"
+    },
+    {
+      "source": {
+        "path": "_tmp-c5f-ovtrnV/setup-readiness-he93fg7n/freeze-corrective-review-inputs-before-privacy-fix.py",
+        "mode": "0644",
+        "bytes": 23471,
+        "sha256": "832b6a3e730962edfd002d85e127b971fdbe43a4e703b5b34173c3e7594ebbc5"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/drivers/freeze-inputs-before-privacy-fix.py",
+        "mode": "0644",
+        "bytes": 23471,
+        "sha256": "832b6a3e730962edfd002d85e127b971fdbe43a4e703b5b34173c3e7594ebbc5"
+      },
+      "transformation": "None; byte-exact copy; original retained unchanged"
+    }
+  ],
+  "originalScratch": "_tmp-c5f-ovtrnV/setup-readiness-he93fg7n",
+  "omitted": "Redundant Git/raw command streams and execution state remain only in original ignored scratch; command metadata is retained in the failure JSON. No self-contained execution reproduction is claimed.",
+  "historicalDriverLimit": "Do not execute the archival pre-correction driver: it retains the known checker defect and depends on original scratch state. It documents the failed observation only.",
+  "selfReferenceLimit": "Covers only these two exact copies, not this manifest, the four-entry earlier reconciliation manifest, later corrected driver/readiness/snapshot/assignment or reviewer evidence"
+}

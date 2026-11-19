@@ -1,0 +1,48 @@
+{
+  "inputs": [
+    {
+      "run": "initial",
+      "retainedSource": "_tmp-r1-mwGWUn/broadcast-probe-before.mjs",
+      "sourceSha256": "ae6e85e3e07a27777b13436dd7ed9a68f993587c2c494b613f84e6d04c66b13d",
+      "result": {
+        "command": ["node", "_tmp-r1-mwGWUn/broadcast-probe.mjs"],
+        "tmpdir": "_tmp-r1-mwGWUn/broadcast-probe-xysSm2",
+        "started": "2026-11-19T04:26:05.174Z",
+        "durationMs": 11740,
+        "exit": 101,
+        "signal": null,
+        "counts": []
+      }
+    },
+    {
+      "run": "diagnostic",
+      "retainedSource": "_tmp-r1-mwGWUn/broadcast-probe-diagnostic-input.mjs",
+      "sourceSha256": "38d1cccf0a309de1861aaa594f895a3124e541a6a8280adda2762838a8178030",
+      "result": {
+        "command": ["node", "_tmp-r1-mwGWUn/broadcast-probe.mjs"],
+        "tmpdir": "_tmp-r1-mwGWUn/broadcast-probe-diagnostic-Sg9Vqo",
+        "started": "2026-11-19T04:28:04.849Z",
+        "durationMs": 11575,
+        "exit": 101,
+        "signal": null,
+        "counts": []
+      }
+    },
+    {
+      "run": "corrected",
+      "retainedSource": "_tmp-r1-mwGWUn/broadcast-probe.mjs",
+      "sourceSha256": "dfa2ba152f60f13fe3ea9bd59c71c60ff534fcb73190d2dfb70d7bf4dc310209",
+      "result": {
+        "command": ["node", "_tmp-r1-mwGWUn/broadcast-probe.mjs"],
+        "tmpdir": "_tmp-r1-mwGWUn/broadcast-probe-corrected-ScSAUw",
+        "started": "2026-11-19T04:29:03.426Z",
+        "durationMs": 1781,
+        "exit": 0,
+        "signal": null,
+        "counts": []
+      }
+    }
+  ],
+  "sourceFilesArchived": false,
+  "historicalOnly": true
+}

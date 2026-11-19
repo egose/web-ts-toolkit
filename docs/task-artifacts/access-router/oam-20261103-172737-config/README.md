@@ -53,7 +53,7 @@ inspected, and remains ignored.
 ## Verification actually run
 
 All commands ran **serially from repository root**. Node `v26.12.1`, pnpm
-`11.18.0`, Vitest `4.1.11`; installed dependencies and MongoDB memory-server
+`11.24.0`, Vitest `4.1.11`; installed dependencies and MongoDB memory-server
 prerequisites were available. No install was run.
 
 Fresh scratch: `_tmp-oam02-config-20261103-192841`, created with `mkdir` and

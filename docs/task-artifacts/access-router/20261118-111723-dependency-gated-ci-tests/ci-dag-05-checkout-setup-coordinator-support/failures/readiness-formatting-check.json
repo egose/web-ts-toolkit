@@ -1,0 +1,166 @@
+{
+  "failedAt": "2026-11-19T14:50:42.446322+00:00",
+  "scope": "Coordinator document/readiness/snapshot check failure, not package/helper/source/hosted execution",
+  "error": "Checking formatting...\r\n[warn] docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/manifest.json\n[warn] docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/readiness-failure-manifest.json\n[warn] Code style issues found in 2 files. Run Prettier with --write to fix.\n",
+  "type": "AssertionError",
+  "commands": [
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t",
+      "startedAt": "2026-11-19T14:50:40.067607+00:00",
+      "finishedAt": "2026-11-19T14:50:40.070437+00:00",
+      "durationMs": 2,
+      "exitCode": 0,
+      "signal": null,
+      "stdoutBytes": 41,
+      "stdoutSha256": "b471db80729132aa0c203e24a95ee0879d18f9973b36791265ed68312c4119d0",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t",
+      "startedAt": "2026-11-19T14:50:40.079167+00:00",
+      "finishedAt": "2026-11-19T14:50:40.080771+00:00",
+      "durationMs": 1,
+      "exitCode": 0,
+      "signal": null,
+      "stdoutBytes": 41,
+      "stdoutSha256": "d9fc09c66e8f9d79791308f3960d7c07e38589b227a43bdd643e2247bdeeeafa",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "for-each-ref",
+        "--format=%(objectname) %(refname)"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t",
+      "startedAt": "2026-11-19T14:50:40.081022+00:00",
+      "finishedAt": "2026-11-19T14:50:40.082782+00:00",
+      "durationMs": 1,
+      "exitCode": 0,
+      "signal": null,
+      "stdoutBytes": 8156,
+      "stdoutSha256": "40b660a3fac8ab8c4726e35449cc090b4913e64265d5c544ee187b48dbf3427b",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "status",
+        "--short"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t",
+      "startedAt": "2026-11-19T14:50:40.083216+00:00",
+      "finishedAt": "2026-11-19T14:50:40.092808+00:00",
+      "durationMs": 9,
+      "exitCode": 0,
+      "signal": null,
+      "stdoutBytes": 1344,
+      "stdoutSha256": "ee96fed08f62dbef2db568b6c1367c50042daae4b695d0b970d810ec6454cd19",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": "",
+      "stdoutText": " M .github/workflows/test.yml\n M AGENTS.md\n M README.md\n M package.json\n M packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs\n M packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs\n M packages/express-request-attestation/test/fetch-client.test.ts\n M packages/express-request-attestation/test/installed-browser-harness.ts\n M packages/express-request-attestation/test/packed-consumer.test.ts\n M pnpm-lock.yaml\n?? .github/actions/ci-checkout/\n?? .github/actions/ci-prepare/\n?? .github/actions/ci-setup/\n?? .github/actions/ci-test/\n?? docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/\n?? docs/tasks/20261118-111723-dependency-gated-ci-tests.md\n?? packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.d.mts\n?? packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs\n?? packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts\n?? scripts/ci-test-artifacts.mjs\n?? scripts/ci-test-artifacts.test.mjs\n?? scripts/ci-test-checkout.test.mjs\n?? scripts/ci-test-plan.mjs\n?? scripts/ci-test-plan.test.mjs\n?? scripts/ci-test-results.mjs\n?? scripts/ci-test-results.test.mjs\n?? scripts/ci-test-workspace.mjs\n?? scripts/ci-test-workspace.test.mjs\n"
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "ls-files",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "-z"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t",
+      "startedAt": "2026-11-19T14:50:40.093162+00:00",
+      "finishedAt": "2026-11-19T14:50:40.099053+00:00",
+      "durationMs": 5,
+      "exitCode": 0,
+      "signal": null,
+      "stdoutBytes": 195767,
+      "stdoutSha256": "1d43032b44ba64583010cf1edc4f8f490b932db144c0157a46d2e5c787915b9b",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "git",
+        "--no-optional-locks",
+        "check-ignore",
+        "-z",
+        "--stdin"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t",
+      "startedAt": "2026-11-19T14:50:40.262406+00:00",
+      "finishedAt": "2026-11-19T14:50:40.264483+00:00",
+      "durationMs": 2,
+      "exitCode": 1,
+      "signal": null,
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrText": ""
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--check",
+        "--config-path",
+        ".prettierrc",
+        "docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/README.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-remediation-coordination.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-handoff.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/README.md",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/manifest.json",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/readiness-failure-manifest.json"
+      ],
+      "cwd": ".",
+      "tmpdir": "_tmp-c5f-ovtrnV/setup-readiness-mi6r569t",
+      "startedAt": "2026-11-19T14:50:40.350779+00:00",
+      "finishedAt": "2026-11-19T14:50:42.445931+00:00",
+      "durationMs": 2095,
+      "exitCode": 1,
+      "signal": null,
+      "stdoutBytes": 24,
+      "stdoutSha256": "f563726beee093be4f60c47bb6fd71641105b841418dca69dc29b62871faa84a",
+      "stderrBytes": 379,
+      "stderrSha256": "13db8a0f58c978bfdbba350292f3d462b61024cbf3b3338541730038fa3c7107",
+      "stderrText": "[warn] docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/manifest.json\n[warn] docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-checkout-setup-coordinator-support/readiness-failure-manifest.json\n[warn] Code style issues found in 2 files. Run Prettier with --write to fix.\n",
+      "stdoutText": "Checking formatting...\r\n"
+    }
+  ]
+}

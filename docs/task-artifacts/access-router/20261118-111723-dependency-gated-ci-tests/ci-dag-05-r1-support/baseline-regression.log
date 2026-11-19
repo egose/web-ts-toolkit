@@ -1,0 +1,79 @@
+✔ checked-in CI composites match the strict independent helper contract without wiring the active workflow (12.01507ms)
+✔ lean setup probes root, every workspace and generated consumer with the packageManager pnpm pin (24.349651ms)
+✔ lean setup fails on workspace/generated subprocess resolution drift and still removes its own probe (12.151055ms)
+✔ resource inventory selects only the three real-browser jobs, eight Mongo jobs and two Redis jobs (1560.969318ms)
+✔ browser selection is canonical and rejects empty, unknown, duplicate, whitespace and shell-like engines (0.47167ms)
+✔ browser resolution uses workspace Playwright/core and keys exact version, platform and selected engines (27.739084ms)
+✔ resource paths reject non-local, preexisting alias, symlink and nonignored directory boundaries (17.104918ms)
+✔ Mongo configuration resolves both package versions and an exact job-local system binary, never machine/global fallback (15.964336ms)
+✔ Mongo cache keys change with resolved server/core/memory versions, distro and download overrides (43.833307ms)
+✔ Mongo planning fails closed on version mismatch (12.763068ms)
+✔ Mongo planning fails closed on invalid version (10.951903ms)
+✔ Mongo planning fails closed on system fallback (10.961933ms)
+✔ Mongo planning fails closed on platform drift (10.599564ms)
+✔ Mongo planning fails closed on arch drift (11.01285ms)
+✔ Mongo planning fails closed on escaping binary (12.41116ms)
+✔ Mongo planning fails closed on missing OS (10.280968ms)
+✔ Mongo planning fails closed on OS drift (10.372876ms)
+✔ Mongo planning fails closed on missing distro (11.343687ms)
+✔ Mongo planning fails closed on credential URL (10.46065ms)
+✔ Mongo planning fails closed on queried URL (11.643699ms)
+✔ Mongo planning fails closed on non-HTTP URL (12.175436ms)
+✔ Mongo planning fails closed on escaping archive name (10.94143ms)
+✔ Mongo planning fails closed on unsafe distro (10.964867ms)
+✔ plain/jsdom jobs set isolated TMPDIR without downloading browsers, databases or tools (13.585027ms)
+✔ browser preflight installs system dependencies even with cache-hit undefined (13.531476ms)
+✔ browser preflight installs system dependencies even with cache-hit  (11.612921ms)
+✔ browser preflight installs system dependencies even with cache-hit false (13.614707ms)
+✔ browser preflight installs system dependencies even with cache-hit true (11.349816ms)
+✔ browser preflight requires actual complete launch results; a cache hit cannot hide missing/broken engines (13.047735ms)
+✔ invalid cache-hit inputs cannot weaken resource preflight (11.988271ms)
+✔ Mongo download miss preflight directly resolves and starts the exact isolated binary (11.376443ms)
+✔ Mongo cache hit preflight directly resolves and starts the exact isolated binary (11.953875ms)
+✔ Mongo preflight rejects wrong binary path/version/server/hash, even when the cache claims a hit (11.532691ms)
+✔ real Mongo cache boundary rejects missing before download, startup or tests (469.384805ms)
+✔ real Mongo cache boundary rejects symlink before download, startup or tests (167.688975ms)
+✔ real Mongo cache boundary rejects hardlink before download, startup or tests (169.593395ms)
+✔ real Mongo cache boundary rejects unsafe-mode before download, startup or tests (182.915198ms)
+✔ Redis preflight requires a daemon, pulls both real required tags and records image digests/server versions (14.166369ms)
+✔ Redis cannot silently skip a missing daemon, failed image pull, invalid digest or wrong server (10.845168ms)
+✖ unsupported Unix-socket checkout budget rejects restore before resources or tests (22.918701ms)
+✔ restore validates the artifact before resource setup and exposes only isolated binary/download cache paths (19.856966ms)
+✔ runner invokes exactly one validated full package command as argv, retaining worker/environment controls (28.383029ms)
+✔ test failures propagate without retry or a smaller fallback script (26.764915ms)
+✔ invalid workspace inputs and corrupted/missing/cross-run artifacts fail before resources or test execution (7.848443ms)
+✔ missing or mutated restored outputs stop execution before resource preflight (29.257624ms)
+✔ runner rechecks output integrity after resource preflight immediately before testing (29.401033ms)
+✔ runner rechecks source integrity after resource preflight immediately before testing (29.269697ms)
+✔ runner rechecks lock integrity after resource preflight immediately before testing (26.362437ms)
+✔ failed real-browser cache preflight prevents the complete package script from starting (23.371619ms)
+✔ separate restores/resource directories cannot share dependencies, compiled outputs or mutable cache inputs (34.559215ms)
+✔ workspace CLI accepts no subset, extra-filter, skip-resource or reuse-output mode (0.288899ms)
+ℹ tests 51
+ℹ suites 0
+ℹ pass 50
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3427.220104
+
+✖ failing tests:
+
+test at scripts/ci-test-workspace.test.mjs:643:1
+✖ unsupported Unix-socket checkout budget rejects restore before resources or tests (22.918701ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file://<repo-root>/scripts/ci-test-workspace.test.mjs:657:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /TMPDIR.*Unix-socket budget/,
+    operator: 'throws',
+    diff: 'simple'
+  }

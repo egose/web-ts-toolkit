@@ -1,0 +1,877 @@
+{
+  "createdAt": "2026-11-19T07:28:55.636068+00:00",
+  "ownerAlias": "R2 attestation investigation agent",
+  "head": "0fda5197c5b950e865af73681225c8bbf5533775",
+  "task": "docs/tasks/20261118-111723-dependency-gated-ci-tests.md",
+  "handoff": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-handoff.md",
+  "report": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-investigation.md",
+  "verdict": "Diagnostic gap confirmed; fixture-only diagnostics delivered. Original recovery cause and focused abort failure await explicit maintainer risk disposition. Complete-package verification is incomplete; no production fix or independent acceptance is claimed",
+  "archiveSelfHashOmitted": true,
+  "copyPolicy": "Curated copies only; original inputs and staging remain unchanged. Archiving does not rerun or recertify saved checks",
+  "payloadCount": 10,
+  "payloadBytes": 99546,
+  "uniquePayloadOriginalSources": 45,
+  "selectionEncoding": "selectedLines uses 1-based inclusive original line numbers/ranges, comma-separated. An empty string retains no literal log lines. Absence means the source was used whole for copying, aggregation or fingerprint comparison, not necessarily literal byte copying",
+  "preservationStaging": {
+    "createdAt": "2026-11-19T06:50:20.783018+00:00",
+    "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/preservation-plan/plan.json",
+    "originalSha256": "8f8af4d00389faf130108124fa36052fb34700b4d0e65bd9759169542f28890d",
+    "originalBytes": 18933,
+    "generator": {
+      "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/prepare-preservation.py",
+      "originalSha256": "ea21b21589c7e2fa0264d80f452f99a2ab8dcdfb5ea5b893c1a860c4346900f7"
+    },
+    "planFieldMeaning": "The immutable plan's archivedSha256 and bytes fields describe staging. Actual archive values are recorded separately here, including the two one-space deltas",
+    "stagedPatches": "All ten staged patch bytes also match reconstruction from the intact staged payloads; patches remain in historical scratch and are not copied"
+  },
+  "files": [
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/commands.jsonl",
+      "archivedSha256": "0cfb7259d2994c920afaddd90971dc81e95c934aa3388c89847e689bd6782f6d",
+      "bytes": 14279,
+      "kind": "curated-support-payload",
+      "stagedPath": "_tmp-ci-dag-05-r2-J2LqEF/preservation-plan/commands.jsonl",
+      "stagedSha256": "0cfb7259d2994c920afaddd90971dc81e95c934aa3388c89847e689bd6782f6d",
+      "stagedBytes": 14279,
+      "stagedPatchSha256": "b3bc86b6a51b83977c205041811f4aa8cd50b0d2ff45b2bb17ac2e76928f63af",
+      "sources": [
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/conditions.json",
+          "originalSha256": "83604ad41bb22cef892f9ef76fb62f8d6fade7f187bbc92b57187057cf54851d",
+          "originalBytes": 393
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/initial-build.json",
+          "originalSha256": "445b83775da1c5d4f45263ccf9cd5fe156fde510feeeb065559054ad1a7bb797",
+          "originalBytes": 430
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/diagnostic-red.json",
+          "originalSha256": "f05e28932fb9b0db9847a11542cc5ff85dad232983130c74fb29a5100425b072",
+          "originalBytes": 629
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/observer-controls.json",
+          "originalSha256": "d0e671da1d6f76272c493aca9ccbade497142c1e1b6e0a4d0c7556013115f307",
+          "originalBytes": 631
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/installed-causal-controls.json",
+          "originalSha256": "b3386699b17a302b1cf133498288547158542c9d46d94fd0b6e999655f37bf1d",
+          "originalBytes": 724
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/observer-settlement-controls.json",
+          "originalSha256": "c052badc3ce5aa93ea7ad8008afe56c4d18a8eca4a30858f77f166f8133e5732",
+          "originalBytes": 653
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/installed-correlated-controls.json",
+          "originalSha256": "ecdb9bef17b7d86d0a946bf3280a138823dc25a4664f845c74bbe18304b173e7",
+          "originalBytes": 733
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/installed-native-transport-control.json",
+          "originalSha256": "cafbddea59107d9cd3b2b95eed205d45a46ee2e37bf20e895fc4b7325e3386bb",
+          "originalBytes": 684
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/signer-fetch-contracts.json",
+          "originalSha256": "fcd02b3b46c3be1ee7ce82f8354349f141ffb8b01195c69d8582d7f3544a134b",
+          "originalBytes": 837
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/signer-fetch-baseline-control.json",
+          "originalSha256": "e009bb03597e82ccf16375a6b491e57773bcce266a2c47130ec4f0a5b41b56a9",
+          "originalBytes": 850
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/scoped-lint.json",
+          "originalSha256": "91c831e222a32140377f3cdaac38909a39ac79e14ce3ced41f11027535a1fb44",
+          "originalBytes": 1091
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/scoped-typecheck.json",
+          "originalSha256": "9805c8cb1dfc803951acf36f90145312dc7e0749d426f6714899abb25a11328e",
+          "originalBytes": 441
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/scoped-format-check.json",
+          "originalSha256": "7124c7a9025a6f9d68cfea6bf697d00cecb904c09cdd5927acf252d78460e88d",
+          "originalBytes": 1165
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/format-plan.json",
+          "originalSha256": "26cbf560eb480d59da8719855b4ecb5241c73d49eec4daf3e3b457a92f6959a9",
+          "originalBytes": 396
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/final-static-audit.json",
+          "originalSha256": "276e4f9a99a730f3d732da4fb02c4a6ae2e14413581672fd1b1196a7010e12ca",
+          "originalBytes": 415
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/final-format-check.json",
+          "originalSha256": "d735a2378dc64b02ac83e1e2095868faafdf856847cf80129c6074f9d3a9ce68",
+          "originalBytes": 1163
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/final-lint.json",
+          "originalSha256": "892a8e39c39bb79e3ccb873216a9ba8849ea7b795c113bc0dbaca4ed7cd488a8",
+          "originalBytes": 1090
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/resource-reconciliation.json",
+          "originalSha256": "44613011430a24abc70618380cd936a312763e2c946d1af3b10ac5c3327a02fd",
+          "originalBytes": 1954
+        }
+      ],
+      "transformation": "Completed recorder objects reserialized without value changes, with source hashes; final entry explicitly constructed from saved invocation and separately attributed interruption metadata",
+      "archiveOnlyTransformation": null
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/verification.log",
+      "archivedSha256": "cb16aa6b7d283265cba317d6ec52df07247fd5ef71d04990f05b822b1137937b",
+      "bytes": 15420,
+      "kind": "curated-support-payload",
+      "stagedPath": "_tmp-ci-dag-05-r2-J2LqEF/preservation-plan/verification.log",
+      "stagedSha256": "cb16aa6b7d283265cba317d6ec52df07247fd5ef71d04990f05b822b1137937b",
+      "stagedBytes": 15420,
+      "stagedPatchSha256": "126fea62cf645d770b42f24ff35d9390fe1949a312a60cee05aed427abc6a827",
+      "sources": [
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/initial-build.log",
+          "originalSha256": "8a188a35149a7633f1256f8b029a093250e298657feabf40bb1a89441a9d5111",
+          "originalBytes": 818,
+          "selectedLines": "1-23"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/diagnostic-red.log",
+          "originalSha256": "53ebaafdbab021f9cfc2dac9f02c6f8d427c8b8c4edb378bbdff37281660e4ee",
+          "originalBytes": 3727,
+          "selectedLines": "2,28-29,38-48,51-54"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/observer-controls.log",
+          "originalSha256": "f916baf2baac9219ea5e65b719e7e5d0cfcdb50efa02a1b7256bfbe414fb028b",
+          "originalBytes": 18664,
+          "selectedLines": "2,33,86-99,126-129"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/installed-causal-controls.log",
+          "originalSha256": "f4eb9b951c39309bbc5d11935d0165bbc9e2899ad8e2c24f01fe393edb2d8bae",
+          "originalBytes": 31279,
+          "selectedLines": "2,47-50,63-64,68-69,73-74,78-79,83-84,88-89,126-127,152-153,178-181,212-213,232-235"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/observer-settlement-controls.log",
+          "originalSha256": "da885e24d43304f6981a048f8aacf63a6519a9648f4332347a4f87e771ae2689",
+          "originalBytes": 18860,
+          "selectedLines": "2,33,86-100,127-130"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/installed-correlated-controls.log",
+          "originalSha256": "7190a0ba50e0b3e953de58eb6de39976616f14ab009e5b5db89e99ad99fe5f62",
+          "originalBytes": 28769,
+          "selectedLines": "2,77-78,82-96,99-102"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/installed-native-transport-control.log",
+          "originalSha256": "a73ff4995fe09c7e559b02df5593d1cf147a3ea325c9f6149562d068e9e27df1",
+          "originalBytes": 6161,
+          "selectedLines": "2,26-29"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/signer-fetch-contracts.log",
+          "originalSha256": "c5b4540accf5b100f19541bd3cd84f21383536510a8a109f401a8cc7845f969c",
+          "originalBytes": 33244,
+          "selectedLines": "2,129-130,226-248,251-254"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/signer-fetch-baseline-control.log",
+          "originalSha256": "db2de1553ca5a3f75b6914fdf9ff3b781bf3fc8135b584cfc99c14ace2ef1414",
+          "originalBytes": 29372,
+          "selectedLines": "2,119,208-211"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/scoped-lint.log",
+          "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "originalBytes": 0,
+          "selectedLines": ""
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/scoped-typecheck.log",
+          "originalSha256": "8c31bcd9bae6d4ddb7e127e067a395516224bfc85b054edb7d35ea221d2a310b",
+          "originalBytes": 291,
+          "selectedLines": "1-2"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/scoped-format-check.log",
+          "originalSha256": "eabebae17b305c7d5cd24d270ec90e97f44c325915c5f3689c5f93605f0a0cbd",
+          "originalBytes": 644,
+          "selectedLines": "1-8"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/format-plan.log",
+          "originalSha256": "3dec977495d074da72095c565a730ecced378d6e15af968c0e51f585481fd42d",
+          "originalBytes": 3963,
+          "selectedLines": ""
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/final-static-audit.log",
+          "originalSha256": "c8ce0de4f9387f4586ce05e307f7549bfde36eebc9c2ca54ddd264349fb72088",
+          "originalBytes": 2609,
+          "selectedLines": ""
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/final-format-check.log",
+          "originalSha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b",
+          "originalBytes": 67,
+          "selectedLines": "1-2"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/final-lint.log",
+          "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "originalBytes": 0,
+          "selectedLines": ""
+        }
+      ],
+      "transformation": "Selected original lines with annotation headings; root/loopback-origin/PID scrubbing only. Every failed test name, error category and selection summary is retained; no invented complete-script result",
+      "archiveOnlyTransformation": null
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/observations.jsonl",
+      "archivedSha256": "4ece749ff0a888ffb5ea27fe3100d378410a37b852aa35a0ab0802cdbc8ef857",
+      "bytes": 21558,
+      "kind": "curated-support-payload",
+      "stagedPath": "_tmp-ci-dag-05-r2-J2LqEF/preservation-plan/observations.jsonl",
+      "stagedSha256": "4ece749ff0a888ffb5ea27fe3100d378410a37b852aa35a0ab0802cdbc8ef857",
+      "stagedBytes": 21558,
+      "stagedPatchSha256": "dd2113155dea34ca228bf1651dd511051c83ec7e0a473a5416b0f04856cf4c5f",
+      "sources": [
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/installed-causal-controls.log",
+          "originalSha256": "f4eb9b951c39309bbc5d11935d0165bbc9e2899ad8e2c24f01fe393edb2d8bae",
+          "originalBytes": 31279,
+          "selectedLines": "81"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/installed-correlated-controls.log",
+          "originalSha256": "7190a0ba50e0b3e953de58eb6de39976616f14ab009e5b5db89e99ad99fe5f62",
+          "originalBytes": 28769,
+          "selectedLines": "26,46,50,59,63,67,71,75"
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/installed-native-transport-control.log",
+          "originalSha256": "a73ff4995fe09c7e559b02df5593d1cf147a3ea325c9f6149562d068e9e27df1",
+          "originalBytes": 6161,
+          "selectedLines": "22"
+        }
+      ],
+      "transformation": "Parsed emitted safe observations; removed native setup/static-entry request/response events only, retaining all failures and original numeric IDs. Added separate archive-omission counts; original diagnostics.dropped values are unchanged",
+      "archiveOnlyTransformation": null
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/historical-failure.log",
+      "archivedSha256": "e5b405930f57145755f182e7335c5aaa0bff3d3e3ef24fd454d8b5668ab8fdfe",
+      "bytes": 4471,
+      "kind": "curated-support-payload",
+      "stagedPath": "_tmp-ci-dag-05-r2-J2LqEF/preservation-plan/historical-failure.log",
+      "stagedSha256": "b78a4e18b731622798b4f7ae10d4b223585f87e7789602244ec87c26616896b5",
+      "stagedBytes": 4472,
+      "stagedPatchSha256": "16e0a5dd684a95b86cee1fbca283a9db445eb49d1e492715664904974c61d417",
+      "sources": [
+        {
+          "originalPath": "_tmp-ci-dag-05-v5-bzejoa/v5-grouped.log",
+          "originalSha256": "d9f10335e8d4ff34d3baf228a1739110d2763546f55dd17458381d5e96649c69",
+          "originalBytes": 47196,
+          "selectedLines": "388-446"
+        }
+      ],
+      "transformation": "Contiguous original failure/count excerpt; local root replaced by <repo-root> and loopback origin by <api-origin>. Original raw log remains untouched",
+      "archiveOnlyTransformation": {
+        "stagedLine": 51,
+        "operation": "Remove exactly one trailing ASCII space; no other bytes changed",
+        "bytesRemoved": 1
+      }
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/conditions.json",
+      "archivedSha256": "ce289245edb7607e8a144bff702332bb65da5e87188473d9a9b7e666541c9b63",
+      "bytes": 2543,
+      "kind": "curated-support-payload",
+      "stagedPath": "_tmp-ci-dag-05-r2-J2LqEF/preservation-plan/conditions.json",
+      "stagedSha256": "ce289245edb7607e8a144bff702332bb65da5e87188473d9a9b7e666541c9b63",
+      "stagedBytes": 2543,
+      "stagedPatchSha256": "c267e8817adb6d07660f6196841a2b155331df0d6d8fa542548a10740b79b5ae",
+      "sources": [
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/conditions.log",
+          "originalSha256": "ce289245edb7607e8a144bff702332bb65da5e87188473d9a9b7e666541c9b63",
+          "originalBytes": 2543
+        }
+      ],
+      "transformation": "None; original structured condition output copied byte-for-byte",
+      "archiveOnlyTransformation": null
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/resource-reconciliation.json",
+      "archivedSha256": "44613011430a24abc70618380cd936a312763e2c946d1af3b10ac5c3327a02fd",
+      "bytes": 1954,
+      "kind": "curated-support-payload",
+      "stagedPath": "_tmp-ci-dag-05-r2-J2LqEF/preservation-plan/resource-reconciliation.json",
+      "stagedSha256": "44613011430a24abc70618380cd936a312763e2c946d1af3b10ac5c3327a02fd",
+      "stagedBytes": 1954,
+      "stagedPatchSha256": "e102e1328232dd1c0a231165381ed0068b530fcd23fbeab5381a67e2f9fc655a",
+      "sources": [
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/resource-reconciliation.json",
+          "originalSha256": "44613011430a24abc70618380cd936a312763e2c946d1af3b10ac5c3327a02fd",
+          "originalBytes": 1954
+        }
+      ],
+      "transformation": "None; already-sanitized point-in-time read-only output copied byte-for-byte",
+      "archiveOnlyTransformation": null
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/formatting.json",
+      "archivedSha256": "d52b4b23055c93098558ff86bb54f94d9840c0e96fd85cb9570013c1348163be",
+      "bytes": 6922,
+      "kind": "curated-support-payload",
+      "stagedPath": "_tmp-ci-dag-05-r2-J2LqEF/preservation-plan/formatting.json",
+      "stagedSha256": "d52b4b23055c93098558ff86bb54f94d9840c0e96fd85cb9570013c1348163be",
+      "stagedBytes": 6922,
+      "stagedPatchSha256": "b07d0b42f36e9ac9467b8e95d845333e552355de4f019d17b36e1015e1a06877",
+      "sources": [
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/formatter-plan/results.json",
+          "originalSha256": "3dec977495d074da72095c565a730ecced378d6e15af968c0e51f585481fd42d",
+          "originalBytes": 3963
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/final-static-audit.log",
+          "originalSha256": "c8ce0de4f9387f4586ce05e307f7549bfde36eebc9c2ca54ddd264349fb72088",
+          "originalBytes": 2609
+        }
+      ],
+      "transformation": "Two original JSON values combined under explicit keys; individual formatter commands and before/formatted/patch hashes retained. Full before/after files and patches omitted",
+      "archiveOnlyTransformation": null
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/run-recorder.py",
+      "archivedSha256": "87d9818c7638099d0b5e02ff4d01082efdb515688823b5bdd179b63c7517cccd",
+      "bytes": 1302,
+      "kind": "curated-support-payload",
+      "stagedPath": "_tmp-ci-dag-05-r2-J2LqEF/preservation-plan/run-recorder.py",
+      "stagedSha256": "87d9818c7638099d0b5e02ff4d01082efdb515688823b5bdd179b63c7517cccd",
+      "stagedBytes": 1302,
+      "stagedPatchSha256": "a86c142b53b22fe1309651b84aba2b48e616ecbaf993036d556c057ebe892ecd",
+      "sources": [
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/run.py",
+          "originalSha256": "87d9818c7638099d0b5e02ff4d01082efdb515688823b5bdd179b63c7517cccd",
+          "originalBytes": 1302
+        }
+      ],
+      "transformation": "None; exact completed-command recorder retained. Its subprocess call contains no timeout; the interrupted run never emitted its JSON result",
+      "archiveOnlyTransformation": null
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/interrupted-package.log",
+      "archivedSha256": "b8348e70c5457b02c6e520675048f367cd44acb471c99f59996a9e7cfe654d62",
+      "bytes": 3807,
+      "kind": "curated-support-payload",
+      "stagedPath": "_tmp-ci-dag-05-r2-J2LqEF/preservation-plan/interrupted-package.log",
+      "stagedSha256": "54716df365f20256a4f7c941d4c86812c76707e2b32ad67bbe2271501e2fae78",
+      "stagedBytes": 3808,
+      "stagedPatchSha256": "47dd3a0b24537055659405e900ffe13803d845fe29ed4060413a23400c57fed6",
+      "sources": [
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/complete-affected-package.log",
+          "originalSha256": "86b3ea8f92d5649c9ed26cf5c70f98f4beb5cc8b13bb434ea3a4ace573dcc310",
+          "originalBytes": 4008,
+          "selectedLines": "1-90"
+        }
+      ],
+      "transformation": "Entire saved interrupted output; only local root and numeric warning PID scrubbed. No result/timestamp synthesized",
+      "archiveOnlyTransformation": {
+        "stagedLine": 64,
+        "operation": "Remove exactly one trailing ASCII space; no other bytes changed",
+        "bytesRemoved": 1
+      }
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/ownership.json",
+      "archivedSha256": "7000518419e7d5ed3e608b7365f1a2d7b9c75ea4ecbdd17e4a75505d74b2eefa",
+      "bytes": 27290,
+      "kind": "curated-support-payload",
+      "stagedPath": "_tmp-ci-dag-05-r2-J2LqEF/preservation-plan/ownership.json",
+      "stagedSha256": "7000518419e7d5ed3e608b7365f1a2d7b9c75ea4ecbdd17e4a75505d74b2eefa",
+      "stagedBytes": 27290,
+      "stagedPatchSha256": "dda0c1737bd2536031dafd8fe0959ed462e070118bcf45a1e1bf49dbd4010219",
+      "sources": [
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/preflight.json",
+          "originalSha256": "e7784dbc57aee0bf88493196d5869bc45122b9a4da29a0f841bfbd2f4108b64f",
+          "originalBytes": 522839
+        },
+        {
+          "originalPath": "_tmp-ci-dag-05-r2-J2LqEF/inputs.json",
+          "originalSha256": "726db59587c2267c631ecb3b0ee30354743aee085285b456e705991bb02bdad5",
+          "originalBytes": 2079
+        },
+        {
+          "originalPath": "_tmp-r5-zlqZHs/review-snapshot.json",
+          "originalSha256": "ddd294c383ed7bf504bc59b3208c30c1730cca8fbf1629ee4661a95fef844e98",
+          "originalBytes": 355228
+        },
+        {
+          "originalPath": "_tmp-fix-w72mgx/baseline.json",
+          "originalSha256": "2eb59aea94f09b1655ab1bcc011b41161570ff5ce21a930f62ecde0393296627",
+          "originalBytes": 352863
+        },
+        {
+          "originalPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/before-fingerprints.json",
+          "originalSha256": "205541d194f33437b653d16eed0a6eb17be5e2c7b92b169f806d62099fadb45c",
+          "originalBytes": 353371
+        },
+        {
+          "originalPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r1-support/manifest.json",
+          "originalSha256": "c69bfcc7f009f05227be44301efc9a4682cbf910a5c81c7a7b103c7cb14e7398",
+          "originalBytes": 30069
+        }
+      ],
+      "transformation": "New read-only comparison against intact original snapshots; retained all changes/additions, relevant fingerprints and per-snapshot differences, but omitted full unchanged-file inventories",
+      "archiveOnlyTransformation": null
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-investigation.md",
+      "archivedSha256": "05ef7d36ea540047514790f73f641f0167e671baa3c65564c127463c4f9a4655",
+      "bytes": 29761,
+      "kind": "new-closeout-document",
+      "sources": [],
+      "transformation": "New bounded investigation and idle handoff; unresolved causality and verification limitations retained"
+    },
+    {
+      "archivedPath": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/README.md",
+      "archivedSha256": "f7d48fae00b3e39574c1ed6fdd66b5e5708801c257fc54491426eca736a6c2be",
+      "bytes": 9685,
+      "kind": "new-closeout-document",
+      "sources": [],
+      "transformation": "New support index with provenance, historical status, omissions and non-self-contained reproduction limits"
+    }
+  ],
+  "observationCuration": {
+    "archivedObservations": 10,
+    "nativeSetupEventsOmittedPerObservation": 10,
+    "nativeSetupEventsOmittedTotal": 100,
+    "allRequestFailedEventsRetained": true,
+    "originalFixtureAndNativeDroppedValues": "Unchanged, zero in each retained observation",
+    "earlyRoutedControl": "Observation 1 predates numeric request correlation; absent fields are not invented. It bypassed native CORS preflights and is not an accepted native transport control",
+    "emptyCloseControl": "Observation 9 returned [403, null, 200] with three server POSTs, two Playwright POST events and one effect; retained as a failed control, not relabeled green",
+    "finalTransportControl": "Observation 10 rejected with TypeError and ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_LENGTH; two captured/authenticated POSTs, no reservations or business effects"
+  },
+  "interruption": {
+    "completedRecorderObjects": 17,
+    "separatelyAttributedInterruptedInvocations": 1,
+    "details": {
+      "log": "_tmp-ci-dag-05-r2-J2LqEF/complete-affected-package.log",
+      "logBytes": 4008,
+      "logSha256": "86b3ea8f92d5649c9ed26cf5c70f98f4beb5cc8b13bb434ea3a4ace573dcc310",
+      "runnerResultFileExists": false,
+      "harnessNotification": {
+        "timeoutSeconds": 120,
+        "exitCode": 143,
+        "signal": "SIGTERM"
+      },
+      "completedTestLanes": {
+        "node": 633,
+        "redis": 62,
+        "mongo": 31,
+        "browser": 141
+      },
+      "packedConsumer": "Started; no test counts or completion result recorded"
+    },
+    "provenance": "Timeout, exit and signal originate in the saved harness notification, not a recorder result. No complete-affected-package.json exists; the retained Python recorder contains no subprocess timeout"
+  },
+  "documentationFinalization": {
+    "baseline": {
+      "originalPath": "_tmp-ci-dag-05-r2-docs-muxm6m2b/baseline.json",
+      "originalSha256": "03208c54f88e630ba35d9176a86914f647aac3ae328b819a2eb62b9061d4f344",
+      "recordedAt": "2026-11-19T07:11:56.234557+00:00",
+      "protectedRegularFiles": 2576,
+      "inventoryOmitted": "Full redundant inventory and private machine-local operational context remain only in original scratch"
+    },
+    "baselineFilesUnchangedAtManifestPlanning": 2576,
+    "allowedAdditions": [
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-investigation.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/README.md",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/manifest.json"
+    ],
+    "validationStatus": "Passed scoped documentation formatting and read-only content/evidence checks; final report/index hashes verified. No code test/build rerun, complete-package certification or independent acceptance",
+    "initialFormatterFailure": {
+      "invocation": ["python3", "_tmp-ci-dag-05-r2-docs-muxm6m2b/prepare-markdown.py"],
+      "observedExitCode": 1,
+      "formatterCommand": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--config",
+        ".prettierrc",
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-investigation.md"
+      ],
+      "reportedReason": "The --config option has been renamed to --config-path instead",
+      "timestampAndNestedNumericExit": "Not captured; no timing or nested numeric exit is synthesized",
+      "durableOrPlanFilesWrittenByFailedAttempt": false,
+      "correction": "Restored the repository-backed --config-path flag; the subsequent formatting-only plan passed"
+    },
+    "markdownFormatPlans": [
+      {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-investigation.md",
+        "command": [
+          "pnpm",
+          "exec",
+          "prettier",
+          "--config-path",
+          ".prettierrc",
+          "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-investigation.md"
+        ],
+        "cwd": ".",
+        "tmpdir": "_tmp-ci-dag-05-r2-docs-muxm6m2b",
+        "startedAt": "2026-11-19T07:25:03.605252+00:00",
+        "durationSeconds": 1.289,
+        "exitCode": 0,
+        "beforeSha256": "898866bbe47d71e19b7782031293815cb7cf0ee94d534f65b359b32c16107394",
+        "formattedSha256": "9fc70c5fda594c7265f701012df13bae598e2f1fb32e22e1505fe93f0d9c6253",
+        "patch": "_tmp-ci-dag-05-r2-docs-muxm6m2b/markdown-1.patch",
+        "patchSha256": "c3c92588e5a42f06a4b79dfe61d30577f93f861ebe7558f459003221ef434c08",
+        "stderr": ""
+      },
+      {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/README.md",
+        "command": [
+          "pnpm",
+          "exec",
+          "prettier",
+          "--config-path",
+          ".prettierrc",
+          "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/README.md"
+        ],
+        "cwd": ".",
+        "tmpdir": "_tmp-ci-dag-05-r2-docs-muxm6m2b",
+        "startedAt": "2026-11-19T07:25:04.894724+00:00",
+        "durationSeconds": 1.223,
+        "exitCode": 0,
+        "beforeSha256": "6db7a75b70f9cec8b0900c15030c4d3c351e1cb623b4e919386dacde7982628f",
+        "formattedSha256": "624fc093df1254ee4538223b1ad5fbc91b3ad1f86836e432e10798791c5deaf0",
+        "patch": "_tmp-ci-dag-05-r2-docs-muxm6m2b/markdown-2.patch",
+        "patchSha256": "b58120545c2c0dc96e0da2ebfe54293c92bbeb4a46a1d9477d85ba44c86ac792",
+        "stderr": ""
+      }
+    ],
+    "manifestFormattingCommand": [
+      "pnpm",
+      "exec",
+      "prettier",
+      "--config-path",
+      ".prettierrc",
+      "--stdin-filepath",
+      "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/manifest.json"
+    ],
+    "scope": "Only the new report, index and manifest may change; original payloads, originals, staging, protected evidence, delivered code and coordinator records remain intact",
+    "closeoutValidation": {
+      "recordedAt": "2026-11-19T07:49:04.051082+00:00",
+      "scope": "Documentation/evidence closeout only; no tests/builds/setup/resource work, hosted execution, commits, pushes or settings changes",
+      "appliedInspectedManifest": {
+        "verifiedAt": "2026-11-19T07:34:00.335373+00:00",
+        "sha256": "dcd11b48181cf00c741231290d02a77b122b08c4635618a51f6db1a9cbdffa4e",
+        "bytes": 32064,
+        "mode": 420,
+        "resultSource": {
+          "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/starting-state.json",
+          "originalSha256": "869c39d7e7bb5523813224bd372504461a6c6117a305d40e5461b0042461f4cc",
+          "originalBytes": 8491
+        },
+        "meaning": "Exact inspected/staged/applied match before factual closeout edits and appended check provenance; original staged manifest and patch remain unchanged"
+      },
+      "recorderSource": {
+        "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/record.py",
+        "originalSha256": "2dd65adaab2f63f8a538db91931fb09576a29bfb85d452d6218e6d93ad0586bc",
+        "originalBytes": 2784
+      },
+      "metadataGeneratorSource": {
+        "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/prepare-closeout-manifest.py",
+        "originalSha256": "e50c6d0448e5a95815da842ec0bd523d25ad8cab1d8ee7fad8b4454f3d42bab0",
+        "originalBytes": 11268
+      },
+      "checks": [
+        {
+          "label": "initial-evidence-check",
+          "command": ["python3", "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/validate.py", "initial-evidence-check"],
+          "cwd": ".",
+          "tmpdir": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f",
+          "startedAt": "2026-11-19T07:41:06.695906+00:00",
+          "recordedAt": "2026-11-19T07:41:06.933322+00:00",
+          "durationSeconds": 0.237,
+          "exitCode": 1,
+          "documentsUnchangedByCommand": true,
+          "recordSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/initial-evidence-check.invocation.json",
+            "originalSha256": "89683610d84c65ebd40c196615e23386d11ab7cb33e9a1a624689837ff7d06ad",
+            "originalBytes": 2312
+          },
+          "logSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/initial-evidence-check.stdout.log",
+            "originalSha256": "52aaa792ab489a0ba3a199d47d13fe15fc60881e3ca1773b0f60f26d44b457a5",
+            "originalBytes": 310
+          },
+          "outputTransformation": "Repository root replaced by <repo-root>; no other output changes",
+          "checkerSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/validate.initial.py",
+            "originalSha256": "72077f6da024c79a590371a817bae143de891b78d8c1c8d03f8b13f9cf9c1cd6",
+            "originalBytes": 24804
+          },
+          "resultProduced": false,
+          "observedFailure": "AssertionError at the original checker line 251: its native-event field allowlist omitted the retained historical fault-injected/fault shape in observation 1",
+          "correction": "Scratch-only kind-specific checks distinguish the historical pre-correlation fault event and identifier-free console events; IDs/status correlation apply only to later network events. No archived payload, original, staging or product-test expectation changed"
+        },
+        {
+          "label": "corrected-evidence-check",
+          "command": ["python3", "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/validate.py", "corrected-evidence-check"],
+          "cwd": ".",
+          "tmpdir": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f",
+          "startedAt": "2026-11-19T07:42:14.424200+00:00",
+          "recordedAt": "2026-11-19T07:42:15.063273+00:00",
+          "durationSeconds": 0.639,
+          "exitCode": 0,
+          "documentsUnchangedByCommand": true,
+          "recordSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/corrected-evidence-check.invocation.json",
+            "originalSha256": "787047c9666bfaae35ed61f6fa15bf32d2b6b50da30c24700f9c627289e6e29e",
+            "originalBytes": 2318
+          },
+          "logSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/corrected-evidence-check.stdout.log",
+            "originalSha256": "7dc0ef50708e32724498cf42d9f17fd9de27bcc4bc1b82600353bd859640b7d1",
+            "originalBytes": 2288
+          },
+          "outputTransformation": "Repository root replaced by <repo-root>; no other output changes",
+          "checkerSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/validate.py",
+            "originalSha256": "49a223c475ebd45221665688bb7e25111767d5b33cb47ebedc8740ac9c04f0cf",
+            "originalBytes": 26006
+          },
+          "resultSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/corrected-evidence-check.json",
+            "originalSha256": "78aadbd864cceb72fede58d39ab894d42d5b19e0ac0e49c0a98bb4c2a436b98c",
+            "originalBytes": 15660
+          }
+        },
+        {
+          "label": "closeout-document-format-check",
+          "command": [
+            "pnpm",
+            "exec",
+            "prettier",
+            "--config-path",
+            ".prettierrc",
+            "--check",
+            "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-investigation.md",
+            "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/README.md",
+            "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/manifest.json"
+          ],
+          "cwd": ".",
+          "tmpdir": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f",
+          "startedAt": "2026-11-19T07:43:47.404806+00:00",
+          "recordedAt": "2026-11-19T07:43:48.970768+00:00",
+          "durationSeconds": 1.566,
+          "exitCode": 1,
+          "documentsUnchangedByCommand": true,
+          "recordSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/closeout-document-format-check.invocation.json",
+            "originalSha256": "647a1661eab0680af139332b119ecf63f40dac7a863728632e1fe8dce3a758d8",
+            "originalBytes": 2668
+          },
+          "logSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/closeout-document-format-check.stdout.log",
+            "originalSha256": "47e418591c6db0ef42922a64b53e40b0251895de3dba86b90d65273c74a4911e",
+            "originalBytes": 218
+          },
+          "outputTransformation": "Repository root replaced by <repo-root>; no other output changes",
+          "warnedPaths": [
+            "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/manifest.json"
+          ],
+          "observedFailure": "Scoped three-document --check exited 1 and flagged only the manifest; captured file-format output folds one short invocation array without changing its JSON value",
+          "correction": "Only the array-layout delta was applied alongside separately refreshed report/index hashes and byte lengths; the complete preliminary formatter output was not substituted for the refreshed manifest"
+        },
+        {
+          "label": "manifest-file-format-plan",
+          "command": [
+            "pnpm",
+            "exec",
+            "prettier",
+            "--config-path",
+            ".prettierrc",
+            "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/manifest.json"
+          ],
+          "cwd": ".",
+          "tmpdir": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f",
+          "startedAt": "2026-11-19T07:44:27.936209+00:00",
+          "recordedAt": "2026-11-19T07:44:29.180543+00:00",
+          "durationSeconds": 1.244,
+          "exitCode": 0,
+          "beforeSha256": "dcd11b48181cf00c741231290d02a77b122b08c4635618a51f6db1a9cbdffa4e",
+          "formattedSha256": "17d120b721d9557b2b1386aebf15d09774bc751e8f09a325a5739c573446db37",
+          "beforeBytes": 32064,
+          "formattedBytes": 32040,
+          "stderr": "",
+          "sourceUnchangedByCommand": true,
+          "structuredValueUnchanged": true,
+          "recordSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/manifest-file-format-plan.json",
+            "originalSha256": "4b7c1ecab81d9769b364c63c8c4c9c9122f3f1f797f356f2465d8b886e25bbfa",
+            "originalBytes": 747
+          },
+          "formattedOutputSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/manifest.file-formatted.json",
+            "originalSha256": "17d120b721d9557b2b1386aebf15d09774bc751e8f09a325a5739c573446db37",
+            "originalBytes": 32040
+          },
+          "applicationLimit": "Historical preliminary formatting-only output; only its one array-layout delta was applied, not its outdated report/index fingerprints"
+        },
+        {
+          "label": "closeout-content-check",
+          "command": ["python3", "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/validate.py", "closeout-content-check"],
+          "cwd": ".",
+          "tmpdir": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f",
+          "startedAt": "2026-11-19T07:45:32.190778+00:00",
+          "recordedAt": "2026-11-19T07:45:32.942201+00:00",
+          "durationSeconds": 0.751,
+          "exitCode": 0,
+          "documentsUnchangedByCommand": true,
+          "recordSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/closeout-content-check.invocation.json",
+            "originalSha256": "9213108389339b20e032fc61690fea835dca5eae6d1cd2876f4ebad99f9fff6d",
+            "originalBytes": 2312
+          },
+          "logSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/closeout-content-check.stdout.log",
+            "originalSha256": "bce92083fef098b69416ebd41bbf01843b7db6ae692c61d43fb992d9d3a21de4",
+            "originalBytes": 2284
+          },
+          "outputTransformation": "Repository root replaced by <repo-root>; no other output changes",
+          "checkerSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/validate.py",
+            "originalSha256": "49a223c475ebd45221665688bb7e25111767d5b33cb47ebedc8740ac9c04f0cf",
+            "originalBytes": 26006
+          },
+          "resultSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/closeout-content-check.json",
+            "originalSha256": "5515aa477d011658406702c9dcc4e7a692ae422ea3d7a85b8e933f99c4fd88f0",
+            "originalBytes": 16223
+          }
+        },
+        {
+          "label": "closeout-format-check",
+          "command": [
+            "pnpm",
+            "exec",
+            "prettier",
+            "--config-path",
+            ".prettierrc",
+            "--check",
+            "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-investigation.md",
+            "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/README.md",
+            "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/manifest.json"
+          ],
+          "cwd": ".",
+          "tmpdir": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f",
+          "startedAt": "2026-11-19T07:45:41.956766+00:00",
+          "recordedAt": "2026-11-19T07:45:43.503920+00:00",
+          "durationSeconds": 1.547,
+          "exitCode": 0,
+          "documentsUnchangedByCommand": true,
+          "recordSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/closeout-format-check.invocation.json",
+            "originalSha256": "3aae4a40db7b2d793863d69c58fd6324168cf1a6e99f0acd7318307391c6d641",
+            "originalBytes": 2650
+          },
+          "logSource": {
+            "originalPath": "_tmp-ci-dag-05-r2-closeout-gfi2xq6f/closeout-format-check.stdout.log",
+            "originalSha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b",
+            "originalBytes": 67
+          },
+          "outputTransformation": "Repository root replaced by <repo-root>; no other output changes"
+        }
+      ],
+      "checkedEvidenceSummary": {
+        "documentationBaselineFilesUnchanged": 2576,
+        "archiveFilesChecked": 13,
+        "manifestedPayloads": 10,
+        "payloadBytes": 99546,
+        "uniqueOriginalSourcesChecked": 45,
+        "stagedPayloadsAndPatchesChecked": 10,
+        "planningAndStagingSealsUnchanged": 34,
+        "exactArchiveOnlySpacesRemoved": 2,
+        "productionFilesUnchanged": 24,
+        "r2CodeFingerprintsChecked": 8,
+        "immutableInputFingerprintsChecked": 5,
+        "inheritedR1SourceFingerprintsChecked": 5,
+        "inheritedR1PayloadHashesChecked": 21,
+        "historicalComparisonsChecked": 3,
+        "structuredJsonFilesChecked": 5,
+        "structuredJsonlFilesChecked": 2,
+        "completedRecorderObjectsChecked": 17,
+        "separatelyAttributedInterruptedInvocationChecked": 1,
+        "originalObservationsRecurated": 10,
+        "nativeSetupEventsSeparatelyOmitted": 100,
+        "allNativeFailureEventsRetained": true,
+        "localLinksChecked": 37,
+        "anchorReferencesChecked": 2,
+        "uniqueAnchorsChecked": 1,
+        "privacyPatternFindings": 0,
+        "ignoreNewlineWhitespaceChecks": "Passed for all 13 archive files; untracked documents checked explicitly",
+        "gitDiffCheckExitCode": 0,
+        "claimReview": "Counts, transformations, retained failures, interrupted status, causal/timing limits and pending coordinator/setup/review/R3 sequence retained"
+      },
+      "checkedFinalDocuments": {
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-investigation.md": {
+          "sha256": "05ef7d36ea540047514790f73f641f0167e671baa3c65564c127463c4f9a4655",
+          "bytes": 29761,
+          "mode": 420
+        },
+        "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-r2-support/README.md": {
+          "sha256": "f7d48fae00b3e39574c1ed6fdd66b5e5708801c257fc54491426eca736a6c2be",
+          "bytes": 9685,
+          "mode": 420
+        }
+      },
+      "checkedManifestBeforeMetadata": {
+        "sha256": "dbb977be5791ae000cdf0ae818f03dadd39f8ea6cfe68f5174d73f1b0cb3118c",
+        "bytes": 32040,
+        "mode": 420
+      },
+      "metadataSelfReferenceLimit": "Embedded content/format records precede this provenance-only metadata update. Report/index hashes remain unchanged. The final manifest's own digest and later handoff recheck are external to avoid recursive self-recording; no self hash is claimed",
+      "privacyReviewLimit": "Scoped manual content/field review plus selected privacy-pattern checks found no findings; this is not an exhaustive secret-scanner certification",
+      "sourcePolicy": "Referenced closeout scripts, raw outputs, result files and intermediate formatting/planning copies remain omitted historical scratch provenance, not archive-only runnable tools or independent acceptance. Their sources are sealed; originals and staging are untouched",
+      "handoffState": "R2 idle handoff ready for coordinator reconciliation; original causality and focused abort await explicit maintainer risk disposition. Authorized setup implementation, fresh non-implementer review and R3/live evidence remain pending"
+    }
+  },
+  "omittedMaterial": [
+    "Full original logs and skipped-name listings; selected safe excerpts retain failures and counts",
+    "Full protected snapshot inventories and redundant before/after comparison data; ownership cannot be fully recalculated archive-only",
+    "Raw HTTP bodies, cookies, proofs, nonces and key material; diagnostics retain safe categories and proof equality only",
+    "Scratch experiment/verification/preservation drivers and formatter before/after files/patches, except the exact original run recorder",
+    "Generated consumers, tarballs, builds, dependency trees, caches, browser binaries/profiles and database files",
+    "Private session identifiers and machine-local operational paths"
+  ],
+  "limitations": [
+    "Injected faults establish possible phenotypes, not the missing historical retry-preparation exception",
+    "The frozen-signer facade adds one mapped load-promise reaction; original native signer/load identity and timing neutrality are not established, while native sign-promise identity and shared identity equivalence are retained",
+    "The focused Node abort failure is unexplained; the passing byte-verified baseline comparison and later Node lane establish neither provenance nor mechanism",
+    "The sole complete-package allowance is spent. Further package execution needs renewed explicit authorization; 867 passing tests are not complete-package verification",
+    "The read-only process/container snapshot is point-in-time visibility, not historical-cleanup or interruption-cause proof",
+    "This is not a self-contained reproduction bundle. Historical commands depend on omitted scratch inputs and external dependencies",
+    "Coordinator reconciliation, authorized setup implementation, fresh non-implementer corrective review, explicit maintainer risk disposition and R3/live rollout evidence remain outstanding"
+  ]
+}

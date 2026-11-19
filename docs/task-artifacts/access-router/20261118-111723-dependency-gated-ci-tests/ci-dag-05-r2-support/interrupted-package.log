@@ -1,0 +1,90 @@
+$ pnpm build && pnpm test:node && pnpm test:redis && pnpm test:mongo && pnpm test:browser && pnpm test:packed-consumer
+$ tsup --config tsup.config.ts
+CLI Building entry: src/index.ts, src/signer.ts
+CLI Using tsconfig: tsconfig.json
+CLI tsup v8.5.1
+CLI Using tsup config: <repo-root>/packages/express-request-attestation/tsup.config.ts
+CLI Target: es2022
+CLI Cleaning output folder
+CJS Build start
+ESM Build start
+CJS dist/signer.js 74.75 KB
+CJS dist/index.js  101.96 KB
+CJS ⚡️ Build success in 51ms
+ESM dist/index.mjs  97.36 KB
+ESM dist/signer.mjs 71.73 KB
+ESM ⚡️ Build success in 51ms
+DTS Build start
+DTS ⚡️ Build success in 1834ms
+DTS dist/index.d.ts                 48.60 KB
+DTS dist/signer.d.ts                29.10 KB
+DTS dist/time-policy-CquS0Zgm.d.ts  20.29 KB
+DTS dist/index.d.mts                48.61 KB
+DTS dist/signer.d.mts               29.11 KB
+DTS dist/time-policy-CquS0Zgm.d.mts 20.29 KB
+$ vitest run --config vitest.node.config.mts
+
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+
+(node:<pid>) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:<pid>) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  18 passed (18)
+      Tests  633 passed (633)
+   Start at  22:08:28
+   Duration  3.41s (transform 5.16s, setup 0ms, import 11.10s, tests 13.57s, environment 3ms)
+
+$ vitest run --config vitest.redis.config.mts
+
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+
+
+ Test Files  1 passed (1)
+      Tests  62 passed (62)
+   Start at  22:08:32
+   Duration  56.53s (transform 186ms, setup 0ms, import 587ms, tests 55.82s, environment 0ms)
+
+$ vitest run --config vitest.mongo.config.mts
+
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+
+
+ Test Files  1 passed (1)
+      Tests  31 passed (31)
+   Start at  22:09:29
+   Duration  17.12s (transform 188ms, setup 0ms, import 580ms, tests 16.40s, environment 0ms)
+
+$ vitest run --config vitest.browser.config.mts
+
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+
+10:09:48 PM [vite] (client) Re-optimizing dependencies because lockfile has changed
+10:09:49 PM [vite] (client) warning:
+<repo-root>/packages/express-request-attestation/dist/signer.mjs
+942 |  function resolveLoadModule(candidate) {
+943 |    if (candidate === void 0) {
+944 |      const loader = (moduleUrl) => globalThis["__vitest_browser_runner__"].wrapDynamicImport(() => import(moduleUrl));
+    |                                                                                                           ^^^^^^^^^
+945 |      return loader;
+946 |    }
+The above dynamic import cannot be analyzed by Vite.
+See https://vite.dev/guide/features#dynamic-import for supported dynamic import formats. If this is intended to be left as-is, you can use the /* @vite-ignore */ comment inside the import() call to suppress this warning.
+
+  Plugin: vite:import-analysis
+  File: <repo-root>/packages/express-request-attestation/dist/signer.mjs
+
+ Test Files  3 passed (3)
+      Tests  141 passed (141)
+   Start at  22:09:47
+   Duration  2.45s (transform 0ms, setup 0ms, import 131ms, tests 824ms, environment 0ms)
+
+$ vitest run --config vitest.packed-consumer.config.mts
+
+ RUN  v4.1.11 <repo-root>/packages/express-request-attestation
+
+<repo-root>/packages/express-request-attestation:
+[ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @web-ts-toolkit/express-request-attestation@0.0.0-PLACEHOLDER test: `pnpm build && pnpm test:node && pnpm test:redis && pnpm test:mongo && pnpm test:browser && pnpm test:packed-consumer`
+Command failed with signal "SIGTERM"
+[ELIFECYCLE] Command failed.

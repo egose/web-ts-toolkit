@@ -1,0 +1,14 @@
+Traceback (most recent call last):
+  File "<repo-root>/_tmp-c5-setup-stage2-oNPuwiq6/archive.py", line 179, in <module>
+    source_index['after'][path] = copy(current, 'sources/after/' + path, exact=True)
+                                  ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo-root>/_tmp-c5-setup-stage2-oNPuwiq6/archive.py", line 86, in copy
+    return save(name, archived, source,
+                'Byte-exact copy; originals retained unchanged' if archived == data else
+                'Replace absolute repository root with <repo-root>, user home with <user-home>, and full private session identifiers with <private-session-id>; originals retained unchanged')
+  File "<repo-root>/_tmp-c5-setup-stage2-oNPuwiq6/archive.py", line 62, in save
+    privacy(data)
+    ~~~~~~~^^^^^^
+  File "<repo-root>/_tmp-c5-setup-stage2-oNPuwiq6/archive.py", line 50, in privacy
+    raise RuntimeError('Sensitive path/identifier/credential-shaped archive content')
+RuntimeError: Sensitive path/identifier/credential-shaped archive content

@@ -89,7 +89,7 @@ Inspected complementary fixtures include:
 
 ## Fresh final verification
 
-Sequential foreground commands from repository root; Node `v26.12.1`, pnpm `11.18.0`,
+Sequential foreground commands from repository root; Node `v26.12.1`, pnpm `11.24.0`,
 Vitest `4.1.11`, TypeScript `6.0.3`, tsup `8.5.1`. Exact argv, environment overrides,
 timestamps, hashes and comparisons are in [verification JSON](arrc-06-verification.json);
 the [curated log](arrc-06-verification.log) is not a full raw log.

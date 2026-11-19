@@ -388,7 +388,7 @@ Completion evidence:
   files. Full client test: 1,175 tests in 19 files, including packed/docs
   consumers. Browser smoke: five tests. All strict declaration lanes passed.
 - Changed-file ESLint, Prettier, and `git diff --check` passed after correcting
-  initial formatting/type-fixture lint issues. Node 26.12.1, pnpm 11.18.0;
+  initial formatting/type-fixture lint issues. Node 26.12.1, pnpm 11.24.0;
   pack/install tests used verified-ignored `_tmp-oidc-bearer` via checkout-local
   TMPDIR. Unrelated ESLint configuration and other work were preserved.
 - Deliberate intermediate state: false construction rejects nonterminal
@@ -493,7 +493,7 @@ Completion evidence:
 - Changed-file ESLint, Prettier, and `git diff --check` passed. Iteration fixes
   covered exact-optional-property inference, legacy marker expectations,
   same-mode logout idempotence, ES2022 test compatibility, and harness timing.
-  Node 26.12.1, pnpm 11.18.0. Actual browsers remain for OBEAR-05.
+  Node 26.12.1, pnpm 11.24.0. Actual browsers remain for OBEAR-05.
 - Handoff: use immutable `session.dpop`; Bearer has no `jkt`. Cookie refresh
   requires active same-mode metadata. Fresh login alone selects another mode;
   missing-mode records/messages remain DPoP-only. Stale resets preserve successor
@@ -611,7 +611,7 @@ Completion evidence:
   `BearerFetchContext` supports those entries. `OidcVaultFetchContext` accepts a
   runtime-mode session with DPoP-compatible APIs. Mode comes only from snapshotted
   session configuration, never credentials/challenges. Actual-browser/docs work
-  remains OBEAR-05. Toolchain: Node 26.12.1, pnpm 11.18.0.
+  remains OBEAR-05. Toolchain: Node 26.12.1, pnpm 11.24.0.
 
 ### Task OBEAR-05: Document and exercise the installed dual-mode client
 
@@ -708,7 +708,7 @@ Completion evidence:
   Both JS entries, export-map targets, and generated declaration files were
   inspected: named types/JSDoc resolve with no backend/Node runtime leak.
   Changed-file ESLint/Prettier and `git diff --check` passed.
-- Tested versions: Node 26.12.1, pnpm 11.18.0, TypeScript 6.0.3,
+- Tested versions: Node 26.12.1, pnpm 11.24.0, TypeScript 6.0.3,
   Playwright 1.62.1, Chromium 151.0.7922.34, Firefox 153.0.
 - Corrections: example `ReturnType<typeof createOidcVaultDpopSession>` now
   resolves to the mode union; the DPoP-only example uses explicit
@@ -803,7 +803,7 @@ Independent review, first integration pass:
   security relaxation, unrelated fix, or baseline-pass claim was introduced.
 - Reviewer also passed independent HTTP boundary probes and NodeNext/Bundler
   type probes from ignored checkout-local `_tmp-oidc-bearer/obear99/`. Toolchain:
-  Node 26.12.1, pnpm 11.18.0, TypeScript 6.0.3, Vitest 4.1.11,
+  Node 26.12.1, pnpm 11.24.0, TypeScript 6.0.3, Vitest 4.1.11,
   Playwright 1.62.1, Chromium 151.0.7922.34, Firefox 153.0. Source/diff hashes
   remained unchanged throughout that review; unrelated work was preserved.
 - Final acceptance is not yet complete: the independent reviewer is assigned

@@ -227,6 +227,7 @@ async function fixture(hydration: 'lean' | 'hydrated', queries = false, dependen
   });
   Project.schema.path('document').default(document._id);
   Project.schema.path('user').default(user._id);
+  Project.recompileSchema();
   const app = express().use(express.json()).use(api()).use(router.routes).use(root.routes);
   let callback!: (req: ModelRequest) => Promise<unknown>;
   let value: unknown;

@@ -142,7 +142,7 @@ checked for every assertion being passed and matching the console totals.
 
 ## Provenance, ownership, and preserved evidence
 
-- HEAD: `6c3ceee4433daf203d4625d70b0ef5c4b7009529`; Node `v26.12.1`, pnpm `11.18.0`,
+- HEAD: `6c3ceee4433daf203d4625d70b0ef5c4b7009529`; Node `v26.12.1`, pnpm `11.24.0`,
   Vitest `4.1.11`; Linux `6.18.54.1-microsoft-standard-WSL2`, x86_64.
 - A byte comparison of all **151 tracked access-router production files** against
   HEAD found only the pre-existing ARPC-05 differences in `src/logger-helpers.ts`

@@ -70,7 +70,7 @@ staged template, warns, and still succeeds. Publication stays fail-closed:
 so the published template always carries a real lockfile.
 The source template intentionally has no lockfile because its dependency
 versions still contain release placeholders. Generated projects include the
-release lockfile and declare Node `^22.13.0 || >=24.0.0` with pnpm `11.18.0`; use
+release lockfile and declare Node `^22.13.0 || >=24.0.0` with pnpm `11.24.0`; use
 `pnpm install --frozen-lockfile` to install the dependency set tested for that
 generator release. The Node range follows the resolved release graph (shipped
 jsdom 29 / ESLint 10 require `^20.19.0 || ^22.13.0 || >=24.0.0` while the

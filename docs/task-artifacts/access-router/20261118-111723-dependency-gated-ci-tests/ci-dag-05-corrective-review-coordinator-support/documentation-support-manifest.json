@@ -1,0 +1,170 @@
+{
+  "preservedAt": "2026-11-19T18:54:52.340554+00:00",
+  "ownerAlias": "CI-DAG-05 remediation coordinator",
+  "purpose": "Later documentation closure evidence, separate from the 21-payload saved-review manifest and all runtime/test acceptance",
+  "entryCount": 8,
+  "payloadBytes": 144389,
+  "entries": [
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/coordinator-document-check.json",
+        "mode": "0644",
+        "bytes": 20662,
+        "sha256": "064025bc519bc63407e1b2aa9fdce124d0641b36f92605708287ccafe79124fe"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/coordinator-document-check.json",
+        "mode": "0644",
+        "bytes": 20662,
+        "sha256": "064025bc519bc63407e1b2aa9fdce124d0641b36f92605708287ccafe79124fe"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged",
+      "crlfCountBefore": null
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/coordinator-document-update.diff",
+        "mode": "0644",
+        "bytes": 83833,
+        "sha256": "9cc06b8fb3412ac0137c6a55e7c61888b609a2f292766fd4cbc06b61cede1b78"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/coordinator-document-update.diff",
+        "mode": "0644",
+        "bytes": 83833,
+        "sha256": "9cc06b8fb3412ac0137c6a55e7c61888b609a2f292766fd4cbc06b61cede1b78"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged",
+      "crlfCountBefore": null
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/check-coordinator-documents.py",
+        "mode": "0644",
+        "bytes": 16765,
+        "sha256": "79960e3a6ba6861919986f2721f838bde7676880130e74fad27459037813651b"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/check-coordinator-documents.py",
+        "mode": "0644",
+        "bytes": 16765,
+        "sha256": "79960e3a6ba6861919986f2721f838bde7676880130e74fad27459037813651b"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged",
+      "crlfCountBefore": null
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/preserve-reconciliation.py",
+        "mode": "0644",
+        "bytes": 8405,
+        "sha256": "f6b1c7f77c5af23291db6c4b6fa4f26618edd96debe5c393c7e7b2415cab0feb"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/preserve-reconciliation.py",
+        "mode": "0644",
+        "bytes": 8405,
+        "sha256": "f6b1c7f77c5af23291db6c4b6fa4f26618edd96debe5c393c7e7b2415cab0feb"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged",
+      "crlfCountBefore": null
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/preview-coordinator-documents.mjs",
+        "mode": "0644",
+        "bytes": 3081,
+        "sha256": "bfad55edef52f792e53b690c4ddd11f145f8a01bb930be4c27de18ea7c16647c"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/preview-coordinator-documents.mjs",
+        "mode": "0644",
+        "bytes": 3081,
+        "sha256": "bfad55edef52f792e53b690c4ddd11f145f8a01bb930be4c27de18ea7c16647c"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged",
+      "crlfCountBefore": null
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/coordinator-document-format-preview.json",
+        "mode": "0644",
+        "bytes": 4877,
+        "sha256": "433eec0945eaed72b9d2adc16543c7a770f73a2692cd9a71581a12cdca0310db"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/receipts/coordinator-document-format-preview.json",
+        "mode": "0644",
+        "bytes": 4877,
+        "sha256": "433eec0945eaed72b9d2adc16543c7a770f73a2692cd9a71581a12cdca0310db"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged",
+      "crlfCountBefore": null
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/coordinator-document-prettier.stdout.log",
+        "mode": "0644",
+        "bytes": 67,
+        "sha256": "1b1eee4fdf715dba108cd9aaa371fe33304e3b44ec9986531bd183707b50546b"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/receipts/coordinator-document-prettier.stdout.log",
+        "mode": "0644",
+        "bytes": 66,
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+      },
+      "transformation": "Normalize CRLF to LF in this new documentation-only success stdout; no other byte change; original retained unchanged",
+      "crlfCountBefore": 1
+    },
+    {
+      "source": {
+        "path": "_tmp-c5cr-coord-3ovrro4e/preserve-document-closure.py",
+        "mode": "0644",
+        "bytes": 6700,
+        "sha256": "ae3ed51b4b43319a537d963a2f90cfb64c98bd1bc13478bb3a903e80b288bd9d"
+      },
+      "archive": {
+        "path": "docs/task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-corrective-review-coordinator-support/drivers/preserve-document-closure.py",
+        "mode": "0644",
+        "bytes": 6700,
+        "sha256": "ae3ed51b4b43319a537d963a2f90cfb64c98bd1bc13478bb3a903e80b288bd9d"
+      },
+      "transformation": "None; byte-exact already-sanitized copy; original retained unchanged",
+      "crlfCountBefore": null
+    }
+  ],
+  "documentationCheck": {
+    "originalReceipt": {
+      "path": "_tmp-c5cr-coord-3ovrro4e/coordinator-document-check.json",
+      "mode": "0644",
+      "bytes": 20662,
+      "sha256": "064025bc519bc63407e1b2aa9fdce124d0641b36f92605708287ccafe79124fe"
+    },
+    "verdict": "PASS: coordinator documentation/hygiene/scope only; CHANGES REQUIRED / BLOCKED remains",
+    "selectedMarkdownFiles": 8,
+    "strictJsonFilesAtCapture": 10,
+    "localLinksAtCapture": 188,
+    "anchorsAtCapture": 6,
+    "existingExternalHttpsReferencesNotFetched": 2,
+    "formatterExitCode": 0,
+    "formatterSelection": "Eight coordinator Markdown files plus the newly authored initial copy manifest only",
+    "excludedFromFormatter": "Maintained code/workflow paths, unchanged reviewer deliverables and immutable captured receipt/driver copies; exclusions are not formatter passes",
+    "protectedOriginalsUnchanged": 2764,
+    "changedCoordinatorDocuments": 7,
+    "maintainedFingerprintsUnchanged": 24,
+    "historicalSealsUnchanged": 33,
+    "reviewerDeliverablesUnchanged": 9
+  },
+  "captureBoundary": "The document receipt precedes these eight copies and this later manifest. Its own hash is external here, not self-sealed. Seven changed coordinator documents are distinct from earlier snapshots' zero-drift captures; original snapshot/assignment, reviewer outputs, maintained files and historical seals remain unchanged. This later manifest is separately formatted/checked before handoff and does not rewrite the initial copy manifest or saved receipts.",
+  "omitted": "Seven full document preimages remain unchanged in ignored scratch; exact maintained seven-path diff and before/after fingerprints are preserved instead. Empty successful formatter stderr is omitted and fingerprinted in the receipt. No raw reviewer output/intermediate summary, dependency/build/resource state, binaries, private diagnostics or session mappings are added.",
+  "reproductionLimit": "Documentation receipts, source/driver copies and an exact seven-path diff, not archive-only runtime reproduction. Current postimages are fingerprinted; future document changes require those capture-specific bytes for inverse reconstruction. Historical/project/reviewer drivers were not executed. No validator/package/probe/hosted acceptance is inferred.",
+  "command": [
+    "python3",
+    "_tmp-c5cr-coord-3ovrro4e/preserve-document-closure.py",
+    "--preserve-passing-document-closure"
+  ],
+  "cwd": ".",
+  "runtimeTmpdir": "'<repo-root>/_tmp-c5cr-coord-3ovrro4e'",
+  "selfReferenceLimit": "Covers only the eight entries listed; not this manifest, the initial manifest/index or a later final metadata receipt"
+}

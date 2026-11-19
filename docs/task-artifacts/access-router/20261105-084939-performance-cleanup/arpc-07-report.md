@@ -53,7 +53,7 @@ through `src`, sort each directory with `localeCompare(..., 'en')`, SHA-256 each
 file, then SHA-256 `JSON.stringify([relativePath, fileHash][])`. Diff hashes use
 `git diff HEAD -- packages/access-router/src` and the same command with
 `packages/access-router/test` additionally selected. Node `v26.12.1`, pnpm
-`11.18.0`, Vitest `4.1.11`; lockfile hash is in the verification data.
+`11.24.0`, Vitest `4.1.11`; lockfile hash is in the verification data.
 
 A pre-edit checkpoint covered **2,350** tracked/nonignored-untracked files.
 All **2,336 files outside this task's 14 edited paths remained hash-identical**,

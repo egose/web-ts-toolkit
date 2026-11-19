@@ -204,9 +204,9 @@ Completion evidence (BASELINE-01; coordinator reconciled):
   operations**: **0/40 usable cells**, with retained warmup/noise failures and no
   retries or widened 20% cap. These are current baseline-vs-baseline data; none
   authorizes candidate retention. Bounded investigations can conclude no change.
-- Actual pnpm **11.18.0** matches root packageManager. An initial report conflated
+- Actual pnpm **11.24.0** matches root packageManager. An initial report conflated
   `.tool-versions`' **11.24.0** with that pin; only new report annotations corrected.
-  Actual runtime/sealed packets already used 11.18.0 and remained byte-identical.
+  Actual runtime/sealed packets already used 11.24.0 and remained byte-identical.
 - Final source/seal/recalculation/curation/format/lint/link/privacy/ignore/whitespace
   checks passed. No active jobs remain. No root/grouped/downstream test or MongoDB/
   HTTP latency/heap measurement is claimed.

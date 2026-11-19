@@ -1,0 +1,740 @@
+name: Test
+
+on:
+  pull_request:
+    paths-ignore:
+    - '**.md'
+  push:
+    paths-ignore:
+    - '**.md'
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+    - name: Setup Tools
+      uses: ./.github/actions/setup-tools
+
+    - name: Setup NPM packages
+      uses: ./.github/actions/setup-npm
+
+    - name: Run lint
+      run: pnpm lint
+
+  ci-validate:
+    name: ci-validate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-setup
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+      - run: pnpm test:groups:check
+        working-directory: ${{ steps.source.outputs.root }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+      - run: pnpm test:ci:check
+        working-directory: ${{ steps.source.outputs.root }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  ci-prepare:
+    name: ci-prepare
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-validate
+    outputs:
+      artifact-name: ${{ steps.prepare.outputs.artifact-name }}
+      artifact-digest: ${{ steps.prepare.outputs.artifact-digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - id: prepare
+        uses: ./.github/actions/ci-prepare
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-access-router:
+    name: test-access-router
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-express-json-router
+      - test-utils
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/access-router"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-access-router-client:
+    name: test-access-router-client
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-access-router
+      - test-utils
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/access-router-client"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-access-router-deco:
+    name: test-access-router-deco
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-access-router
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/access-router-deco"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-access-router-react:
+    name: test-access-router-react
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-access-router-client
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/access-router-react"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-access-router-runtime:
+    name: test-access-router-runtime
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-access-router
+      - test-express-runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/access-router-runtime"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-asset-inliner:
+    name: test-asset-inliner
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/asset-inliner"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-create-access-router-mongo-starter:
+    name: test-create-access-router-mongo-starter
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-access-router-runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: create-access-router-mongo-starter
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-express-json-router:
+    name: test-express-json-router
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-express-response-handler
+      - test-http-errors
+      - test-utils
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/express-json-router"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-express-oidc-vault:
+    name: test-express-oidc-vault
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/express-oidc-vault"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-express-oidc-vault-memory-store:
+    name: test-express-oidc-vault-memory-store
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-express-oidc-vault
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/express-oidc-vault-memory-store"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-express-oidc-vault-mongodb-store:
+    name: test-express-oidc-vault-mongodb-store
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-express-oidc-vault
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/express-oidc-vault-mongodb-store"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-express-oidc-vault-redis-store:
+    name: test-express-oidc-vault-redis-store
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-express-oidc-vault
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/express-oidc-vault-redis-store"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-express-request-attestation:
+    name: test-express-request-attestation
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/express-request-attestation"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-express-response-handler:
+    name: test-express-response-handler
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-http-errors
+      - test-utils
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/express-response-handler"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-express-runtime:
+    name: test-express-runtime
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/express-runtime"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-http-errors:
+    name: test-http-errors
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-utils
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/http-errors"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-json-frame:
+    name: test-json-frame
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/json-frame"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-message-service:
+    name: test-message-service
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-express-json-router
+      - test-utils
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/message-service"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-mongoose-rxdb:
+    name: test-mongoose-rxdb
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/mongoose-rxdb"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-moo:
+    name: test-moo
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-utils
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/moo"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-oidc-vault-dpop-client:
+    name: test-oidc-vault-dpop-client
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-express-oidc-vault
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/oidc-vault-dpop-client"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-oidc-vault-dpop-example:
+    name: test-oidc-vault-dpop-example
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-express-oidc-vault
+      - test-express-oidc-vault-memory-store
+      - test-oidc-vault-dpop-client
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: oidc-vault-dpop-example
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-pdf-reader:
+    name: test-pdf-reader
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/pdf-reader"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-react-vite:
+    name: test-react-vite
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+      - test-access-router-client
+      - test-access-router-react
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: react-vite
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-utils:
+    name: test-utils
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-prepare
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-test
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+          workspace: "@web-ts-toolkit/utils"
+          artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+          artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  unit-test:
+    name: unit-test
+    runs-on: ubuntu-24.04
+    needs:
+      - ci-validate
+      - ci-prepare
+      - test-access-router
+      - test-access-router-client
+      - test-access-router-deco
+      - test-access-router-react
+      - test-access-router-runtime
+      - test-asset-inliner
+      - test-create-access-router-mongo-starter
+      - test-express-json-router
+      - test-express-oidc-vault
+      - test-express-oidc-vault-memory-store
+      - test-express-oidc-vault-mongodb-store
+      - test-express-oidc-vault-redis-store
+      - test-express-request-attestation
+      - test-express-response-handler
+      - test-express-runtime
+      - test-http-errors
+      - test-json-frame
+      - test-message-service
+      - test-mongoose-rxdb
+      - test-moo
+      - test-oidc-vault-dpop-client
+      - test-oidc-vault-dpop-example
+      - test-pdf-reader
+      - test-react-vite
+      - test-utils
+    if: ${{ always() }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - id: source
+        uses: ./.github/actions/ci-checkout
+      - uses: ./.github/actions/ci-setup
+        with:
+          checkout-root: ${{ steps.source.outputs.root }}
+          checkout-relative: ${{ steps.source.outputs.relative-root }}
+          pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+      - run: node scripts/ci-test-results.mjs
+        working-directory: ${{ steps.source.outputs.root }}
+        env:
+          TMPDIR: ${{ steps.source.outputs.tmpdir }}
+          CI_TEST_NEEDS: ${{ toJSON(needs) }}
+
+  access-router-minimum-node-smoke:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+    - name: Pin minimum access-router Node version
+      run: |
+        printf 'nodejs 24.0.0\npython 3.14.6\npnpm 11.21.0\n' > .tool-versions
+
+    - name: Setup Tools
+      uses: ./.github/actions/setup-tools
+
+    - name: Setup NPM packages
+      uses: ./.github/actions/setup-npm
+
+    - name: Run access-router packed consumer smoke
+      run: |
+        mkdir -p _tmp-node24-access-router
+        git check-ignore _tmp-node24-access-router
+        export TMPDIR="$PWD/_tmp-node24-access-router"
+        node --version
+        pnpm --version
+        pnpm --filter @web-ts-toolkit/access-router... build
+        pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.contracts.config.ts test/contracts/packed-consumer-compatibility.test.ts --testNamePattern "supports minimum peers from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers"
+
+  access-router-react-minimum-node:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [supported, floating]
+    continue-on-error: ${{ matrix.lane == 'floating' }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+    - name: Setup build tools
+      uses: ./.github/actions/setup-tools
+
+    - name: Setup NPM packages
+      uses: ./.github/actions/setup-npm
+
+    - name: Install library runtime floor
+      run: asdf install nodejs 24.0.0
+
+    - name: Build installed consumer artifacts
+      run: pnpm --filter @web-ts-toolkit/access-router-react... build
+
+    - name: Verify both React majors on Node 24.0.0
+      env:
+        ACCESS_ROUTER_REACT_EXPECT_NODE: 24.0.0
+        ACCESS_ROUTER_REACT_FLOATING: ${{ matrix.lane == 'floating' && '1' || '0' }}
+        ACCESS_ROUTER_REACT_REPORT_DIR: ${{ runner.temp }}/react-consumer-reports
+      run: |
+        mkdir -p _tmp-node24-access-router-react
+        git check-ignore _tmp-node24-access-router-react
+        export TMPDIR="$PWD/_tmp-node24-access-router-react"
+        export ACCESS_ROUTER_REACT_CONSUMER_NODE="$(asdf where nodejs 24.0.0)/bin/node"
+        "$ACCESS_ROUTER_REACT_CONSUMER_NODE" --version
+        pnpm --filter @web-ts-toolkit/access-router-react test:packed-consumer
+
+    - name: Save resolved dependency evidence
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: react-minimum-node-${{ matrix.lane }}
+        path: ${{ runner.temp }}/react-consumer-reports

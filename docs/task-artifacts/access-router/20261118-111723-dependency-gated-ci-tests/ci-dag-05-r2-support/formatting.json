@@ -1,0 +1,156 @@
+{
+  "formatterPlan": [
+    {
+      "path": "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs",
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--config-path",
+        ".prettierrc",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs"
+      ],
+      "beforeSha256": "29097639fe1029fc3efb5e3356e1d7b5cc96cc44acec71ca584e54ba595dfc72",
+      "formattedSha256": "25e6cfd17aca8056346dd06fa4612f2a6b4597a610a5a8743975ff3d0c0a9ef6",
+      "patch": "_tmp-ci-dag-05-r2-J2LqEF/formatter-plan/1.patch",
+      "patchSha256": "33a7aa2c16cb1c88f25281dd2ff7951133e9c33451608e2834debeaca8332613",
+      "stderr": ""
+    },
+    {
+      "path": "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs",
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--config-path",
+        ".prettierrc",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs"
+      ],
+      "beforeSha256": "4d31b994b076a2ed17558c468e33df18f7941fc01afa82dbddf8357620482e8d",
+      "formattedSha256": "67313cd56c6b6efd8b8614a819c30b3602965818dc26cccfbcc56c62022b00f6",
+      "patch": "_tmp-ci-dag-05-r2-J2LqEF/formatter-plan/2.patch",
+      "patchSha256": "77912212e7db2dc90116b01f6d0037f90390ff67187f8f85f60c298eb0b0def4",
+      "stderr": ""
+    },
+    {
+      "path": "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs",
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--config-path",
+        ".prettierrc",
+        "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs"
+      ],
+      "beforeSha256": "66661916562c77b8d70246ce400202ace1be3ba2584b64da5bca64102fb8935d",
+      "formattedSha256": "16ad0a029ce2ce474b7e95b2f5cf41e46e2ed075323e127c092fe7f9866577da",
+      "patch": "_tmp-ci-dag-05-r2-J2LqEF/formatter-plan/3.patch",
+      "patchSha256": "c6196d49739741dc3c3b0512891cbb2bc10767639f7bf199b234d09c4ac09182",
+      "stderr": ""
+    },
+    {
+      "path": "packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts",
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--config-path",
+        ".prettierrc",
+        "packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts"
+      ],
+      "beforeSha256": "3a2f4847a86c9d6e4186d2d23c70184a9d517e24ed899968f55af7d0417a9289",
+      "formattedSha256": "1ecea0badba6f88ffcc259d1ebacfbfebf6fbd153c240ee57d84650304b2fe75",
+      "patch": "_tmp-ci-dag-05-r2-J2LqEF/formatter-plan/4.patch",
+      "patchSha256": "91d01857b5fd49e8a8167dca20926e9c51c2809dda9d604b165ae71d019bf7fa",
+      "stderr": ""
+    },
+    {
+      "path": "packages/express-request-attestation/test/installed-browser-harness.ts",
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--config-path",
+        ".prettierrc",
+        "packages/express-request-attestation/test/installed-browser-harness.ts"
+      ],
+      "beforeSha256": "406cb9cebd322387e8f8412cbee75afde76c014c1fdfa6ac400cc2b90d8674ee",
+      "formattedSha256": "8a7144487d11d47ad2891b95b8bfb21cdbfe9df0e96f3f5a5d1b8a47906f0a60",
+      "patch": "_tmp-ci-dag-05-r2-J2LqEF/formatter-plan/5.patch",
+      "patchSha256": "63e21b02298c7b7c2d183039ee7c7af241860395ad89936842f91435fc0f801c",
+      "stderr": ""
+    },
+    {
+      "path": "packages/express-request-attestation/test/packed-consumer.test.ts",
+      "command": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--config-path",
+        ".prettierrc",
+        "packages/express-request-attestation/test/packed-consumer.test.ts"
+      ],
+      "beforeSha256": "c6fa73788d4c48f1eb537162c89a0311afe7a8178c20a8e9cfc1fae72d40d7d3",
+      "formattedSha256": "5cdf75214245442f483b438d2ac01b57b3712016bb00273453a1aa36f420612f",
+      "patch": "_tmp-ci-dag-05-r2-J2LqEF/formatter-plan/6.patch",
+      "patchSha256": "4db64c55805019a57a15d03d62e0dbcfc64caa7453689b202c477ca22b58f9a3",
+      "stderr": ""
+    }
+  ],
+  "savedStaticAudit": {
+    "scope": "Read-only audit of six applied formatter outputs, original expect chains and browserScenarios",
+    "limitations": "Assertion/initializer AST comparison does not by itself establish unchanged surrounding runtime behavior.",
+    "formatting": [
+      {
+        "path": "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-observer.mjs",
+        "sha256": "25e6cfd17aca8056346dd06fa4612f2a6b4597a610a5a8743975ff3d0c0a9ef6",
+        "matchesPlannedFormatterBytes": true
+      },
+      {
+        "path": "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser-server.mjs",
+        "sha256": "67313cd56c6b6efd8b8614a819c30b3602965818dc26cccfbcc56c62022b00f6",
+        "matchesPlannedFormatterBytes": true
+      },
+      {
+        "path": "packages/express-request-attestation/test-packed-consumer/consumer/installed-browser.mjs",
+        "sha256": "16ad0a029ce2ce474b7e95b2f5cf41e46e2ed075323e127c092fe7f9866577da",
+        "matchesPlannedFormatterBytes": true
+      },
+      {
+        "path": "packages/express-request-attestation/test/installed-browser-diagnostics.cases.ts",
+        "sha256": "1ecea0badba6f88ffcc259d1ebacfbfebf6fbd153c240ee57d84650304b2fe75",
+        "matchesPlannedFormatterBytes": true
+      },
+      {
+        "path": "packages/express-request-attestation/test/installed-browser-harness.ts",
+        "sha256": "8a7144487d11d47ad2891b95b8bfb21cdbfe9df0e96f3f5a5d1b8a47906f0a60",
+        "matchesPlannedFormatterBytes": true
+      },
+      {
+        "path": "packages/express-request-attestation/test/packed-consumer.test.ts",
+        "sha256": "5cdf75214245442f483b438d2ac01b57b3712016bb00273453a1aa36f420612f",
+        "matchesPlannedFormatterBytes": true
+      }
+    ],
+    "retainedAssertions": [
+      {
+        "path": "packages/express-request-attestation/test/fetch-client.test.ts",
+        "originalSha256": "aee09bddd95e77b75e18e40a67a1d9da40417be9041949a4e57ad2c0ecc144a3",
+        "deliveredSha256": "c7feae0a866ac6074efd5b6b79990f7d92868c1af0b4357cc56610b09684ac72",
+        "originalAssertions": 111,
+        "deliveredAssertions": 111,
+        "originalAssertionsRetainedInOrder": true,
+        "scenarioInitializerUnchanged": null
+      },
+      {
+        "path": "packages/express-request-attestation/test/packed-consumer.test.ts",
+        "originalSha256": "0f18de1d71b17daef27e342aced6e4391484ffc4dee6363b44830e001187960d",
+        "deliveredSha256": "5cdf75214245442f483b438d2ac01b57b3712016bb00273453a1aa36f420612f",
+        "originalAssertions": 128,
+        "deliveredAssertions": 184,
+        "originalAssertionsRetainedInOrder": true,
+        "scenarioInitializerUnchanged": true
+      }
+    ]
+  }
+}
