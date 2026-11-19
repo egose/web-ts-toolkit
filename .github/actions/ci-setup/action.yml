@@ -23,6 +23,7 @@ runs:
     run: node .github/actions/ci-checkout/index.mjs --check-install
   - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
     with:
+      version: 11.24.0
       package_json_file: ${{ inputs.checkout-relative }}/package.json
       dest: ${{ inputs.pnpm-dest }}
       run_install: false
