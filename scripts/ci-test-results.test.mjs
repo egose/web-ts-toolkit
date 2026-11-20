@@ -92,7 +92,7 @@ function cli(source) {
 test('expected results are exactly the checked aggregate needs and every model test job', () => {
   const generated = mainWorkflowJobs(model);
   assert.deepEqual(jobIds, generated['unit-test'].needs);
-  assert.equal(jobIds.length, 27);
+  assert.equal(jobIds.length, 28);
   assert.equal(new Set(jobIds).size, jobIds.length);
   assert.deepEqual([...jobIds].sort(), ['ci-prepare', 'ci-validate', ...model.nodes.map(({ jobId }) => jobId)].sort());
   assert.equal(workspaceFor.get('ci-validate'), null);
@@ -111,7 +111,7 @@ test('all-success results pass with the exact required coverage', () => {
   const result = evaluate(needs);
   assert.deepEqual(result, {
     ok: true,
-    message: 'All 27 required CI jobs succeeded (25 package tests plus ci-validate and ci-prepare).',
+    message: 'All 28 required CI jobs succeeded (26 package tests plus ci-validate and ci-prepare).',
   });
   const run = cli(serialize(needs));
   assert.deepEqual(run, {
@@ -119,6 +119,15 @@ test('all-success results pass with the exact required coverage', () => {
     output: [result.message],
     errors: [],
   });
+});
+
+test('email-service failure blocks the aggregate but no other package job', () => {
+  const jobId = 'test-email-service';
+  assert.deepEqual(expectedSkippedDescendants(model, jobId), []);
+  const result = evaluate(failWithDescendants(jobId));
+  assert.equal(result.ok, false);
+  assert.equal(result.problems.length, 1);
+  assert.match(result.problems[0], /^test-email-service \(@web-ts-toolkit\/email-service\): result=failure;/);
 });
 
 test('access-router failure reports the package and exact descendants while unrelated branches stay eligible', () => {
@@ -140,6 +149,7 @@ test('access-router failure reports the package and exact descendants while unre
     assert.ok(text.includes(`${jobId} (${workspaceFor.get(jobId)}): result=skipped`), `${jobId} skipped line`);
   }
   for (const [jobId, workspace] of [
+    ['test-email-service', '@web-ts-toolkit/email-service'],
     ['test-message-service', '@web-ts-toolkit/message-service'],
     ['test-express-oidc-vault', '@web-ts-toolkit/express-oidc-vault'],
     ['test-express-oidc-vault-memory-store', '@web-ts-toolkit/express-oidc-vault-memory-store'],
@@ -289,7 +299,7 @@ test('ci-prepare failure fails the aggregate and names every package test as an 
     assert.ok(text.includes(`${jobId} (${workspace}): result=skipped`), `${jobId} skipped`);
     assert.ok(mainWorkflowJobs(model)[jobId].needs.includes('ci-prepare'));
   }
-  assert.equal(result.problems.length, 26);
+  assert.equal(result.problems.length, 27);
 });
 
 test('ci-validate failure reports preparation and every package test as expected skips', () => {
@@ -311,7 +321,7 @@ test('ci-validate failure reports preparation and every package test as expected
         .join(', ')}`,
     ),
   );
-  assert.equal(result.problems.length, 27);
+  assert.equal(result.problems.length, 28);
 });
 
 test('skipped descendants never mask failed, cancelled, or missing required parents', () => {
@@ -360,10 +370,10 @@ test('a success result cannot contradict a failed prerequisite', () => {
 
 test('a missing required result fails closed and names the job and workspace', () => {
   const needs = allSuccess();
-  delete needs['test-asset-inliner'];
+  delete needs['test-email-service'];
   const result = evaluate(needs);
   assert.equal(result.ok, false);
-  assert.ok(problems(result).includes('test-asset-inliner (@web-ts-toolkit/asset-inliner): result=missing'));
+  assert.ok(problems(result).includes('test-email-service (@web-ts-toolkit/email-service): result=missing'));
 });
 
 test('extra jobs fail closed even when every required result succeeded', () => {
@@ -379,7 +389,7 @@ test('extra jobs fail closed even when every required result succeeded', () => {
 test('an empty needs object reports every required job missing', () => {
   const result = evaluateCiResults('{}', model);
   assert.equal(result.ok, false);
-  assert.equal(result.problems.length, 27);
+  assert.equal(result.problems.length, 28);
   for (const { jobId, workspace } of expected) {
     const label = workspace ? `${jobId} (${workspace})` : jobId;
     assert.ok(
@@ -506,7 +516,7 @@ test('checked-in workflow is accepted only with generated jobs and exact evaluat
     push: { 'paths-ignore': ['**.md'] },
   });
   const generated = mainWorkflowJobs(model);
-  assert.equal(Object.keys(active.jobs).length, 31);
+  assert.equal(Object.keys(active.jobs).length, 32);
   assert.deepEqual(
     Object.keys(active.jobs).filter((id) => !(id in generated)),
     ['lint', 'access-router-minimum-node-smoke', 'access-router-react-minimum-node'],

@@ -1,0 +1,461 @@
+import assert from 'node:assert/strict';
+import { execFile, execFileSync } from 'node:child_process';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { test } from 'node:test';
+import { promisify } from 'node:util';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import { acquireTestScratch, packageRoot, repoRoot } from '../scratch.mjs';
+import { writeReadmeExamples } from './readme.mjs';
+
+const packageName = '@web-ts-toolkit/email-service';
+const entries = { '.': 'index', './smtp': 'smtp', './sendgrid': 'sendgrid', './mongoose': 'mongoose' };
+const peerFloors = { mongoose: '9.12.2', nodemailer: '10.6.0' };
+const profiles = {
+  neither: {},
+  'nodemailer-only': { nodemailer: peerFloors.nodemailer },
+  'mongoose-only': { mongoose: peerFloors.mongoose },
+  both: peerFloors,
+};
+const rootRequire = createRequire(join(repoRoot, 'package.json'));
+const publisherRequire = createRequire(rootRequire.resolve('@repo-toolkit/publish-packages'));
+const publisherPath = publisherRequire.resolve('@repo-toolkit/publish-package');
+const { preparePackageArtifacts } = publisherRequire('@repo-toolkit/publish-package');
+const publisher = readJson(join(dirname(publisherPath), 'package.json'));
+const tsc = rootRequire.resolve('typescript/bin/tsc');
+const typescript = rootRequire('typescript');
+const nodeTypes = rootRequire('@types/node/package.json').version;
+const consumerNode = process.env.EMAIL_SERVICE_CONSUMER_NODE || process.execPath;
+const execFileAsync = promisify(execFile);
+
+function readJson(path) {
+  return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+function run(command, args, cwd, env = process.env) {
+  try {
+    return execFileSync(command, args, {
+      cwd,
+      env,
+      encoding: 'utf8',
+      timeout: 120_000,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    throw new Error(`${command} ${args.join(' ')} failed:\n${error.stdout ?? ''}${error.stderr ?? ''}`, {
+      cause: error,
+    });
+  }
+}
+
+async function stageRelease(scratch, version, t) {
+  // The default prepareOnly path writes package.json, LICENSE and README into
+  // cwd/dist. Copy only this package's inputs; never point it at build outputs.
+  const rootDir = join(scratch, 'release-source');
+  const cwd = join(rootDir, 'packages/email-service');
+  mkdirSync(cwd, { recursive: true });
+  for (const name of ['package.json', 'LICENSE']) cpSync(join(repoRoot, name), join(rootDir, name));
+  for (const name of ['package.json', 'README.md', 'dist'])
+    cpSync(join(packageRoot, name), join(cwd, name), { recursive: true });
+
+  const unexpected = () => assert.fail('preparePackageArtifacts must not spawn a process');
+  // The helper itself prints an absolute cwd even in prepare-only mode.
+  const log = t.mock.method(console, 'log', () => {});
+  try {
+    const stages = await preparePackageArtifacts({
+      rootDir,
+      cwd,
+      version,
+      skipBuild: true,
+      internalPackageNames: new Set([packageName]),
+      runner: { run: unexpected, runShell: unexpected, capture: unexpected },
+    });
+    assert.deepEqual(stages, [{ id: 'default', packageName, version, stageDir: join(cwd, 'dist') }]);
+    return stages[0].stageDir;
+  } finally {
+    log.mock.restore();
+  }
+}
+
+function packFrom(cwd, destination, env) {
+  const [pack, ...extra] = JSON.parse(
+    run('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', destination], cwd, env),
+  );
+  assert.deepEqual(extra, []);
+  assert.equal(pack.name, packageName);
+  assert.equal(pack.filename, basename(pack.filename));
+  return {
+    path: join(destination, pack.filename),
+    version: pack.version,
+    files: new Set(pack.files.map(({ path }) => path)),
+  };
+}
+
+function checkManifest(packageDir, pack, release, output, version) {
+  const manifest = readJson(join(packageDir, 'package.json'));
+  assert.equal(manifest.name, packageName);
+  assert.equal(manifest.version, version);
+  assert.equal(pack.version, version);
+  assert.equal(manifest.type, 'commonjs');
+  assert.equal(manifest.sideEffects, false);
+  assert(manifest.description.includes('email preparation'));
+  assert(manifest.keywords.includes('email'));
+  assert.equal(manifest.engines.node, '>=24');
+  assert.deepEqual(Object.keys(manifest.exports).sort(), Object.keys(entries).sort());
+  assert.deepEqual(manifest.peerDependencies, { mongoose: '>=9.12.2 <10', nodemailer: '>=10.6.0 <11' });
+  assert.deepEqual(manifest.peerDependenciesMeta, { mongoose: { optional: true }, nodemailer: { optional: true } });
+  assert.deepEqual(manifest.dependencies, { handlebars: '~4.7.10' });
+  assert.equal(manifest.optionalDependencies, undefined);
+
+  const rootMeta = readJson(join(repoRoot, 'package.json'));
+  if (release) {
+    assert.doesNotMatch(JSON.stringify(manifest), /PLACEHOLDER|workspace:/);
+    assert.deepEqual(manifest.files, ['**/*', '!**/*.map']);
+    assert.equal(manifest.license, rootMeta.license);
+    assert.deepEqual(manifest.repository, { ...rootMeta.repository, directory: 'packages/email-service' });
+    assert.equal(manifest.author, rootMeta.author);
+    assert.deepEqual(manifest.bugs, rootMeta.bugs);
+    for (const excluded of ['scripts', 'devDependencies', 'private', 'packageManager'])
+      assert(!Object.hasOwn(manifest, excluded), `${excluded} must not ship in the release manifest`);
+    assert.deepEqual(readFileSync(join(packageDir, 'LICENSE')), readFileSync(join(repoRoot, 'LICENSE')));
+  } else {
+    assert.deepEqual(manifest.files, ['README.md', 'dist']);
+    assert.equal(manifest.license, 'PLACEHOLDER');
+    assert.equal(manifest.repository, 'PLACEHOLDER');
+  }
+
+  const expectedFiles = new Set(['package.json', 'README.md', ...(release ? ['LICENSE'] : [])]);
+  const main = release ? './' : output;
+  assert.equal(manifest.main, `${main}index.js`);
+  assert.equal(manifest.module, `${main}index.mjs`);
+  assert.equal(manifest.types, `${main}index.d.ts`);
+  for (const [specifier, name] of Object.entries(entries)) {
+    const stem = `./${output}${name}`;
+    const entry = manifest.exports[specifier];
+    assert.equal(Object.keys(entry)[0], 'types', `${specifier} must match the type conditions first`);
+    assert.deepEqual(entry, {
+      types: { import: `${stem}.d.mts`, require: `${stem}.d.ts`, default: `${stem}.d.ts` },
+      import: `${stem}.mjs`,
+      require: `${stem}.js`,
+      default: `${stem}.js`,
+    });
+    for (const target of [entry.import, entry.require, entry.types.import, entry.types.require])
+      expectedFiles.add(target.slice(2));
+  }
+  for (const path of expectedFiles) {
+    assert(pack.files.has(path), `tarball missing ${path}; run build:package before test:packed-consumer`);
+    assert(readFileSync(join(packageDir, path)).length > 0, `empty installed file: ${path}`);
+  }
+  for (const path of pack.files) {
+    if (expectedFiles.has(path)) continue;
+    assert(
+      path.startsWith(output) && /^[\w-]+\.d\.(?:mts|ts)$/.test(path.slice(output.length)),
+      `unexpected file: ${path}`,
+    );
+  }
+}
+
+function checkJSDoc(packageDir, packedFiles) {
+  const expected = {
+    EmailError: /class identity/,
+    defineLocalTemplate: /inferred from the parsers/,
+    defineSendGridTemplate: /pin a remote template version/,
+    createEmailTemplateRegistry: /isolated registry/,
+    EmailCommand: /scoped idempotency/,
+    PreparedEmailCommand: /sensitive outbox value/,
+    createEmailService: /Scope-bound admission only/,
+    enqueuePrepared: /does not join a host transaction/i,
+    createEmailWorker: /durable handoff acknowledgement/,
+    createEmailBatchService: /serves the whole scope/,
+    createEmailAdmin: /redacted history/,
+    createMemoryEmailStore: /lost on restart/,
+    createSmtpProvider: /not inbox delivery/,
+    createSendGridProvider: /with no SDK or peer/,
+    createMongooseEmailStore: /caller-owned Mongoose/,
+  };
+  for (const suffix of ['.d.mts', '.d.ts']) {
+    const docs = new Map();
+    for (const path of packedFiles) {
+      if (!path.endsWith(suffix)) continue;
+      const source = typescript.createSourceFile(
+        path,
+        readFileSync(join(packageDir, path), 'utf8'),
+        typescript.ScriptTarget.Latest,
+        true,
+      );
+      function visit(node) {
+        if (node.name && typescript.isIdentifier(node.name)) {
+          const comments = typescript.getJSDocCommentsAndTags(node).filter(typescript.isJSDoc);
+          if (comments.length) docs.set(node.name.text, comments.map((comment) => comment.getText(source)).join('\n'));
+        }
+        typescript.forEachChild(node, visit);
+      }
+      visit(source);
+    }
+    for (const [name, description] of Object.entries(expected)) {
+      assert.match(docs.get(name) ?? '', description, `missing public JSDoc for ${name} in ${suffix}`);
+    }
+  }
+}
+
+function checkInstalledPeers(consumer, packageDir, output, peers) {
+  const appRequire = createRequire(join(consumer, 'package.json'));
+  const packageRequire = createRequire(join(packageDir, output, 'index.js'));
+  const versions = {};
+  for (const name of Object.keys(peerFloors)) {
+    if (Object.hasOwn(peers, name)) {
+      const peerFile = appRequire.resolve(`${name}/package.json`);
+      assert(peerFile.startsWith(join(consumer, 'node_modules') + sep), `non-isolated ${name}`);
+      assert.equal(packageRequire.resolve(`${name}/package.json`), peerFile);
+      versions[name] = readJson(peerFile).version;
+      assert.equal(versions[name], peers[name]);
+      if (name === 'mongoose') {
+        const driver = createRequire(peerFile).resolve('mongodb/package.json');
+        assert(driver.startsWith(join(consumer, 'node_modules') + sep), 'non-isolated MongoDB driver');
+        versions.mongodb = readJson(driver).version;
+        versions['@types/node'] = appRequire('@types/node/package.json').version;
+        assert.equal(versions['@types/node'], nodeTypes);
+      }
+    } else {
+      assert.throws(() => appRequire.resolve(name), { code: 'MODULE_NOT_FOUND' });
+      // pnpm can link an automatically installed peer only to the package, not the app.
+      assert.throws(() => packageRequire.resolve(name), { code: 'MODULE_NOT_FOUND' });
+    }
+  }
+  const handlebarsFile = packageRequire.resolve('handlebars/package.json');
+  assert(handlebarsFile.startsWith(join(consumer, 'node_modules') + sep), 'non-isolated Handlebars');
+  versions.handlebars = readJson(handlebarsFile).version;
+  return versions;
+}
+
+function tscOptions(consumer, withMongoose) {
+  return [
+    '--ignoreConfig',
+    '--strict',
+    '--skipLibCheck',
+    'false',
+    '--exactOptionalPropertyTypes',
+    '--noUncheckedIndexedAccess',
+    '--verbatimModuleSyntax',
+    '--noUncheckedSideEffectImports',
+    '--target',
+    'ES2023',
+    '--lib',
+    'ES2023,DOM',
+    // No checkout ambient types. AbortSignal can come from the standard DOM declarations.
+    '--typeRoots',
+    join(consumer, 'node_modules/@types'),
+    ...(withMongoose ? ['--types', 'node'] : []),
+    '--pretty',
+    'false',
+  ];
+}
+
+function checkDeclarations(consumer, env, packageDir, packedFiles, output, peers) {
+  const withMongoose = Boolean(peers.mongoose);
+  const options = tscOptions(consumer, withMongoose);
+  const tsLib = realpathSync(join(dirname(tsc), '../lib'));
+  for (const [fixture, mode, module, extension] of [
+    ['esm.mts', 'NodeNext', 'NodeNext', 'd.mts'],
+    ['cjs.cts', 'NodeNext', 'NodeNext', 'd.ts'],
+    ['esm.mts', 'Bundler', 'ESNext', 'd.mts'],
+  ]) {
+    const fixtures = [fixture];
+    if (withMongoose) fixtures.push(`mongoose-${fixture}`);
+    if (peers.nodemailer) fixtures.push(`smtp-${fixture}`);
+    const args = ['--moduleResolution', mode, '--module', module];
+    const loaded = new Set(
+      run(consumerNode, [tsc, ...options, ...args, '--noEmit', '--listFiles', ...fixtures], consumer, env)
+        .trim()
+        .split(/\r?\n/)
+        .map((path) => realpathSync(resolve(consumer, path))),
+    );
+    const label = `${mode} ${fixture}`;
+    const packageFiles = [...loaded].filter((path) => path.startsWith(packageDir + sep));
+    for (const path of loaded) {
+      const library = dirname(path) === tsLib && /^lib\.[\w.-]+\.d\.ts$/.test(basename(path));
+      assert(library || path.startsWith(consumer + sep), `${label}: declaration escaped consumer: ${path}`);
+      if (!withMongoose && path.startsWith(join(consumer, 'node_modules') + sep))
+        assert(path.startsWith(packageDir + sep), `${label}: unexpected external declaration: ${path}`);
+      assert(!path.includes(`${sep}node_modules${sep}nodemailer${sep}`), `${label}: Nodemailer leaked into types`);
+    }
+    for (const name of ['index', 'smtp', 'sendgrid', ...(withMongoose ? ['mongoose'] : [])])
+      assert(loaded.has(join(packageDir, output, `${name}.${extension}`)), `${label}: wrong ${name} declaration`);
+    for (const path of packageFiles) assert(path.endsWith(`.${extension}`), `${label}: mismatched condition: ${path}`);
+    if (withMongoose) {
+      assert([...loaded].some((path) => path.includes(`${sep}node_modules${sep}mongoose${sep}types${sep}`)));
+      assert.deepEqual(
+        packageFiles.map((path) => relative(packageDir, path)).sort(),
+        [...packedFiles].filter((path) => path.endsWith(`.${extension}`)).sort(),
+        `${label}: every shipped declaration must be reachable`,
+      );
+    } else {
+      assert(
+        !loaded.has(join(packageDir, output, `mongoose.${extension}`)),
+        `${label}: Mongoose leaked into core types`,
+      );
+    }
+  }
+}
+
+function checkMissingMongoose(consumer, env) {
+  assert.throws(
+    () =>
+      run(
+        consumerNode,
+        [tsc, ...tscOptions(consumer, false), '--module', 'NodeNext', '--noEmit', 'missing-mongoose.mts'],
+        consumer,
+        env,
+      ),
+    (failure) => {
+      assert.match(failure.message, /mongoose\.d\.mts\(\d+,\d+\): error TS2307: Cannot find module 'mongoose'/);
+      assert.equal([...failure.message.matchAll(/error TS\d+:/g)].length, 1, 'wrong missing-peer diagnostic');
+      return true;
+    },
+  );
+}
+
+function runRuntime(consumer, env, script, ...args) {
+  return run(consumerNode, ['--import', './runtime-guard.mjs', script, ...args], consumer, env).trim();
+}
+
+function compileReadme(consumer, env, packageDir, both) {
+  const readme = readFileSync(join(packageDir, 'README.md'), 'utf8');
+  const files = writeReadmeExamples(readme, consumer, both);
+  const options = [tsc, ...tscOptions(consumer, both)];
+  run(
+    consumerNode,
+    [...options, '--module', 'ESNext', '--moduleResolution', 'Bundler', '--noEmit', ...files],
+    consumer,
+    env,
+  );
+  run(consumerNode, [...options, '--module', 'NodeNext', '--outDir', 'readme-build', ...files], consumer, env);
+  runRuntime(consumer, env, 'readme-core.mjs');
+}
+
+async function runIntegrationReadme(consumer, env) {
+  // Use a fresh server for each tarball. Keep the parent event loop running so
+  // mongodb-memory-server can continue draining mongod's stdio while Node runs.
+  const mongo = await MongoMemoryReplSet.create({
+    binary: { version: process.env.MONGOMS_VERSION ?? '8.2.6' },
+    replSet: { count: 1, ip: '127.0.0.1', storageEngine: 'wiredTiger' },
+  });
+  try {
+    await execFileAsync(consumerNode, ['--import', './runtime-guard.mjs', 'readme-integrations.mjs'], {
+      cwd: consumer,
+      env: { ...env, EMAIL_SERVICE_README_MONGO_URI: mongo.getUri('email_readme') },
+      timeout: 60_000,
+    });
+  } finally {
+    await mongo.stop();
+  }
+}
+
+test('test scratch is ignored and owned only on fallback; a short supplied CI path is unchanged', () => {
+  const first = acquireTestScratch(null);
+  const second = acquireTestScratch(packageRoot);
+  try {
+    assert.equal(first.owned, true);
+    assert.equal(second.owned, true);
+    assert.notEqual(first.directory, second.directory);
+    assert.match(relative(repoRoot, first.directory), /^_tmp[a-zA-Z0-9]{6}$/);
+    const supplied = acquireTestScratch(first.directory);
+    assert.equal(supplied.owned, false);
+    assert.equal(supplied.directory, first.directory);
+    supplied.cleanup();
+    assert.equal(realpathSync(first.directory), first.directory);
+  } finally {
+    first.cleanup();
+    second.cleanup();
+  }
+});
+
+test('installs npm tarballs and verifies the public package boundary', async (t) => {
+  const base = acquireTestScratch();
+  t.after(base.cleanup);
+  const scratch = mkdtempSync(join(base.directory, 'pack-'));
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  const env = {
+    ...process.env,
+    TMPDIR: scratch,
+    NODE_OPTIONS: '',
+    NODE_PATH: '',
+    npm_config_cache: join(scratch, 'npm-cache'),
+    EMAIL_SERVICE_README_MONGO_URI: '',
+  };
+  const version = readFileSync(join(repoRoot, 'VERSION'), 'utf8').trim();
+  assert.equal(publisher.name, '@repo-toolkit/publish-package');
+  t.diagnostic(
+    `release helper ${publisher.version}; TypeScript ${typescript.version}; release test version ${version}`,
+  );
+
+  const originalTmpdir = process.env.TMPDIR;
+  process.env.TMPDIR = scratch; // mongodb-memory-server runs in this process.
+  try {
+    for (const [shape, release] of [
+      ['ordinary', false],
+      ['flattened release', true],
+    ]) {
+      await t.test(shape, async (packing) => {
+        const cwd = release ? await stageRelease(scratch, version, packing) : packageRoot;
+        const output = release ? '' : 'dist/';
+        const pack = packFrom(cwd, scratch, env);
+        for (const [profile, peers] of Object.entries(profiles)) {
+          await packing.test(profile, async (installed) => {
+            const consumer = join(scratch, `${release ? 'release' : 'ordinary'}-${profile}`);
+            cpSync(join(import.meta.dirname, 'fixtures'), consumer, { recursive: true });
+            writeFileSync(
+              join(consumer, 'package.json'),
+              JSON.stringify({
+                name: 'packed-email-service-consumer',
+                private: true,
+                type: 'module',
+                dependencies: { [packageName]: `file:../${basename(pack.path)}`, ...peers },
+                ...(peers.mongoose ? { devDependencies: { '@types/node': nodeTypes } } : {}),
+              }),
+            );
+            // Keep peer auto-install enabled: an optional peer must really stay absent.
+            run(
+              'pnpm',
+              [
+                'install',
+                '--ignore-workspace',
+                '--ignore-scripts',
+                '--no-frozen-lockfile',
+                process.env.EMAIL_SERVICE_CONSUMER_OFFLINE === '1' ? '--offline' : '--prefer-offline',
+              ],
+              consumer,
+              env,
+            );
+            assert.match(readFileSync(join(consumer, 'pnpm-lock.yaml'), 'utf8'), /^\s+autoInstallPeers: true$/m);
+            const packageDir = realpathSync(join(consumer, 'node_modules', packageName));
+            assert(packageDir.startsWith(join(consumer, 'node_modules') + sep), 'expected a locally installed tarball');
+            checkManifest(packageDir, pack, release, output, release ? version : '0.0.0-PLACEHOLDER');
+            const versions = checkInstalledPeers(consumer, packageDir, output, peers);
+
+            const node = runRuntime(consumer, env, 'runtime.mjs', packageDir, output, JSON.stringify(peers));
+            installed.diagnostic(`Node ${node}; ${JSON.stringify(versions)}`);
+            checkDeclarations(consumer, env, packageDir, pack.files, output, peers);
+            if (peers.mongoose) runRuntime(consumer, env, 'mongoose-runtime.mjs');
+            else checkMissingMongoose(consumer, env);
+            if (peers.nodemailer) runRuntime(consumer, env, 'smtp-runtime.mjs');
+
+            if (profile === 'neither') {
+              checkJSDoc(packageDir, pack.files);
+              runRuntime(consumer, env, 'batch-runtime.mjs');
+              compileReadme(consumer, env, packageDir, false);
+            }
+            if (profile === 'both') {
+              compileReadme(consumer, env, packageDir, true);
+              await runIntegrationReadme(consumer, env);
+            }
+          });
+        }
+      });
+    }
+  } finally {
+    if (originalTmpdir === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = originalTmpdir;
+  }
+});

@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import { prepared } from './readme-build/readme-local.mjs';
+import { smtp } from './readme-build/readme-smtp-profile.mjs';
+import { admission, resumed, batch, worker } from './readme-build/readme-batch.mjs';
+import { openStore } from './readme-build/readme-mongoose.mjs';
+import './readme-build/readme-entry-types.mjs';
+import { inspectResults } from './readme-build/readme-results.mjs';
+
+assert.deepEqual(smtp.ref, prepared.snapshot.provider);
+try {
+  assert.equal(admission.counts.enqueued, 1);
+  assert.equal(resumed.counts.replayed, 1);
+  assert.equal(resumed.items[0].job.jobId, admission.items[0].job.jobId);
+  const stopped = await batch.run({ limit: 10, concurrency: 2, signal: AbortSignal.abort() });
+  assert.equal(stopped.stop, 'aborted');
+  assert.equal(stopped.counts.providerCalls, 0);
+} finally {
+  assert.equal((await worker.shutdown()).status, 'stopped');
+}
+
+const uri = process.env.EMAIL_SERVICE_README_MONGO_URI;
+assert(uri, 'the Mongoose example needs the isolated replica-set fixture');
+const durable = await openStore(uri);
+try {
+  const { job, page } = await inspectResults(durable.store, admission.items[0].job.jobId);
+  assert.equal(job, null);
+  assert.deepEqual(page, { items: [] });
+} finally {
+  await durable.close();
+}

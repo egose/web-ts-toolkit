@@ -42,9 +42,9 @@ Do not add a matrix barrier, job-level fail-fast, `continue-on-error`, or a
 dependency-closure filter to the main path; package rebuilds and worker limits are
 intentional.
 
-The stable `unit-test` aggregate uses `always()` and evaluates the 27 direct
-`needs` results (`ci-validate`, `ci-prepare`, 25 package jobs) with
-`scripts/ci-test-results.mjs`. It passes only when all 27 succeeded; failure,
+The stable `unit-test` aggregate uses `always()` and evaluates the 28 direct
+`needs` results (`ci-validate`, `ci-prepare`, 26 package jobs) with
+`scripts/ci-test-results.mjs`. It passes only when all 28 succeeded; failure,
 cancellation, missing results, and all skipped results fail closed. `pnpm test:ci:check`
 enforces the model/active-workflow agreement and helper contracts. Both
 `pnpm test:ci:check` and `pnpm test:groups:check` are validation checks, not

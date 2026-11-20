@@ -16,8 +16,8 @@ Add reusable, framework-agnostic session maintenance to
 
 The user requested this task file first. Creating it does not implement the
 features or start the implementation tasks. All five tasks start pending.
-ABCLS's reported token-mirroring integration motivates the notification surface,
-but implementation and verification must not require that external repository.
+An external application's token-mirroring integration motivates the notification
+surface, but implementation and verification must not require its repository.
 
 The user subsequently authorized implementation. Work now follows the ordered
 tasks below; the creation-time observations remain historical baseline evidence.
@@ -26,7 +26,7 @@ Primary scope: the browser client, narrowly scoped provider-error handling in
 `packages/express-oidc-vault`, their tests and published documentation, and the
 existing DPoP example's browser integration harness.
 
-Non-goals: application idle detection, framework adapters, ABCLS migration,
+Non-goals: application idle detection, framework adapters, consumer migration,
 automatic login/navigation or key replacement, new token persistence, changing
 vault/provider absolute session limits, stateless JWT revocation, upstream IdP
 DPoP, distributed refresh leases, or a guarantee of refresh during suspension.
@@ -55,7 +55,7 @@ if line numbers move.
 
 Coverage is source/test inspection, not a runtime reproduction or comprehensive
 security review. No build, typecheck, test, browser run, packed install, fresh
-declaration inspection, performance measurement, ABCLS inspection, or live
+declaration inspection, performance measurement, external application inspection, or live
 Keycloak experiment was run for task creation. Proposed verification below is not
 a passing baseline. Browser sleep/device suspension cannot be certified by fake
 timers or ordinary headless browser runs.
@@ -626,7 +626,8 @@ Requirements:
 Acceptance criteria:
 
 - A clean installed consumer can discover and typecheck both workflows without
-  repo source, a framework, ABCLS, or a backend package installation.
+  repo source, a framework, an external application checkout, or a backend
+  package installation.
 - All feature-specific focused, package, packed, and browser checks pass, and
   repository checks are executed with their actual outcomes recorded. Per the
   user's explicit completion decision below, the unrelated Mongo fixture port

@@ -29,6 +29,7 @@ export const mongoWorkspaces = [
   '@web-ts-toolkit/access-router',
   '@web-ts-toolkit/access-router-deco',
   '@web-ts-toolkit/access-router-client',
+  '@web-ts-toolkit/email-service',
   '@web-ts-toolkit/message-service',
   '@web-ts-toolkit/moo',
   '@web-ts-toolkit/express-oidc-vault-mongodb-store',

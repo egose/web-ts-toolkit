@@ -249,9 +249,9 @@ test('wiring: every main project shell resolves the selected module, cwd and TMP
   }
 });
 
-test('wiring: all 28 main jobs retain the original SHA checkout then register a top-level source action', () => {
+test('wiring: all 29 main jobs retain the original SHA checkout then register a top-level source action', () => {
   const jobs = mainJobs();
-  assert.equal(jobs.length, 28);
+  assert.equal(jobs.length, 29);
   for (const [id, job] of jobs) {
     assert.deepEqual(
       job.steps[0],

@@ -26,7 +26,7 @@ dependencies; justify any newly necessary cross-package work before adding it.
 
 Non-goals: diagnosing the original user's state failure, relaxing state/cookie/token
 validation, changing default JSON errors, implementing application error pages,
-automatic login retries, or migrating ABCLS in this package change.
+automatic login retries, or migrating consumer applications.
 
 Planning revision: the initial document framed this as a feature request. It is
 now an executable package-maintenance plan following the task-as-you-go workflow.
@@ -37,7 +37,7 @@ closure. Implementation progress is recorded below; the planning baseline is ret
 
 ## Motivation and current behavior
 
-An ABCLS user encountered this response after returning from Keycloak:
+A user of an external application encountered this response after returning from Keycloak:
 
 ```json
 { "code": "OIDC_VAULT_INVALID_STATE", "message": "OIDC state is invalid or expired." }
@@ -63,13 +63,13 @@ On success, the current destination is
 fresh local exchange `code` and redirects with HTTP 302. Failure currently uses
 the same JSON error path as other lifecycle endpoints.
 
-ABCLS has added an application adapter that redirects HTML callback failures to
-its existing `/callback` screen with a fixed message. That workaround motivates
+An application-level adapter redirected HTML callback failures to
+the existing `/callback` screen with a fixed message. That workaround motivates
 a supported library option; it does not establish that state rejection itself
 is defective. The original user's precise state-failure cause is unconfirmed.
 
-ABCLS is motivating consumer evidence. Package implementation and verification
-must be reproducible from this repository without an application checkout.
+Package implementation and verification must be reproducible from this
+repository without an external application checkout.
 
 ## Proposed public API and behavior
 

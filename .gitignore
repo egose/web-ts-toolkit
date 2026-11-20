@@ -11,3 +11,5 @@ _tmp*
 packages/**/src/**/*.js
 packages/**/src/**/*.js.map
 packages/**/src/**/*.d.ts
+# Handwritten declaration for Handlebars' side-effect-free compiler entry.
+!packages/email-service/src/templates/handlebars.d.ts

@@ -504,6 +504,7 @@ const golden = {
   'access-router-runtime': ['access-router', 'express-runtime'],
   'asset-inliner': [],
   'create-access-router-mongo-starter': ['access-router-runtime'],
+  'email-service': [],
   'express-json-router': ['express-response-handler', 'http-errors', 'utils'],
   'express-oidc-vault': [],
   'express-oidc-vault-memory-store': ['express-oidc-vault'],
@@ -524,17 +525,17 @@ const golden = {
   utils: [],
 };
 
-test('actual pnpm graph matches all 25 golden rows, 26 declared edges + one fixture, and all-four-field counts', () => {
+test('actual pnpm graph matches all 26 golden rows, 26 declared edges + one fixture, and all-four-field counts', () => {
   const model = actualModel();
-  assert.equal(actualWorkspaces().size, 31);
-  assert.equal(model.nodes.length, 25);
+  assert.equal(actualWorkspaces().size, 32);
+  assert.equal(model.nodes.length, 26);
   assert.equal(model.declaredEdges.length, 26);
   assert.equal(model.overrideEdges.length, 1);
   assert.deepEqual(
     Object.fromEntries(model.nodes.map((node) => [short(node.workspace), node.testPrerequisites.map(short)])),
     golden,
   );
-  assert.equal(model.buildWorkspaces.length, 31);
+  assert.equal(model.buildWorkspaces.length, 32);
   assert.deepEqual(model.buildOnlyWorkspaces, [
     'access-router-runtime-example',
     'mongoose-rxdb-example',
@@ -729,7 +730,7 @@ test('generation is stable across repeated calls and all workspace/plan/dependen
   assert.equal(generateWorkflowJobs(shuffled), generateWorkflowJobs(actualModel()));
   assert.equal(generateWorkflowJobs(actualModel()), generateWorkflowJobs(actualModel()));
   const generated = parseStrictYaml(generateWorkflowJobs(actualModel()));
-  assert.equal(Object.keys(generated.jobs).length, 28);
+  assert.equal(Object.keys(generated.jobs).length, 29);
   assert.deepEqual(generated.jobs['unit-test'].needs, [
     'ci-validate',
     'ci-prepare',
@@ -740,6 +741,7 @@ test('generation is stable across repeated calls and all workspace/plan/dependen
     'test-access-router',
     'test-utils',
   ]);
+  assert.deepEqual(generated.jobs['test-email-service'].needs, ['ci-prepare']);
   assert.deepEqual(generated.jobs['test-react-vite'].needs, [
     'ci-prepare',
     'test-access-router-client',
@@ -2080,7 +2082,7 @@ test('the mandatory CLI mode accepts the checked-in workflow and rejects a legac
   assert.equal(active.status, 0, active.stderr);
   assert.equal(
     active.stdout,
-    'Validated workflow and CI helper contracts: .github/workflows/test.yml (25 tested workspaces).\n',
+    'Validated workflow and CI helper contracts: .github/workflows/test.yml (26 tested workspaces).\n',
   );
   assert.equal(active.stderr, '');
 
@@ -2148,7 +2150,7 @@ test('real CLI check/generate and parsing failures have deterministic output and
   assert.equal(checked.status, 0, checked.stderr);
   assert.equal(
     checked.stdout.trim(),
-    'Validated CI model: 25 tested workspaces, 26 declared gates + 1 fixture gates, 6 build-only workspaces. Workflow agreement is a separate --check-workflow check.',
+    'Validated CI model: 26 tested workspaces, 26 declared gates + 1 fixture gates, 6 build-only workspaces. Workflow agreement is a separate --check-workflow check.',
   );
   assert.equal(checked.stderr, '');
   const generated = cli(['--generate']);
@@ -2177,7 +2179,7 @@ test('CLI workflow mode succeeds only for an agreeing pnpm model and real helper
   const errors = [];
   const options = { root, log: (line) => output.push(line), error: (line) => errors.push(line) };
   assert.equal(runCli(['--check-workflow', 'workflow.yml'], options), 0);
-  assert.deepEqual(output, ['Validated workflow and CI helper contracts: workflow.yml (25 tested workspaces).']);
+  assert.deepEqual(output, ['Validated workflow and CI helper contracts: workflow.yml (26 tested workspaces).']);
   assert.deepEqual(errors, []);
   write(
     root,

@@ -61,7 +61,7 @@ checkout.
 | Group | Packages (omit the `@web-ts-toolkit/` scope)           |
 | ----- | ------------------------------------------------------ |
 | 1     | utils, json-frame, express-runtime                     |
-| 2     | http-errors, asset-inliner                             |
+| 2     | http-errors, asset-inliner, email-service              |
 | 3     | express-response-handler, express-request-attestation  |
 | 4     | express-json-router, mongoose-rxdb                     |
 | 5     | access-router, express-oidc-vault                      |
@@ -77,8 +77,7 @@ checkout.
 appears exactly once, with no build/read conflicts inside a group. Group membership
 and test-only dependency overrides live in `scripts/test-groups.mjs`. Review the
 overrides when tests gain cross-package builds or compiled fixtures; manifest
-dependency changes are checked automatically. Existing package test scripts and
-their test coverage are unchanged.
+dependency changes are checked automatically. The groups cover 26 tested workspaces.
 
 ## Continuous integration
 
@@ -88,22 +87,22 @@ command. It uses isolated, dependency-gated jobs on separate runners:
 1. `ci-validate` runs the CI/local validation checks (`pnpm test:groups:check` and
    `pnpm test:ci:check`).
 2. `ci-prepare` performs one clean full `pnpm build` on the tested revision and
-   uploads a verified archive containing only compiled outputs. Package jobs restore
-   that archive; they never share `node_modules`, dependency stores or build
-   directories.
+   uploads a verified archive containing only compiled outputs from 32 build
+   roots. Package jobs restore that archive; they never share `node_modules`,
+   dependency stores or build directories.
 3. One static job per tested workspace installs dependencies with a frozen
    lockfile, restores the archive, prepares only its required browsers/databases,
    and runs the workspace's complete `pnpm --filter <workspace> test` script,
-   including its own rebuilds and worker limits.
+   including its own rebuilds and worker limits. Nine package jobs prepare MongoDB.
 4. Each package job requires `ci-prepare` and its workspace test prerequisites. A
    failed or cancelled package blocks its dependents; unrelated branches remain
-   eligible to run. Validation or preparation failure blocks all 25 package tests.
+   eligible to run. Validation or preparation failure blocks all 26 package tests.
    The preserved `lint`, `access-router-minimum-node-smoke` and
    `access-router-react-minimum-node` jobs are independent of this graph, and the
    floating React compatibility lane remains non-blocking.
 5. The stable `unit-test` job is the aggregate required check. It runs with
-   `always()` and validates the 27 main results (`ci-validate`, `ci-prepare` and
-   the 25 package jobs) through `scripts/ci-test-results.mjs`. It succeeds only
+   `always()` and validates the 28 main results (`ci-validate`, `ci-prepare` and
+   the 26 package jobs) through `scripts/ci-test-results.mjs`. It succeeds only
    when every required job succeeded; failure, cancellation, missing results and
    all skipped results fail closed.
 

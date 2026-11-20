@@ -33,6 +33,7 @@ export const reviewedTestPlan = [
     '@web-ts-toolkit/express-runtime': ['dependencies'],
   }),
   entry('@web-ts-toolkit/asset-inliner'),
+  entry('@web-ts-toolkit/email-service'),
   entry('@web-ts-toolkit/express-json-router', {
     '@web-ts-toolkit/express-response-handler': ['dependencies'],
     '@web-ts-toolkit/http-errors': ['dependencies'],
