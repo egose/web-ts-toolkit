@@ -1,0 +1,99 @@
+{
+  "name": "@web-ts-toolkit/email-service",
+  "description": "Typed email preparation, queue and submission contracts for Node.js",
+  "version": "0.0.0-PLACEHOLDER",
+  "license": "PLACEHOLDER",
+  "repository": "PLACEHOLDER",
+  "keywords": [
+    "email",
+    "handlebars",
+    "smtp",
+    "sendgrid",
+    "queue"
+  ],
+  "type": "commonjs",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./smtp": {
+      "types": {
+        "import": "./dist/smtp.d.mts",
+        "require": "./dist/smtp.d.ts",
+        "default": "./dist/smtp.d.ts"
+      },
+      "import": "./dist/smtp.mjs",
+      "require": "./dist/smtp.js",
+      "default": "./dist/smtp.js"
+    },
+    "./sendgrid": {
+      "types": {
+        "import": "./dist/sendgrid.d.mts",
+        "require": "./dist/sendgrid.d.ts",
+        "default": "./dist/sendgrid.d.ts"
+      },
+      "import": "./dist/sendgrid.mjs",
+      "require": "./dist/sendgrid.js",
+      "default": "./dist/sendgrid.js"
+    },
+    "./mongoose": {
+      "types": {
+        "import": "./dist/mongoose.d.mts",
+        "require": "./dist/mongoose.d.ts",
+        "default": "./dist/mongoose.d.ts"
+      },
+      "import": "./dist/mongoose.mjs",
+      "require": "./dist/mongoose.js",
+      "default": "./dist/mongoose.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm run build:package",
+    "build:package": "tsup --config tsup.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node test/run.mjs",
+    "test:unit": "vitest run --config vitest.config.mts",
+    "test:lifecycle": "vitest run --config vitest.lifecycle.config.mts",
+    "test:smtp": "vitest run --config vitest.smtp.config.mts",
+    "test:sendgrid": "vitest run --config vitest.sendgrid.config.mts",
+    "test:mongodb": "vitest run --config vitest.mongodb.config.mts",
+    "test:packed-consumer": "node --test test/packed-consumer/packaging.test.mjs"
+  },
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "peerDependencies": {
+    "mongoose": ">=9.12.2 <10",
+    "nodemailer": ">=10.6.0 <11"
+  },
+  "peerDependenciesMeta": {
+    "mongoose": {
+      "optional": true
+    },
+    "nodemailer": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "handlebars": "~4.7.10"
+  },
+  "devDependencies": {
+    "mongoose": "9.12.2",
+    "nodemailer": "10.6.0"
+  }
+}

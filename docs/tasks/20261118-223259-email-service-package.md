@@ -2,7 +2,10 @@
 
 Created: 2026-11-18 22:32:59 UTC.
 
-Overall status: **pending — task file created; package implementation not started**.
+Overall status: **completed — EMAIL-00 contract frozen; EMAIL-01 through EMAIL-12 complete for package scope**.
+
+Implementation authority: this task and the [frozen V1 contract](../task-artifacts/email-service/20261118-223259-email-service-package/v1-contract.md).
+The contract fixes the API, defaults, persistence transitions, and failure matrix before implementation.
 
 ## Objective and confirmed requirements
 
@@ -46,8 +49,9 @@ Baseline reviewed at task creation:
 - `packages/message-service/src/providers/email.ts` exposes an application email
   callback, but that package owns in-application messages and actions rather than
   this email-delivery lifecycle.
-- Root tests are intentionally serialized; grouped CI tests validate dependency
-  build/read conflicts through `scripts/test-groups.mjs`.
+- Root package tests are intentionally serialized. `scripts/test-groups.mjs`
+  validates dependency build/read conflicts for local grouped pre-flight; the
+  active gated `Test` workflow is a separate static CI dependency graph.
 - No package implementation, builds, runtime tests, or actual email submissions
   were performed to create this task.
 
@@ -59,16 +63,19 @@ Baseline reviewed at task creation:
 - `.opencode/skills/ai-friendly-ts-package/SKILL.md`
 - `package.json`, `pnpm-workspace.yaml`, and `tsconfig.base.json`
 - `scripts/test-groups.mjs` and `scripts/test-groups.test.mjs`
+- `scripts/ci-test-plan.mjs`, `scripts/ci-test-artifacts.mjs`,
+  `scripts/ci-test-workspace.mjs`, `scripts/ci-test-results.mjs`, and
+  `.github/workflows/test.yml`
 - `packages/message-service/src/providers/email.ts`
 - `packages/message-service/test/message-service.packed-consumer.test.ts`
 - `packages/express-oidc-vault-mongodb-store/src/index.ts` for caller-owned
   connection and explicit readiness patterns
 
 The repository references above establish workspace conventions and integration
-patterns, not a pre-existing email-service contract. The requirements below are
-the implementation authority. Tests and examples must use synthetic maintained
-fixtures, not private addresses, template IDs, tokens, credentials, or application
-data. Record provenance and license obligations for incorporated code or fixtures.
+patterns, not a pre-existing email-service contract. Tests and examples must use
+synthetic maintained fixtures, not private addresses, template IDs, tokens,
+credentials, or application data. Record provenance and license obligations for
+incorporated code or fixtures.
 
 ## Scope, package boundary, and non-goals
 
@@ -82,9 +89,7 @@ data. Record provenance and license obligations for incorporated code or fixture
 - Core APIs use plain TypeScript contracts and opaque string identifiers, not
   Express requests, Mongoose documents, ObjectIds, or application-specific domain
   types.
-- One main package with optional integration entrypoints. Proposed entries are
-  `.`, `./smtp`, `./sendgrid`, and `./mongoose`; EMAIL-00 must finalize this map
-  before implementation relies on it.
+- One main package with entries `.`, `./smtp`, `./sendgrid`, and `./mongoose`.
 - Handlebars is the required local rendering engine. SMTP uses Nodemailer or a
   compatible injected transport behind an explicit adapter.
 - Mongoose/MongoDB is the first durable storage adapter, not a core requirement.
@@ -116,8 +121,8 @@ data. Record provenance and license obligations for incorporated code or fixture
 
 ## V1 design requirements
 
-These requirements are authoritative. Exact API spelling, state enums, numeric
-defaults, serialization, and index definitions remain EMAIL-00 decisions.
+These requirements are authoritative. The linked V1 contract specifies exact API
+spelling, states, numeric defaults, serialization, and index definitions.
 
 ### 1. Typed templates and preparation
 
@@ -206,7 +211,7 @@ template key + business command
   against one conformance suite. Never fall back to memory when persistence fails.
 - Claims use a distinct attempt ID and private ownership token with a finite lease.
   Stale workers cannot mark handoff, finalize, cancel, or overwrite another owner.
-- Renew leases during bounded preparation/resolver/rate-limit work and recheck
+- Renew leases during bounded worker pre-handoff work and recheck
   ownership, cancellation, and expiry immediately before handoff.
 - Persist and acknowledge the handoff marker before contacting the provider.
   Missing or uncertain persistence acknowledgement must prevent that send.
@@ -253,7 +258,7 @@ template key + business command
 
 ### 5. Persistence, results, and privacy
 
-Proposed initial MongoDB collections:
+Default MongoDB collections:
 
 - **`email_jobs`:** versioned prepared snapshot, scheduling/state, scoped command
   identity, current lease, and a bounded authoritative attempt ledger.
@@ -290,13 +295,13 @@ the package contract rather than relying on automatic model-name pluralization.
 
 ## Implementation tasks and dependency order
 
-All tasks start **pending**. Each task must add focused tests alongside code.
-The file paths below are planned ownership targets, not existing APIs or files.
-Record final choices before dependent tasks begin.
+Implement in dependency order, with one active implementation subagent at a
+time and no further delegation. Code tasks add focused tests alongside code.
+The paths below are ownership targets, not claims of existing implementations.
 
 ### EMAIL-00 — Freeze the generic V1 contract
 
-Status: pending. Priority: P0. Dependencies: none.
+Status: completed (design only, 2026-11-19). Priority: P0. Dependencies: none.
 
 Requirements:
 
@@ -313,9 +318,19 @@ Acceptance: one unambiguous contract and failure matrix covers both providers;
 unresolved choices are recorded as blockers rather than deferred implicitly into
 implementation. No exactly-once, inbox-delivery, or arbitrary callback guarantee.
 
+Completion evidence: [V1 contract and failure matrix](../task-artifacts/email-service/20261118-223259-email-service-package/v1-contract.md).
+This checkpoint specifies the package boundaries and typed staged/direct
+admission, single-job lease/fence/ledger with conservative write recovery,
+provider-specific retry evidence, and redacted idempotent projection/retention.
+Documentation formatting, whitespace, links/privacy, and nonignored destination
+were checked (Prettier, `git diff --check` / untracked artifact whitespace,
+local link/anchor review, and `git check-ignore`). No package files,
+CI/manifests, builds, tests, provider calls, or live evidence; all runtime
+lanes remain pending. No design blocker identified.
+
 ### EMAIL-01 — Scaffold package and public boundaries
 
-Status: pending. Priority: P0. Dependencies: EMAIL-00.
+Status: completed (scaffold, 2026-11-19). Priority: P0. Dependencies: EMAIL-00.
 
 Ownership: package manifest, TypeScript/build/test configuration, entrypoints,
 core types/errors, README skeleton, and necessary workspace registration.
@@ -326,17 +341,55 @@ Requirements:
   correct ESM/CJS/type conditions, and a single owner for cleaning/building `dist`.
 - Keep optional provider/store imports out of the root dependency/declaration
   closure. Add only approved dependencies through pnpm.
-- Add real scaffold/type tests and lane scripts; no empty-test success gates.
-- Register the package in safe test groups when its test script becomes active;
-  maintain dependency build/read overrides where needed.
+- Add `build:package`, `typecheck`, and the first real package test lane. Add
+  future lane commands with their maintained tests, never as empty success gates.
+  Leave the workspace-discovered `build` and `test` scripts absent until the
+  coordinated activation in EMAIL-11; use the package-specific scripts meanwhile.
 
 Acceptance: build/typecheck and installed-root import smoke pass; no import-time
 side effects, unresolved output imports, accidental optional peers, or default
 exports. Manifest and emitted entrypoints agree.
 
+Completion evidence: [EMAIL-01 packaging decision and handoff](../task-artifacts/email-service/20261118-223259-email-service-package/email-01-packaging.md).
+Added only the `packages/email-service/` scaffold and its dependency resolutions.
+The opt-in SMTP peer is now Nodemailer `>=10.6.0 <11` rather than the vulnerable
+7.x proposal; see the decision note. Mongoose is `>=9.12.2 <10`; both peers are
+optional and absent from the installed root's runtime/declaration closure.
+
+Verified from `<repo-root>` on Node 26.12.1 with pnpm 11.24.0, npm 11.20.0,
+TypeScript 6.0.3 and tsup 8.5.1. The install commands added Handlebars 4.7.10
+and exact dev peer floors (Mongoose 9.12.2 and Nodemailer 10.6.0), without
+changing unrelated lockfile resolutions:
+
+```sh
+pnpm --filter @web-ts-toolkit/email-service add --ignore-scripts --save-prod 'handlebars@~4.7.10'
+pnpm --filter @web-ts-toolkit/email-service add --ignore-scripts --save-dev --save-exact mongoose@9.12.2 nodemailer@10.6.0
+pnpm --filter @web-ts-toolkit/email-service build:package
+pnpm --filter @web-ts-toolkit/email-service typecheck
+pnpm --filter @web-ts-toolkit/email-service test:unit
+pnpm --filter @web-ts-toolkit/email-service exec npm pack --dry-run --json
+pnpm --filter @web-ts-toolkit/email-service test:packed-consumer
+EMAIL_SERVICE_CONSUMER_NODE='<absolute path to Node 24.0.0>' pnpm --filter @web-ts-toolkit/email-service test:packed-consumer
+```
+
+Ran using verified ignored repo-local `TMPDIR` directories. All checks passed:
+five unit tests; packing contained the manifest, README and the 16 expected
+outputs; pnpm installed the ordinary tarball into isolated consumers with
+automatic peer installation enabled. Neither optional peer resolved from the app
+or the installed package. On Node 26.12.1 and 24.0.0 the fixture exercised plain
+ESM/CJS imports of all four entrypoints with network/timer guards, and strict
+NodeNext ESM/CJS and bundler declarations without workspace ambient types.
+Package formatting and change whitespace were checked.
+
+No blocker for EMAIL-02. The root has shared contracts and `EmailError`; the
+adapter entries have option types but no runtime factories yet (EMAIL-04/05/06).
+No mail, adapter/real-MongoDB execution, release-shaped pack verification, or
+root suite/build/lint. Workspace `build`/`test` scripts and CI are deferred to
+EMAIL-11.
+
 ### EMAIL-02 — Implement typed templates, preparation, and rendering
 
-Status: pending. Priority: P0. Dependencies: EMAIL-00, EMAIL-01.
+Status: completed (2026-11-19). Priority: P0. Dependencies: EMAIL-00, EMAIL-01.
 
 Ownership: template definitions/registry, preparation, validation, local sources,
 Handlebars renderer/cache, and focused tests.
@@ -354,9 +407,17 @@ Acceptance: sync/async preparation, invalid inputs, loader replacement, cache
 invalidation/bounds, mutation isolation, escaping, missing templates, and
 provider/template mismatches are tested. Type tests reject wrong template inputs.
 
+Completion evidence and EMAIL-03 reuse points: [EMAIL-02 templates and codecs handoff](../task-artifacts/email-service/20261118-223259-email-service-package/email-02-templates.md).
+Package `typecheck`, `test:unit` (42 tests across six files), and `build:package`
+passed serially on Node 26.12.1 using ignored repo-local `TMPDIR`. Changed package
+paths passed formatting/lint; plain Node ESM/CJS preparation through the emitted
+root passed. The staged DTO is revalidated without a registry; durable replay,
+store-time guards, and actual delivery remain future phases. No workspace suites,
+installed-tarball verification, CI, provider/database tests, or live mail ran.
+
 ### EMAIL-03 — Implement atomic store contract and memory conformance adapter
 
-Status: pending. Priority: P0. Dependencies: EMAIL-00, EMAIL-01.
+Status: completed (2026-11-19). Priority: P0. Dependencies: EMAIL-00, EMAIL-01, EMAIL-02.
 
 Ownership: lifecycle store interfaces, memory adapter, clock/failure harness, and
 shared adapter-conformance tests.
@@ -373,9 +434,19 @@ Acceptance: conformance covers duplicate/conflicting commands, concurrent claims
 stale owners, finite leases, projection replay, scope isolation, expiry boundaries,
 and failure injection. Persistence failure never invokes a memory fallback.
 
+Completion evidence: [EMAIL-03 store port, conformance and handoff](../task-artifacts/email-service/20261118-223259-email-service-package/email-03-store.md).
+The root exports the non-durable memory store and implements the V1 store
+primitives, including projection, cursor paging and three-step retention. The
+logical codecs and bounded transition plans are shared source for the durable
+adapter. Package `typecheck`, `test:unit` (78 tests across eight files), and
+`build:package` passed serially on Node 26.12.1. Changed paths passed formatting
+and TypeScript lint. Conformance ran against memory only; ACK loss was simulated
+at the store seam. Separate Mongo clients, server-time/retirement races, failover,
+provider I/O, worker behavior, and workspace integration remain unverified.
+
 ### EMAIL-04 — Implement Mongoose persistence and schema factories
 
-Status: pending. Priority: P0. Dependencies: EMAIL-00, EMAIL-01, EMAIL-03.
+Status: completed (2026-11-19). Priority: P0. Dependencies: EMAIL-00, EMAIL-01, EMAIL-03.
 
 Ownership: optional Mongoose entrypoint, schema factories, adapter/readiness,
 indexes/serialization, and real-MongoDB conformance tests.
@@ -387,17 +458,28 @@ Requirements:
 - Implement required indexes, schema/version checks, durable write policy,
   bounded query paths, and retention/projection coordination.
 - Translate opaque IDs/timestamps without leaking hydrated models into core DTOs.
-- Test any required transaction topology explicitly; unsupported deployments fail
-  readiness rather than using weaker undocumented fallbacks.
+- Test the required replica-set and read/write guarantees explicitly, including
+  projection/cleanup races without cross-collection transactions. Unsupported
+  deployments fail readiness rather than using weaker undocumented fallbacks.
 
 Acceptance: shared conformance passes against real isolated MongoDB with separate
 clients/services; topology, index conflicts, acknowledgement loss, scope isolation,
 and caller lifecycle are covered. Acceptance uses fresh maintained fixtures; no
 existing application or database is a prerequisite.
 
+Completion evidence: [EMAIL-04 Mongoose design, verification and handoff](../task-artifacts/email-service/20261118-223259-email-service-package/email-04-mongoose.md).
+The optional `./mongoose` factory uses only an explicit caller connection and the
+shared lifecycle. The package `test:mongodb` lane passed 48 tests on isolated
+MongoDB 8.2.6 WiredTiger replica sets, including a real three-member stepdown,
+server interruption, immutable projection and resumable cleanup. The handoff
+separates committed-response injection from observed wire/server behavior and
+records the driver timeout and topology restrictions. Package typecheck,
+78 unit tests, build and ordinary packed-consumer checks passed; no provider,
+mail, migration, lockfile changes or workspace test registration in this phase.
+
 ### EMAIL-05 — Implement SMTP provider
 
-Status: pending. Priority: P0. Dependencies: EMAIL-00, EMAIL-01, EMAIL-02.
+Status: completed (2026-11-19). Priority: P0. Dependencies: EMAIL-00, EMAIL-01, EMAIL-02.
 
 Ownership: SMTP configuration/adapter, normalized classification, local SMTP test
 server/fixtures, and focused MIME/deadline tests.
@@ -415,12 +497,20 @@ Acceptance: real loopback SMTP tests cover MIME/headers, rejected recipients,
 4xx/5xx responses, STARTTLS/auth failures, disconnects/timeouts, partial results,
 shutdown, and redacted diagnostics without sending external email.
 
+Completion evidence: [EMAIL-05 SMTP design, verification and handoff](../task-artifacts/email-service/20261118-223259-email-service-package/email-05-smtp.md).
+`./smtp` exports `createSmtpProvider` using Nodemailer 10.6.0 for MIME and an owned
+one-shot wire connection. Package typecheck, 78 unit tests, 50 SMTP tests, build
+and changed-path formatting/lint passed. The SMTP lane uses actual loopback
+TCP/TLS, a synthetic CA and isolated loopback DNS; the handoff distinguishes
+simulated late-resolution races from observed socket closure. The packed-consumer
+fixture was extended but not run. No live mail, workspace suites/build or CI wiring.
+
 ### EMAIL-06 — Implement SendGrid template provider
 
-Status: pending. Priority: P0. Dependencies: EMAIL-00, EMAIL-01, EMAIL-02.
+Status: completed (2026-11-19). Priority: P0. Dependencies: EMAIL-00, EMAIL-01, EMAIL-02.
 
 Ownership: SendGrid configuration/adapter, payload mapping/classification, and
-fake-HTTP/injected-client contract tests.
+private transport and isolated loopback HTTPS tests.
 
 Requirements:
 
@@ -435,9 +525,18 @@ Acceptance: isolated concurrent provider instances use their own configuration;
 payloads and normalized outcomes are verified at the HTTP/client boundary.
 No live SendGrid account or real delivery is required by the default test suite.
 
+Completion evidence: [EMAIL-06 SendGrid verification and handoff](../task-artifacts/email-service/20261118-223259-email-service-package/email-06-sendgrid.md).
+`./sendgrid` exports `createSendGridProvider` with a fixed, verified HTTPS
+endpoint and one-shot I/O. The package passed typecheck, 90 SendGrid tests,
+50 SMTP tests, 78 unit tests, build, ordinary packed-consumer checks and
+package lint. The maintained SendGrid lane uses synthetic DNS and a real
+loopback HTTPS endpoint; certificate verification, exact payloads, conservative
+response classification and peer-observed shutdown are covered. No live provider,
+workspace suite, MongoDB runtime or CI wiring in this phase.
+
 ### EMAIL-07 — Implement job service and worker lifecycle
 
-Status: pending. Priority: P0.
+Status: completed (2026-11-20). Priority: P0.
 Dependencies: EMAIL-02, EMAIL-03, EMAIL-04, EMAIL-05, EMAIL-06.
 
 Ownership: service admission, worker/claims, scheduling/backoff, lease recovery,
@@ -456,9 +555,36 @@ Acceptance: both providers run through memory and real-MongoDB lifecycle tests.
 Competing workers and injected crashes before/after every durable handoff boundary
 cannot produce automatic duplicate submission or stale-owner state corruption.
 
+Admission checkpoint: [EMAIL-07A admission verification and handoff](../task-artifacts/email-service/20261118-223259-email-service-package/email-07a-admission.md).
+`createEmailService` now admits typed commands or relays staged V1 snapshots,
+without delivery. Scoped committed replay precedes preparation; unconfirmed
+inserts are resolved only by a bounded exact-key read. Package typecheck,
+105 unit tests, build and changed-path lint passed. The checkpoint uses memory
+and injected failure seams; it does not establish durable worker or MongoDB
+lifecycle behavior and does not complete EMAIL-07.
+
+Worker core checkpoint: [EMAIL-07B worker verification and 07C handoff](../task-artifacts/email-service/20261118-223259-email-service-package/email-07b-worker.md).
+`createEmailWorker` runs bounded maintenance and scoped claims, gates one-shot
+submission on the timely exact handoff ACK, and confirms outcomes only from
+the fenced attempt ledger. Synthetic memory and injected-port checks cover
+callback capacity, deadlines, ownership/finish ambiguity, and shutdown. Package
+typecheck, 178 unit tests, build and changed-path lint passed. No real provider
+or MongoDB worker was run in 07B.
+
+Integrated checkpoint: [EMAIL-07C loopback lifecycle and Mongo duplicate confirmation](../task-artifacts/email-service/20261118-223259-email-service-package/email-07c-lifecycle.md).
+Both real loopback adapters ran through the public service and worker on memory
+and MongoDB 8.2.6 with separate clients. Peer reads verified lease recovery,
+terminal replay, and a stale finish that could not overwrite the winner.
+Store-response injections are distinguished from real socket closure, Mongo
+`killOp`, and the separate store failover case. The confirmed duplicate-read
+edge now permits one exact admission recheck without retrying the insert.
+Package typecheck, 178 unit tests, 25 memory lifecycle tests, 50 SMTP tests,
+90 SendGrid tests, 82 MongoDB tests, build, and changed-path checks passed.
+No live mail, workspace checks, CI or EMAIL-08 implementation.
+
 ### EMAIL-08 — Export batch service
 
-Status: pending. Priority: P1. Dependencies: EMAIL-07.
+Status: completed (2026-11-20). Priority: P1. Dependencies: EMAIL-07.
 
 Ownership: batch enqueue/run APIs, rate policy, per-item/run result types, and tests.
 
@@ -474,9 +600,19 @@ Acceptance: reordered/replayed/partially persisted batches resume safely;
 completed items are not resent, configured limits hold, and shutdown/failure
 results remain accurate across multiple workers.
 
+Completion evidence: [EMAIL-08 batch verification and EMAIL-09 handoff](../task-artifacts/email-service/20261118-223259-email-service-package/email-08-batch.md).
+`createEmailBatchService` validates all item envelopes up front and reuses
+scoped admission with stable batch/item IDs; `run` delegates the bound worker's
+scope-wide run. Fresh package checks passed: typecheck, 202 unit tests, 26
+memory lifecycle tests, 83 MongoDB 8.2.6 tests, build, changed-path hygiene,
+and ordinary installed tarballs on Node 26.12.1 and 24.0.0. The lifecycle
+fixture uses real loopback SMTP/HTTPS, two independent Mongo clients in the
+durable lane, and a simulated admission write failure. No live mail, workspace
+or CI checks, or EMAIL-09 implementation.
+
 ### EMAIL-09 — Implement result history and reconciliation
 
-Status: pending. Priority: P0. Dependencies: EMAIL-04, EMAIL-07, EMAIL-08.
+Status: completed (2026-11-20). Priority: P0. Dependencies: EMAIL-04, EMAIL-07, EMAIL-08.
 
 Ownership: activity projection/reconciliation, result queries/DTOs, diagnostics,
 retention coordination, and focused tests.
@@ -494,9 +630,18 @@ Acceptance: repeated/crashed projectors produce one result per attempt; missing
 activities recover without another send. Privacy, pagination, scope isolation,
 unknown outcomes, partial recipients, and retention are verified.
 
+Completion evidence: [EMAIL-09 admin and retention verification](../task-artifacts/email-service/20261118-223259-email-service-package/email-09-admin.md).
+The root exports `createEmailAdmin` for scoped authoritative summaries, bounded
+activity pages, cancellation, explicit unknown resolution, reconciliation, and
+cleanup. Projection and best-effort observation are independent of delivery;
+redrive requeues but does not submit. Package typecheck, 222 unit tests, 26 memory
+lifecycle tests, 89 MongoDB 8.2.6 tests, build, and ordinary offline installed
+tarballs on Node 26.12.1 and 24.0.0 passed. No live mail, workspace checks, CI or
+EMAIL-10 implementation.
+
 ### EMAIL-10 — Complete robustness and failure-boundary coverage
 
-Status: pending. Priority: P0. Dependencies: EMAIL-02 through EMAIL-09.
+Status: completed (2026-11-20). Priority: P0. Dependencies: EMAIL-02 through EMAIL-09.
 
 Ownership: cross-provider/store failure matrix, adversarial limits/privacy tests,
 and operational documentation.
@@ -513,9 +658,20 @@ Requirements:
 Acceptance: every contract failure boundary has maintained evidence or a precise
 unsupported-case statement; no mandatory safety criterion is a skipped/todo test.
 
+Completion evidence: [EMAIL-10 failure-boundary audit and operational evidence](../task-artifacts/email-service/20261118-223259-email-service-package/email-10-robustness.md).
+Added overlapping scoped workers on memory and MongoDB, bounded Mongo projection,
+cursor and eleven-attempt cleanup checks, and focused acknowledgement, callback
+and provider-limit cases. Fixed raw thenable fulfillment validation and SendGrid
+message IDs containing a reflected credential. Package typecheck and build passed;
+228 unit, 27 memory lifecycle, 51 SMTP, 91 SendGrid and 95 MongoDB 8.2.6 tests passed
+without skips, along with changed-path hygiene. The audit distinguishes loopback
+TCP/TLS and real MongoDB interruption/election from injected reply loss and
+unsupported scenarios. No EMAIL-11 wiring, installed/release consumer run, root
+checks, live mail, CI, publication or commit.
+
 ### EMAIL-11 — Verify installed package, docs, and workspace integration
 
-Status: pending. Priority: P1. Dependencies: EMAIL-01 through EMAIL-10.
+Status: completed (2026-11-20). Priority: P1. Dependencies: EMAIL-01 through EMAIL-10.
 
 Ownership: shipped README/JSDoc, packed-consumer tests, optional peer matrix,
 website/navigation if appropriate, and narrow CI/test-group/release wiring.
@@ -528,17 +684,52 @@ Requirements:
   ESM/CJS execution, and strict TypeScript consumers after installation.
 - Test ordinary tarballs and the repository's actual release-shaped packaging
   where its transformation differs; a source-only dry run is insufficient.
-- Run required package lanes and safe workspace integration; document minimum
-  runtime/peer versions actually exercised and unverified combinations.
+- Activate canonical `build` (delegating to `build:package`) and `test` (one
+  package build/typecheck plus the full serial lane set) together with the narrow
+  workspace wiring below. Document exact runtime and peer versions exercised
+  and any unverified combinations. Do not run unrelated package suites.
+
+Workspace activation (EMAIL-11 only):
+
+- **Local pre-flight:** add the package once to a safe group in
+  `scripts/test-groups.mjs`; review test-only read/write overrides if it reads or
+  builds another workspace's outputs. No shared output dependency is planned.
+- **Gated CI:** add the reviewed workspace to `scripts/ci-test-plan.mjs` and
+  keep its generated static main jobs in agreement with `.github/workflows/test.yml`.
+  Add `test-email-service` with `ci-prepare` and only true reviewed test-success
+  prerequisites (none beyond `ci-prepare` as designed). Preserve the full
+  package `test`, verified checkout/attempt-scoped artifact restore, resource
+  preparation and existing independent lint/minimum-Node/React lanes.
+  Review the output root `packages/email-service/dist` in
+  `scripts/ci-test-artifacts.mjs` and package Mongo resource registration in
+  `scripts/ci-test-workspace.mjs` with their contract fixtures.
+- Extend the fail-closed `always()` `unit-test` aggregate and its model/test
+  expectations coherently: 26 package jobs plus `ci-validate` and `ci-prepare`
+  (28 direct results at this baseline). Keep the stable check name and update
+  affected guidance/counts. No matrix barrier, fail-fast, closure filter,
+  unrelated CI redesign, live workflow trigger or required-check change.
+  Live rollout evidence and required-check confirmation remain maintainer-gated
+  under `AGENTS.md` and are not part of this package-scoped verification.
 
 Acceptance: installed consumers can discover and use all advertised entrypoints
 without repository source or deep imports. README examples compile/run; optional
 peers stay optional, declarations retain useful JSDoc, and grouped-test coverage
 and release metadata are correct.
 
+Completion evidence: [EMAIL-11 installed consumers and workspace activation](../task-artifacts/email-service/20261118-223259-email-service-package/email-11-installed-consumers.md).
+The canonical serial package command passed on Node 26.12.1: one build, typecheck,
+492 Vitest cases (95 on MongoDB 8.2.6), and 12 packed-consumer results. The complete
+packed matrix passed again on Node 24.0.0: both tarball layouts, Mongoose 9.12.2
+and Nodemailer 10.6.0 independently and together, and neither peer. Tests executed
+the shipped README and inspected both declaration formats; the release stage used
+the actual 0.41.2 helper on copies. Group 2 and the static CI job are registered,
+with 26 tested workspaces and 28 aggregate needs. Changed-path checks and narrow
+static wiring review passed. No root CI/group validators, root suites/build/lint,
+hosted workflow, publication, real mail, commit or EMAIL-12 work.
+
 ### EMAIL-12 — Final acceptance and handoff
 
-Status: pending. Priority: P1. Dependencies: EMAIL-10, EMAIL-11.
+Status: completed (independent package acceptance, 2026-11-20). Priority: P1. Dependencies: EMAIL-10, EMAIL-11.
 
 Requirements:
 
@@ -553,10 +744,23 @@ Acceptance: all required tasks have evidence-backed completion; no P0/P1 safety
 gap or mandatory unverified lane remains. Any review claimed as independent must
 actually be independent; task-file creation assigns no agent or reviewer.
 
+Completion evidence: [EMAIL-12 independent acceptance and handoff](../task-artifacts/email-service/20261118-223259-email-service-package/email-12-acceptance.md).
+The independent reviewer assessed all five requirements, public boundaries,
+failure handling, evidence, and static workspace wiring. The parent corrected a
+material source-delivery omission by unignoring the handwritten Handlebars
+declaration with one exact rule. The reviewer confirmed the shim is visible to
+Git and loaded by TypeScript while generated declarations remain ignored.
+Package-only typecheck and 228 unit tests passed on Node 26.12.1. Canonical
+package and Node 24.0.0 packed-consumer passes are EMAIL-11 evidence, not new
+passes or clean-checkout proof before that correction. No open P0/P1 package
+blocker or mandatory unverified package lane. Root validators, hosted rollout
+and required-check confirmation are outside this acceptance and remain unverified.
+Changes remain uncommitted.
+
 ## Verification and working rules
 
-- Change only authorized task scope. At creation, this is a task-file-only change;
-  package implementation begins with a subsequent execution request.
+- Change only the current task's authorized scope. EMAIL-00 is docs only;
+  dependent tasks use this contract in order and record their own evidence.
 - Before edits inspect git status/local instructions and preserve unrelated work.
 - Follow repository naming/style and edit tracked source, never generated `dist`.
 - Use the patch tool for file edits. Update lockfiles only through pnpm.
@@ -565,38 +769,50 @@ actually be independent; task-file creation assigns no agent or reviewer.
 - Maintain statuses `pending`, `in_progress`, `blocked`, and `completed`. Dependencies
   must be complete before dependent implementation; record evidence before
   completion and exact decision/prerequisite blockers when blocked.
-- Record API/default/schema decisions here before dependent work. The method and
-  file names proposed above do not claim existing implementations.
+- Record contract changes or blockers explicitly before dependent work; do not
+  infer a guarantee from the design or a mock.
 - Keep package scripts/builds serial across shared output writers. Do not run
   separate numbered test groups concurrently in one checkout.
+- Current authorization is **package-scoped verification only**. No repo-wide
+  package suite, workspace build or root lint, broad release build, actual mail,
+  or live CI/branch-protection exercise.
 
 ### Planned verification commands
 
-The new package/lane scripts below must be created by EMAIL-01; they do not exist
-today. Run from `<repo-root>` after dependencies and the owning implementation
-tasks are ready:
+Planned commands from `<repo-root>`, after dependencies and each owning task's
+scripts/tests exist. The fixture and installed-consumer lanes use a fresh ignored
+repo-local `TMPDIR` per run (see below).
 
 ```sh
-pnpm --filter @web-ts-toolkit/email-service... build
+pnpm --filter @web-ts-toolkit/email-service build:package
 pnpm --filter @web-ts-toolkit/email-service typecheck
 pnpm --filter @web-ts-toolkit/email-service test:unit
+pnpm --filter @web-ts-toolkit/email-service test:lifecycle
 pnpm --filter @web-ts-toolkit/email-service test:smtp
+pnpm --filter @web-ts-toolkit/email-service test:sendgrid
 pnpm --filter @web-ts-toolkit/email-service test:mongodb
 pnpm --filter @web-ts-toolkit/email-service test:packed-consumer
 pnpm --filter @web-ts-toolkit/email-service exec npm pack --dry-run --json
 pnpm --filter @web-ts-toolkit/email-service test
-pnpm test:groups:check
 ```
 
-The package `test` script builds once and runs required lanes serially. Individual
-lanes consume that build. Final integration runs `pnpm lint`, `pnpm build`, and
-serialized `pnpm test` or CI's `pnpm test:grouped` with its normal prerequisites.
-Use the documented artifact build/verification commands only when release wiring
-needs verification; never publish as a test.
+Individual lanes consume the package build when they need emitted files. The final
+`test` script (EMAIL-11) builds once and runs typecheck and required lanes serially;
+use it instead of rerunning all individual lanes. For floor checks run the maintained
+packed lane with `EMAIL_SERVICE_CONSUMER_NODE` set to the Node 24.0.0 executable
+and record the toolchain and peer versions. Test release-shaped staging inside the
+package fixture, not by running a workspace release build or publishing.
 
-Document-only creation checks are formatting, structural/link/privacy review,
-nonignored destination confirmation, and whitespace review including the untracked
-file with `git diff --no-index --check /dev/null <task-file>`.
+`pnpm test:grouped` is **local pre-flight** after a workspace build; active CI
+uses its static dependency-gated `Test` workflow, not the grouped runner.
+`pnpm test:groups:check` and `pnpm test:ci:check` validate those separate
+integration contracts and run in `ci-validate`; they are not package test lanes.
+Do not run the root validators locally under this package-only authorization;
+record that verification as outstanding unless separately authorized.
+
+EMAIL-00 only: check Markdown formatting, whitespace (also the untracked
+artifact via `git diff --no-index --check /dev/null <artifact-file>`), and
+links/privacy/nonignored paths. Do not run package or workspace commands.
 
 Missing MongoDB binaries/topology, optional-peer consumer dependencies, registry
 access, or other required tooling blocks its lane instead of yielding skipped
@@ -611,8 +827,8 @@ controlled HTTP/client boundary. Distinguish these from live provider delivery.
 - Keep maintained tests, fixtures, and benchmark scripts in normal code locations.
 - Preserve useful designs/reviews/failure reports under
   `docs/task-artifacts/email-service/20261118-223259-email-service-package/` or a
-  clearly identified subsequent run directory. This future destination has not
-  been created by the task-file-only checkpoint.
+  clearly identified subsequent run directory. The EMAIL-00 contract is in this
+  durable directory; it has no scratch prerequisites.
 - Curate rather than copy whole scratch trees. Scrub private data, record provenance
   and reproducibility limits, verify preserved references, and never overwrite old
   evidence or delete another task's scratch work.

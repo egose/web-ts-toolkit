@@ -42,8 +42,8 @@ consumption contract from one-time logout tickets.
 ## Analysis coverage, evidence, and existing work
 
 Reviewed upstream revision: `33e434d`, root version `0.53.0`. The worktree was
-clean before task creation. The motivating external consumer, ABCLS, uses
-`0.51.0`; the feature gaps were checked against current upstream source, not
+clean before task creation. The motivating external consumer used `0.51.0`;
+the feature gaps were checked against current upstream source, not
 inferred only from the installed version.
 
 Inspected core exports/types, API middleware, proof/nonce/replay code, issuance,
@@ -57,26 +57,21 @@ comprehensively reviewed.
 
 ### Consumer evidence and upstream boundaries
 
-The following paths are relative to the **external ABCLS repository**, are
-informational evidence only, and are not required implementation inputs. Recreate
-the integration patterns in this repository's tests/examples.
+These external consumer observations are contextual, not implementation inputs.
+Recreate the integration patterns in this repository's tests and examples.
 
-- `api-ts/auth/oidc-vault.ts`, `runAccessMiddlewareAnonymousFallback` (600-647):
-  replaces `res.status`/`res.json`, captures authentication responses, forwards
-  nonce challenges, and otherwise decorates anonymously. It can also absorb
-  non-401 failures. `requireBrowserDpop` (983-986) skips duplicate proof admission;
-  its v2 mount is currently commented out in `api-ts/app.ts`.
-- The same adapter's `parseDpopClock`, `isDpopTimeFailure`,
-  `logDpopProofDiagnostics`, issuer callback, and `onError` (312-341, 398-426,
-  457-483, 887-956) decode proof claims, classify message text, infer operation
-  from a URL, and reread exchange/session records for diagnostics.
-- `createAppTokenIssuer` (377-430) signs standard local JWT claims and copies
-  verified binding into `cnf.jkt`, alongside application-specific claims.
-- `resolveUpstreamLogoutUrl` and `oidcLogoutNavigate` (665-787) duplicate discovery,
-  cookie parsing, lineage deletion, and redirects. The consumer also attempted
-  fetch-based redirected logout in `client/src/app/_services/dpop.service.ts`
-  (`logoutUpstream`), while its active UI navigates to a custom GET endpoint.
-  These are evidence of an integration need, not a protocol to copy verbatim.
+- The anonymous fallback intercepts `res.status` and `res.json`, forwards nonce
+  challenges, and otherwise decorates the request anonymously. It can also
+  absorb non-401 failures. A separate proof guard avoids duplicate proof
+  admission.
+- Diagnostics decode proof claims, classify message text, infer the operation
+  from a URL, and reread exchange and session records.
+- The local issuer signs standard JWT claims and copies verified binding into
+  `cnf.jkt` alongside application-specific claims.
+- The custom logout flow duplicates discovery, cookie parsing, lineage
+  deletion, and redirects. The active UI navigates to a custom GET endpoint
+  instead of following a redirect in a fetch call. This is evidence of an
+  integration need, not a protocol to copy verbatim.
 
 Existing upstream capabilities already cover config validation, JWT verification,
 pre/post-commit lifecycle hooks, provider discovery, and MongoDB readiness. Reuse

@@ -9,7 +9,7 @@ const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 // Keep all packages in the utils build family in separate groups.
 export const testGroups = {
   1: ['@web-ts-toolkit/utils', '@web-ts-toolkit/json-frame', '@web-ts-toolkit/express-runtime'],
-  2: ['@web-ts-toolkit/http-errors', '@web-ts-toolkit/asset-inliner'],
+  2: ['@web-ts-toolkit/http-errors', '@web-ts-toolkit/asset-inliner', '@web-ts-toolkit/email-service'],
   3: ['@web-ts-toolkit/express-response-handler', '@web-ts-toolkit/express-request-attestation'],
   4: ['@web-ts-toolkit/express-json-router', '@web-ts-toolkit/mongoose-rxdb'],
   5: ['@web-ts-toolkit/access-router', '@web-ts-toolkit/express-oidc-vault'],

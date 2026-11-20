@@ -175,11 +175,11 @@ test('resource scratch alone uses a compact fresh ignored mkdtemp name without c
     assert.ok(ignoredScratch(consumer, label).startsWith(`${consumer}/_tmp-ci-test-${label}-`));
 });
 
-test('actual pnpm-discovered output contract includes exactly 31 roots, six build-only apps and all published entrypoints', () => {
+test('actual pnpm-discovered output contract includes exactly 32 roots, six build-only apps and all published entrypoints', () => {
   const workspaces = loadWorkspaces();
   const model = createCiTestModel(workspaces);
   const actual = outputContract(repositoryRoot, workspaces, model);
-  assert.equal(actual.roots.length, 31);
+  assert.equal(actual.roots.length, 32);
   assert.equal(model.buildOnlyWorkspaces.length, 6);
   assert.deepEqual(actual.roots, [...reviewedOutputRoots]);
   for (const path of [
@@ -192,6 +192,9 @@ test('actual pnpm-discovered output contract includes exactly 31 roots, six buil
     'packages/access-router-runtime/dist/tsconfig.json',
     'packages/express-runtime/dist/cli.js',
     'packages/mongoose-rxdb/dist/storage/index.mjs',
+    ...['index', 'smtp', 'sendgrid', 'mongoose'].flatMap((name) =>
+      ['js', 'mjs', 'd.ts', 'd.mts'].map((extension) => `packages/email-service/dist/${name}.${extension}`),
+    ),
     'packages/create-access-router-mongo-starter/dist/template/pnpm-lock.yaml',
     'packages/create-access-router-mongo-starter/dist/template/.env.example',
   ])

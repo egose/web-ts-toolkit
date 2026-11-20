@@ -32,11 +32,10 @@ Reviewed upstream revision: `33e434d`, root version `0.53.0`; the worktree was c
 before task creation. Inspected `src/store.ts`, `src/dpop-replay.ts`, options and
 topology helpers, the README, package metadata, and selected replica-set tests.
 
-The motivating external ABCLS consumer uses version `0.51.0`. In that repository's
-`api-ts/auth/oidc-vault.ts`, `getOidcVaultStore` creates a separate `MongoClient`
-with `readPreference: 'primary'` because the ordinary application connection
-string may prefer secondaries. That reference is contextual, relative to the
-external repository, and not an implementation dependency.
+The motivating external consumer used version `0.51.0` and created a separate
+`MongoClient` with `readPreference: 'primary'` because the ordinary application
+connection string could prefer secondaries. This is contextual evidence, not
+an implementation dependency.
 
 Current upstream observations:
 

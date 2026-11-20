@@ -55,6 +55,7 @@ export const reviewedOutputRoots = [
   'packages/access-router-runtime/dist',
   'packages/asset-inliner/dist',
   'packages/create-access-router-mongo-starter/dist',
+  'packages/email-service/dist',
   'packages/express-json-router/dist',
   'packages/express-oidc-vault/dist',
   'packages/express-oidc-vault-memory-store/dist',

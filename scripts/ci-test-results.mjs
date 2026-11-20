@@ -8,7 +8,7 @@ const record = (value) => value !== null && typeof value === 'object' && !Array.
 const knownResults = new Set(['success', 'failure', 'cancelled', 'skipped']);
 
 // The generated aggregate's needs are the single source of truth for the
-// required-result contract. Do not duplicate the 25 workspace job IDs here.
+// required-result contract. Do not duplicate the workspace job IDs here.
 export function expectedCiJobs(model) {
   const workspaces = new Map(model.nodes.map((node) => [node.jobId, node.workspace]));
   return mainWorkflowJobs(model)['unit-test'].needs.map((jobId) => ({

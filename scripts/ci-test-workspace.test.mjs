@@ -365,7 +365,7 @@ test('compact resource directories still require an ignored real checkout and re
   assert.throws(() => assertResourceDirectory(state.consumer, safe), /git check-ignore.*failed/);
 });
 
-test('resource inventory selects only the three real-browser jobs, eight Mongo jobs and two Redis jobs', (t) => {
+test('resource inventory selects only the three real-browser jobs, nine Mongo jobs and two Redis jobs', (t) => {
   const state = fixture(t);
   const workspaces = actualWorkspaces();
   const model = createCiTestModel(workspaces);
@@ -382,12 +382,18 @@ test('resource inventory selects only the three real-browser jobs, eight Mongo j
     });
     for (const kind of Object.keys(selected)) if (plan[kind]) selected[kind].push(workspace);
     assert.equal(plan.tmpdir, plan.resourceDirectory);
+    if (workspace === '@web-ts-toolkit/email-service') {
+      assert.equal(plan.mongo?.version, '8.2.6');
+      assert.equal(plan.browser, undefined);
+      assert.equal(plan.redis, undefined);
+    }
     for (const path of [plan.browser?.directory, plan.mongo?.directory].filter(Boolean)) {
       assert.equal(dirname(path), plan.resourceDirectory);
       assert.ok(!path.includes('/dist') && !path.includes('/node_modules'));
     }
   }
   assert.deepEqual(selected.browser.sort(), [...browserWorkspaces].sort());
+  assert.equal(selected.mongo.length, 9);
   assert.deepEqual(selected.mongo.sort(), [...mongoWorkspaces].sort());
   assert.deepEqual(selected.redis.sort(), [...redisWorkspaces].sort());
   assert.deepEqual(browserWorkspaces, [combined, browser, dpop]);

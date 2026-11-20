@@ -225,6 +225,27 @@ jobs:
         artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
       env:
         TMPDIR: ${{ steps.source.outputs.tmpdir }}
+  test-email-service:
+    name: test-email-service
+    runs-on: ubuntu-24.04
+    needs:
+    - ci-prepare
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+    - id: source
+      uses: ./.github/actions/ci-checkout
+    - uses: ./.github/actions/ci-test
+      with:
+        checkout-root: ${{ steps.source.outputs.root }}
+        checkout-relative: ${{ steps.source.outputs.relative-root }}
+        pnpm-dest: ${{ steps.source.outputs.pnpm-dest }}
+        workspace: '@web-ts-toolkit/email-service'
+        artifact-name: ${{ needs.ci-prepare.outputs.artifact-name }}
+        artifact-digest: ${{ needs.ci-prepare.outputs.artifact-digest }}
+      env:
+        TMPDIR: ${{ steps.source.outputs.tmpdir }}
   test-express-json-router:
     name: test-express-json-router
     runs-on: ubuntu-24.04
@@ -634,6 +655,7 @@ jobs:
     - test-access-router-runtime
     - test-asset-inliner
     - test-create-access-router-mongo-starter
+    - test-email-service
     - test-express-json-router
     - test-express-oidc-vault
     - test-express-oidc-vault-memory-store
