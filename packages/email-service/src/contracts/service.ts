@@ -1,6 +1,6 @@
 import type { EmailErrorCode } from '../errors';
 import type { EmailJobSummary, RetentionPolicy, RetryPolicy } from './job';
-import type { CallOptions, EmailScope, PreparedEmailCommand } from './message';
+import type { CallOptions, EmailScope, PreparedEmailCommand, SmtpCapacity } from './message';
 import type { EmailStore } from './store';
 import type { EmailCommand, EmailTemplateRegistry, TemplateCommand, TemplateMap } from './template';
 import type { EmailRunOptions, EmailRunReport, EmailWorker } from './worker';
@@ -9,6 +9,7 @@ export type AdmissionResult = { readonly status: 'enqueued' | 'replayed'; readon
 
 export interface EmailService<T extends TemplateMap> {
   readonly scope: EmailScope;
+  readonly smtpCapacity?: SmtpCapacity;
   /** Admit or replay by scoped stable intent; a committed replay does not prepare again. */
   enqueue(command: EmailCommand<T>, options?: CallOptions): Promise<AdmissionResult>;
   /** Relay the same scoped outbox snapshot unchanged. Does not join a host transaction, rerender, or extend expiry. */
@@ -17,6 +18,8 @@ export interface EmailService<T extends TemplateMap> {
 
 export type EmailServiceOptions<T extends TemplateMap> = {
   scope: EmailScope;
+  /** Must match the registry and store. Relay staged commands only through their original binding. */
+  smtpCapacity?: SmtpCapacity;
   store: EmailStore;
   registry: EmailTemplateRegistry<T>;
   retry?: Partial<RetryPolicy>;
@@ -55,7 +58,9 @@ export interface EmailBatchService<T extends TemplateMap> {
 }
 
 export type EmailBatchServiceOptions<T extends TemplateMap> = {
-  /** Must share the worker's scope and underlying store. */
+  /** Must share the worker's scope, underlying store and SMTP capacity binding, if enabled. */
   service: EmailService<T>;
   worker: EmailWorker;
+  /** Pass the exact tuple explicitly when the service and worker are opted in. */
+  smtpCapacity?: SmtpCapacity;
 };

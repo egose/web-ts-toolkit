@@ -170,14 +170,17 @@ function relayReminder(store: EmailStore, email: PreparedEmailCommand) {
 }
 ```
 
-Relay validates the V1 DTO, its hashes, and its scope. It does not join your transaction, rerender, refresh expiry,
+Relay validates the staged DTO, its hashes, and its scope. It does not join your transaction, rerender, refresh expiry,
 or send. Mark your outbox row relayed only after `enqueued` or `replayed`. If an acknowledgement is lost, relay the
-same persisted snapshot under the same scoped key; do not prepare a replacement. Keep the relay within the
-idempotency window. Restrict access to the staged payload; the returned job summary contains neither bodies nor addresses.
+same persisted snapshot under the same scoped key and queue configuration; do not prepare a replacement. Keep the
+relay within the idempotency window. Restrict access to the staged payload; the returned job summary contains
+neither bodies nor addresses.
 
 ## Configure an SMTP profile
 
 Install `nodemailer@">=10.6.0 <11"` to import the SMTP runtime entry. Its profile `key` must match the prepared snapshot.
+The default is 50 total To/Cc/Bcc recipients; see [SMTP capacity opt-in](#opt-in-to-larger-smtp-envelopes) for a separate
+queue that can admit larger envelopes.
 
 <!-- example: smtp-profile -->
 
@@ -248,7 +251,7 @@ await memoryStore.ready();
 ```
 
 Share the same instance to exercise competing callers. Each instance loses its state on restart and does not share
-state across processes. Capacity (default 256 jobs) is shared across scopes; a full store rejects new jobs instead of
+state across processes. The V1 job limit (default 256) is shared across scopes; a full store rejects new jobs instead of
 evicting retained ones. This is not a fallback for durable persistence. The `EmailStore` methods are private lifecycle
 primitives for adapters and tests, not application-facing routes. Claims include sensitive snapshots and ownership
 tokens; do not log or expose them. Store operations alone never contact a provider.
@@ -278,7 +281,7 @@ function runDue(worker: EmailWorker, signal: AbortSignal) {
 ```
 
 - Your host calls `await runDue(worker, signal)` to do a bounded run.
-  Those are the default work limits; set lower limits when appropriate. `timeoutMs` defaults to 30 seconds for the
+  Those are the V1 default work limits; set lower limits when appropriate. `timeoutMs` defaults to 30 seconds for the
   whole run, with a separate bounded finish grace. There is no polling or automatic connection management.
   One run per instance is allowed. Different instances can share a queue. `idle` is not a whole-queue inventory.
 - The worker prepares the provider payload, validates attachment bytes through your `attachmentResolvers`, and asks
@@ -358,9 +361,9 @@ async function inspectResults(store: EmailStore, jobId: string) {
   responses or ownership tokens. Activities are submission history, not inbox delivery receipts or inputs to a resend.
 - Lists contain complete committed projections, including those pending acknowledgement on the job. They order
   newest finish first, then by job and attempt ID. `from` is inclusive; `before` is exclusive. Keep the same scope
-  and filters when passing `nextCursor`; page size can change (default 25, range 1–100). Pages are not snapshots.
-- `reconcile` and `cleanup` do sequential work (default 20 steps, range 1–100); their counts describe only confirmed
-  progress in that call. All admin methods accept `signal` and one whole-call `timeoutMs` (default 10 seconds,
+  and filters when passing `nextCursor`; page size can change (V1 default 25, range 1–100). Pages are not snapshots.
+- `reconcile` and `cleanup` do sequential work (V1 default 20 steps, range 1–100); their counts describe only
+  confirmed progress in that call. All admin methods accept `signal` and one whole-call `timeoutMs` (default 10 seconds,
   override 50–60,000 ms). A persistence failure can leave work committed; a later maintenance call safely resumes it.
   An optional `onActivity` runs after a new confirmed projection ACK, without waiting for its returned promise.
   If one callback is already pending, later notifications are skipped, not queued or retried.
@@ -391,7 +394,7 @@ async function openStore(replicaSetUri: string) {
     await connection.asPromise();
     const store = createMongooseEmailStore(connection);
     await store.ready();
-    return { store, close: () => connection.close() };
+    return { connection, store, close: () => connection.close() };
   } catch (error) {
     await connection.close();
     throw error;
@@ -421,6 +424,141 @@ async function openStore(replicaSetUri: string) {
   result data; a provider accepting a submission would not establish inbox delivery. Host driver command
   monitoring can see private BSON; don't enable raw command logging in production.
 
+## Opt in to larger SMTP envelopes
+
+Omit `smtpCapacity` for V1: **50 total To/Cc/Bcc recipients**, unchanged default SMTP and SendGrid live/sandbox
+behavior, and the existing store definitions. The opt-in is for live SMTP only. It accepts one complete envelope
+per message; it never splits or truncates the envelope. To/Cc stay visible; Bcc stays envelope-only.
+
+Choose one **canonical lowercase UUIDv4** for the logical store and an integer `maxRecipients` from **51 to 1,000**.
+Keep that binding in trusted host configuration and pass it as `smtpCapacity` to every factory in that queue:
+registry, store, admission service, each SMTP profile, worker, batch facade and admin. They compare the tuple by
+value and take frozen copies. Do not read it from request data or infer it from a snapshot or a worker setting.
+Factory mismatches fail with `invalid_config`. There is no new environment setting; the host still supplies relay
+credentials separately.
+
+This example uses both optional peers and an already open [Mongoose connection](#durable-store-with-mongoose).
+It queues 51 synthetic addresses and does not run the worker. Replace the example UUID with one assigned to your
+store; do not generate a new UUID on startup.
+
+<!-- example: smtp-capacity -->
+
+```typescript
+import type { Connection } from 'mongoose';
+import {
+  createEmailAdmin,
+  createEmailBatchService,
+  createEmailService,
+  createEmailTemplateRegistry,
+  createEmailWorker,
+  defineLocalTemplate,
+  type SmtpCapacity,
+} from '@web-ts-toolkit/email-service';
+import { createMongooseEmailStore } from '@web-ts-toolkit/email-service/mongoose';
+import { createSmtpProvider, type SmtpProviderOptions } from '@web-ts-toolkit/email-service/smtp';
+
+const smtpCapacity: SmtpCapacity = {
+  format: 'smtp-v2',
+  namespace: '6d36e018-b27f-4f3d-88d1-9b10ad86aaff',
+  maxRecipients: 51,
+};
+
+async function configureCapacityLane(connection: Connection, relay: Omit<SmtpProviderOptions, 'smtpCapacity'>) {
+  const scope = 'example-app';
+  const store = createMongooseEmailStore(connection, { smtpCapacity });
+  await store.ready();
+  const notice = defineLocalTemplate({
+    kind: 'handlebars',
+    revision: 'v1',
+    defaults: { from: { address: 'sender@example.invalid' } },
+    subject: { kind: 'inline', content: 'Example notice' },
+    text: { kind: 'inline', content: 'Synthetic message' },
+    parseInput: () => null,
+    parseData: () => ({}),
+    prepare: () => ({
+      to: Array.from({ length: 51 }, (_, i) => ({ address: `recipient-${i}@example.invalid` })),
+      values: {},
+    }),
+  });
+  const registry = createEmailTemplateRegistry({ notice }, { smtpCapacity });
+  const service = createEmailService({ scope, store, registry, smtpCapacity });
+  const smtp = createSmtpProvider({ ...relay, smtpCapacity });
+  const worker = createEmailWorker({ scope, store, providers: [smtp], smtpCapacity });
+  const batch = createEmailBatchService({ service, worker, smtpCapacity });
+  const admin = createEmailAdmin({ scope, store, smtpCapacity });
+  const admission = await service.enqueue({
+    templateKey: 'notice',
+    input: null,
+    intent: 'synthetic-notice',
+    key: { kind: 'single', idempotencyKey: 'notice-1' },
+    provider: smtp.ref,
+  });
+  return { admission, admin, batch, worker };
+}
+```
+
+For development, use `createMemoryEmailStore({ smtpCapacity })` and still await `store.ready()`. Separate backings
+(including independent memory stores) need different UUIDs, even in one process. For local SMTP tests, run a TLS relay
+with a fixture certificate signed by a test CA. For example, supply `host: '127.0.0.1'`, the fixture `port`,
+`tls: 'implicit'`, `servername: 'smtp.loopback.invalid'` (matching the certificate's DNS SAN) and `ca: [fixtureCaPem]`.
+`ca` explicitly trusts the fixture CA instead of the default roots; it does not bypass hostname verification.
+Both implicit TLS and required STARTTLS verify the peer; plaintext mail and plaintext authentication are not supported.
+
+### Envelope, queue and relay limits
+
+- Count and size checks both apply. The canonical snapshot is capped at **2 MiB and 4,096 JSON values** in the
+  opted-in queue (V1 uses a 1 MiB snapshot limit). Envelope fields, metadata, attachment references, and rendered
+  bodies share the snapshot budget, including JSON escaping. The individual **512 KiB HTML** and **256 KiB text**
+  allowances do not increase. Up to five attachments may supply separate bytes (2 MiB each, 5 MiB total).
+  An over-limit snapshot fails with `invalid_snapshot` before insert or provider preflight. On-wire MIME is a
+  different size from the snapshot: allow for headers, encoding and attachments when checking the relay's limits.
+- Opted-in workers default to one concurrent job (max two). `run()` defaults to four claims and four maintenance
+  steps (each max 16). Admin history pages default to eight activities (max 16); reconciliation and cleanup default
+  to four steps (max 16). A bound memory store defaults to eight jobs (max 16); a bound Mongo handle permits at
+  most four in-flight primitives. Do not copy larger V1 settings into a capacity queue.
+- Relay recipient limits, reply latency, message size limits and throughput may require choosing a lower cap.
+  The adapter waits for each `RCPT TO` reply, even if the relay advertises PIPELINING. For planning, multiply the
+  recipient count by a conservative per-reply latency and add time for DNS, connection, TLS, other commands,
+  MIME transfer and the final acknowledgement. Leave reserve for jitter and worker/store operations too. At
+  60 ms per reply, 1,000 RCPT replies alone use the entire 60-second provider maximum.
+
+On verified-TLS loopback, a single 1,000-recipient transaction with 8.18 MiB of synthetic MIME took **5.851 s**
+with 5 ms added per RCPT (15 s provider budget), **26.004 s** with 25 ms, and **50.980 s** with 50 ms (60 s budget).
+These are single samples, not production latency estimates or a guarantee for another relay. The worker's
+`limits.providerTimeoutMs` defaults to 15,000 ms and cannot exceed 60,000 ms; the effective call is further
+clipped by the remaining run and lease windows, including finalization grace and clock margin. Defaults are
+a 30 s run, 60 s lease and 10 s finalization grace. The two extended samples used
+`limits: { providerTimeoutMs: 60_000, leaseMs: 90_000 }` and a 75,000 ms `run({ timeoutMs })` budget, not just a
+higher provider timeout. Measure with representative envelopes and keep headroom; timeouts are not a flow-control
+strategy.
+
+After a partial acceptance there is no automatic resend, including to the rejected subset. Only definitive safe
+transient nonacceptance authorizes a submission retry. Timeout or missing acknowledgement can leave an `unknown`
+result; closing a socket does not prove that the relay discarded the message. `write_unconfirmed` is not a rollback.
+Job and activity reads remain redacted. Opted-in activities include group counts and, when known, group/index
+outcomes, not recipient addresses, message content, attachment references, credentials or raw SMTP replies.
+
+### Storage, rollout and rollback
+
+- `format: 'smtp-v2'` selects a separate **storage** format; the public DTOs still have `version: 1`.
+  Every opted-in prepared command, SMTP snapshot, job summary and activity carries its `smtpCapacity` metadata,
+  even below 51 recipients. The field is optional in TypeScript so the types still describe V1 data, where it
+  must be absent. Neither queue will accept the other's staged values.
+- On MongoDB the binding owns exactly `email_smtp_v2.<namespace>.jobs` and
+  `email_smtp_v2.<namespace>.activities`; V1 collection/model name overrides cannot be supplied with this option.
+  Call `ready()` before use. It checks both definitions and installs missing collections/indexes; it does not
+  alter existing validators, rewrite rows or touch V1 collections. A conflicting cap for an existing namespace
+  fails readiness. Keep the pair private and restore it together, offline, under its original binding.
+- Keep the namespace and cap fixed for the lifetime of the backing queue. To change the cap, provision a fresh
+  namespace, verify readiness, and change routing for **new** work. Keep older and newer queues separate, each
+  with its own matched worker and admin. Third-party stores stay V1 unless they implement the bound storage and
+  limits, including checking the exact `StoreCall.smtpCapacity` before each primitive.
+- To roll back, stop routing new work to the opt-in queue. Keep already staged outbox values and jobs on their
+  original route. Drain (or park) that lane with matching code and binding for recovery, inspection and retention;
+  keep V1 traffic on its existing queue. Do not point an older, V1-only runtime at the opted-in store. Do not retag,
+  copy or replay jobs across queues or automatically redrive uncertain work. The original lane's idempotency and
+  retention still apply.
+
 ## Integration entrypoints
 
 The integration types have their own entrypoints:
@@ -436,7 +574,7 @@ import type { MongooseEmailStoreOptions } from '@web-ts-toolkit/email-service/mo
 <!-- prettier-ignore -->
 | Entry | Current surface | Optional peer |
 | --- | --- | --- |
-| `@web-ts-toolkit/email-service` | `EmailError`, `createEmailTemplateRegistry`, `defineLocalTemplate`, `defineSendGridTemplate`, `createEmailService`, `createEmailWorker`, `createEmailBatchService`, `createEmailAdmin`, `createMemoryEmailStore`, and shared contracts | None |
+| `@web-ts-toolkit/email-service` | `EmailError`, `createEmailTemplateRegistry`, `defineLocalTemplate`, `defineSendGridTemplate`, `createEmailService`, `createEmailWorker`, `createEmailBatchService`, `createEmailAdmin`, `createMemoryEmailStore`, and shared contracts including `SmtpCapacity` | None |
 | `@web-ts-toolkit/email-service/smtp` | `createSmtpProvider`, `SmtpProviderOptions` | Nodemailer `>=10.6.0 <11` (runtime only) |
 | `@web-ts-toolkit/email-service/sendgrid` | `createSendGridProvider`, `SendGridProviderOptions` | None (Node HTTPS) |
 | `@web-ts-toolkit/email-service/mongoose` | `createMongooseEmailStore`, `MongooseEmailStoreOptions` | Mongoose `>=9.12.2 <10` (declarations and caller connection) |

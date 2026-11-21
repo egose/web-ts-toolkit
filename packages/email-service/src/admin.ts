@@ -12,6 +12,7 @@ import {
 import { createBudget, readCallOptions, systemEmailClock, type OperationBudget } from './internal/budget';
 import { bindMethod, CallbackSlot, pendingCallback, requireCallback } from './internal/callbacks';
 import { readJobSummary } from './internal/job-summary';
+import { assertPortCapacity, readCapacityOption } from './internal/smtp-capacity';
 import { runStoreCall } from './internal/store-call';
 import { readResolution, readStoreId, readStoreNext } from './internal/store-codecs';
 import { allowedErrorCode, boundedOption, invalid, readRecord, scopeToken } from './internal/validation';
@@ -40,7 +41,10 @@ export function createEmailAdmin(options: EmailAdminOptions): EmailAdmin {
 
 /** Internal elapsed clock seam; the store clock still governs all transitions and permit expiry. */
 export function createEmailAdminWithClock(options: EmailAdminOptions, clock: EmailClock): EmailAdmin {
-  const { scope: input, store, onActivity: callback } = readRecord(options, ['scope', 'store'], ['onActivity'], CONFIG);
+  const raw = readRecord(options, ['scope', 'store'], ['onActivity', 'smtpCapacity'], CONFIG);
+  const { scope: input, store, onActivity: callback } = raw;
+  const capacity = readCapacityOption(raw);
+  assertPortCapacity(store, capacity);
   const scope = scopeToken(input, CONFIG);
   const findJob = bindMethod<EmailStore['findJob']>(store, 'findJob');
   const cancel = bindMethod<EmailStore['cancel']>(store, 'cancel');
@@ -53,6 +57,7 @@ export function createEmailAdminWithClock(options: EmailAdminOptions, clock: Ema
   const onActivity =
     callback === undefined ? undefined : (requireCallback(callback) as (activity: EmailActivity) => unknown);
   let observers = 0;
+  let active = false;
 
   function observe(activity: EmailActivity, counts: { observerStarted: number; observerSkipped: number }) {
     if (!onActivity) return;
@@ -74,13 +79,13 @@ export function createEmailAdminWithClock(options: EmailAdminOptions, clock: Ema
   }
 
   function readJob(jobId: string, value: unknown) {
-    const job = readJobSummary(scope, value);
+    const job = readJobSummary(scope, value, capacity);
     if (job.jobId !== jobId) invalid(STORED);
     return job;
   }
 
   function callStore<T>(budget: OperationBudget, operation: StoreOperation<T>): Promise<T> {
-    return runStoreCall(clock, budget, { ...operation, maxMs: STORE_PRIMITIVE_TIMEOUT_MS });
+    return runStoreCall(clock, budget, { ...operation, maxMs: STORE_PRIMITIVE_TIMEOUT_MS, capacity });
   }
 
   function write<T>(budget: OperationBudget, invoke: (call: StoreCall) => unknown, accept: (value: unknown) => T) {
@@ -91,14 +96,20 @@ export function createEmailAdminWithClock(options: EmailAdminOptions, clock: Ema
     options: unknown,
     run: (budget: OperationBudget, signal: AbortSignal | undefined) => Promise<T>,
   ): Promise<T> {
-    const { timeoutMs, signal: source } = readCallOptions(options, CALL_BUDGETS.admissionOrAdmin);
-    // Read cancellation from a native dependent signal, not caller-overridable properties.
-    const signal = source && AbortSignal.any([source]);
-    const budget = createBudget(clock, timeoutMs, signal);
+    if (capacity && active) invalid('busy');
+    active = true;
     try {
-      return await run(budget, signal);
+      const { timeoutMs, signal: source } = readCallOptions(options, CALL_BUDGETS.admissionOrAdmin);
+      // Read cancellation from a native dependent signal, not caller-overridable properties.
+      const signal = source && AbortSignal.any([source]);
+      const budget = createBudget(clock, timeoutMs, signal);
+      try {
+        return await run(budget, signal);
+      } finally {
+        budget.close();
+      }
     } finally {
-      budget.close();
+      active = false;
     }
   }
 
@@ -107,7 +118,7 @@ export function createEmailAdminWithClock(options: EmailAdminOptions, clock: Ema
     step: (budget: OperationBudget) => Promise<StepStop | undefined>,
   ) {
     const { limit: input, ...call } = readRecord(options, [], ['limit', 'signal', 'timeoutMs'], CONFIG);
-    const limit = boundedOption(input, ADMIN_MAINTENANCE_LIMIT);
+    const limit = boundedOption(input, capacity?.limits.adminMaintenance ?? ADMIN_MAINTENANCE_LIMIT);
     return inOperation(call, async (budget, signal) => {
       let stop: MaintenanceStop = 'limit';
       for (let i = 0; i < limit; i++) {
@@ -198,7 +209,7 @@ export function createEmailAdminWithClock(options: EmailAdminOptions, clock: Ema
     },
     listActivities(query = {}, options = {}) {
       return inOperation(options, (budget) => {
-        const criteria = readActivityCriteria(scope, query);
+        const criteria = readActivityCriteria(scope, query, capacity);
         const request = activityQuery(criteria);
         return callStore(budget, {
           effect: 'read',
@@ -213,7 +224,7 @@ export function createEmailAdminWithClock(options: EmailAdminOptions, clock: Ema
         const next = await write(
           budget,
           (call) => reserve(scope, call),
-          (value) => readStoreNext(value, (permit) => readProjectionPermit(scope, permit)),
+          (value) => readStoreNext(value, (permit) => readProjectionPermit(scope, permit, capacity)),
         );
         if (next.status !== 'applied') return next.status === 'none' ? 'idle' : 'contended';
         counts.reserved++;

@@ -3,6 +3,7 @@ import type { StoreCall } from './contracts/store';
 import type { EmailRunEntry, EmailRunReport, EmailWorker, EmailWorkerOptions } from './contracts/worker';
 import { createBudget, createBudgetUntil, monotonicNow, waitForAbort } from './internal/budget';
 import { CallbackSlot } from './internal/callbacks';
+import { capacityTag } from './internal/smtp-capacity';
 import { readStoreNext } from './internal/store-codecs';
 import { allowedErrorCode, invalid } from './internal/validation';
 import { processClaim } from './internal/worker-attempt';
@@ -38,7 +39,7 @@ async function sweep<T>(
 }
 
 function claimNext(run: WorkerRun) {
-  const { clock, scope, store, limits } = run.config;
+  const { clock, scope, store, limits, capacity } = run.config;
   const request = Object.freeze({
     attemptId: randomUUID(),
     token: randomBytes(16).toString('base64url'),
@@ -55,7 +56,7 @@ function claimNext(run: WorkerRun) {
     },
     accept: (value) =>
       readStoreNext(value, (raw) => {
-        const claim = readClaimed(raw, scope, request);
+        const claim = readClaimed(raw, scope, request, capacity);
         return { claim, dispatchedAt, confirmedAt: monotonicNow(clock) };
       }),
   });
@@ -144,14 +145,14 @@ async function drainClaims(
 
 async function runQueue(run: WorkerRun, options: RunOptions, slots: Set<CallbackSlot>, shutdown: AbortSignal) {
   const items: EmailRunEntry[] = [];
-  const { scope, store } = run.config;
+  const { scope, store, capacity } = run.config;
   const contended =
     (await sweep(
       run,
       options.maintenanceLimit,
       items,
       (call) => store.recoverNext(scope, call),
-      readRecovery,
+      (value) => readRecovery(value, capacity),
       (commit) => ({
         operation: 'recover',
         jobId: commit.jobId,
@@ -166,7 +167,7 @@ async function runQueue(run: WorkerRun, options: RunOptions, slots: Set<Callback
       options.maintenanceLimit,
       items,
       (call) => store.expireNext(scope, call),
-      (value) => readQueuedExpiry(value, scope),
+      (value) => readQueuedExpiry(value, scope, capacity),
       (job) => ({
         operation: 'expire',
         jobId: job.jobId,
@@ -197,16 +198,17 @@ async function runQueue(run: WorkerRun, options: RunOptions, slots: Set<Callback
  */
 export function createEmailWorker(options: EmailWorkerOptions): EmailWorker {
   const config = readWorkerConfig(options);
-  const { clock, scope, limits } = config;
+  const { clock, scope, limits, capacity } = config;
   const shutdown = new AbortController();
   const slots = new Set<CallbackSlot>();
   let active: AbortController | undefined;
   const worker: EmailWorker = {
     scope,
+    ...capacityTag(capacity),
     async run(options = {}) {
       if (shutdown.signal.aborted) invalid('closed');
       if (active) invalid('busy');
-      const settings = readRunOptions(options, limits);
+      const settings = readRunOptions(options, limits, capacity);
       const done = new AbortController();
       active = done;
       try {

@@ -12,6 +12,21 @@ export function latch<T>() {
   return { reached, release };
 }
 
+/** Timeout is a test diagnostic, not a substitute for observing owned I/O teardown. */
+export async function atBarrier<T>(event: Promise<T>, label: string, timeoutMs = 5_000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      event,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Did not observe ${label}`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 type Exchange =
   | 'greeting'
   | 'ehlo'

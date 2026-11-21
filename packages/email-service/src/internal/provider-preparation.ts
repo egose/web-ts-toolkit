@@ -3,6 +3,7 @@ import type { AttachmentRef, EmailSnapshot, ProviderRef } from '../contracts/mes
 import type { ProviderCall, ProviderSubmission } from '../contracts/provider';
 import { readCallOptions } from './budget';
 import { copyAttachmentBytes, validateAttachmentRef, validateSnapshot } from './message-codecs';
+import type { CapacityContext } from './smtp-capacity';
 import { readStoreId } from './store-codecs';
 import { denseArrayLength, integer, invalid, ownData, readRecord } from './validation';
 
@@ -22,12 +23,13 @@ function sameRef(a: AttachmentRef, b: AttachmentRef): boolean {
 export function readProviderSubmission<K extends ProviderRef['kind']>(
   input: unknown,
   ref: ProviderRef & { kind: K },
+  capacity?: CapacityContext,
 ): ProviderSubmission<Extract<EmailSnapshot, { kind: K }>> {
   const code = 'invalid_snapshot';
   const raw = readRecord(input, ['jobId', 'attemptId', 'snapshot', 'attachments'], [], code);
   const jobId = readStoreId(raw.jobId, code);
   const attemptId = readStoreId(raw.attemptId, code);
-  const { snapshot } = validateSnapshot(raw.snapshot);
+  const { snapshot } = validateSnapshot(raw.snapshot, capacity);
   if (ref.kind !== snapshot.kind || ref.key !== snapshot.provider.key || ref.mode !== snapshot.provider.mode) {
     invalid('provider_mismatch');
   }

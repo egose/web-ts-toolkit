@@ -13,7 +13,7 @@ export async function finishAttempt(
   providerInvoked: boolean,
   result: AttemptResult | undefined,
 ) {
-  const { clock, store, scope, limits } = run.config;
+  const { clock, store, scope, limits, capacity } = run.config;
   const {
     claim: { fence },
     handoff,
@@ -32,7 +32,8 @@ export async function finishAttempt(
       return await run.callStore(grace, {
         effect: 'read',
         invoke: (call) => store.findAttempt(scope, fence.jobId, fence.attemptId, call),
-        accept: (value) => (value === null ? null : readOwnedCommit(value, evidence, request, providerInvoked, false)),
+        accept: (value) =>
+          value === null ? null : readOwnedCommit(value, evidence, request, providerInvoked, false, capacity),
       });
     } catch {
       return null; // Unavailable proof is not evidence of rollback or a missing commit.
@@ -44,7 +45,8 @@ export async function finishAttempt(
       effect: 'mutation',
       deadline: leaseEnd,
       invoke: (call) => store.finish(scope, exact, call),
-      accept: (value) => (value === null ? null : readOwnedCommit(value, evidence, exact, providerInvoked, true)),
+      accept: (value) =>
+        value === null ? null : readOwnedCommit(value, evidence, exact, providerInvoked, true, capacity),
     });
   }
 

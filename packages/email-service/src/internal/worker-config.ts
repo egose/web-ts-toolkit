@@ -12,6 +12,7 @@ import type { EmailRateLimiter, EmailWorkerLimits } from '../contracts/worker';
 import { monotonicNow, readCallOptions, readClock } from './budget';
 import { bindMethod, readPortMember, requireCallback } from './callbacks';
 import { validateProviderRef } from './message-codecs';
+import { assertCapacityProvider, assertPortCapacity, readCapacityOption, type CapacityContext } from './smtp-capacity';
 import {
   boundedOption,
   identifier,
@@ -25,11 +26,14 @@ import {
 
 const CONFIG = 'invalid_config';
 
-function readLimits(input: unknown): Readonly<EmailWorkerLimits> {
+function readLimits(input: unknown, capacity?: CapacityContext): Readonly<EmailWorkerLimits> {
   const keys = Object.keys(WORKER_LIMIT_BOUNDS) as (keyof EmailWorkerLimits)[];
   const raw = readRecord(input === undefined ? {} : input, [], keys, CONFIG);
   const limits = {} as EmailWorkerLimits;
-  for (const key of keys) limits[key] = boundedOption(raw[key], WORKER_LIMIT_BOUNDS[key]);
+  for (const key of keys) {
+    const bounds = key === 'maxConcurrency' ? capacity?.limits.workerConcurrency : undefined;
+    limits[key] = boundedOption(raw[key], bounds ?? WORKER_LIMIT_BOUNDS[key]);
+  }
   const { leaseMs, storeTimeoutMs, providerTimeoutMs, finalizeGraceMs } = limits;
   if (
     leaseMs <
@@ -52,14 +56,17 @@ type Profile = Readonly<{
   prepare(input: ProviderSubmission<EmailSnapshot>): unknown;
 }>;
 
-function readProfiles(input: unknown): ReadonlyMap<string, Profile> {
+function readProfiles(input: unknown, capacity?: CapacityContext): ReadonlyMap<string, Profile> {
   // Configuration is supplied by the host, not per job. Only one exact profile participates in an attempt.
   const profiles = new Map<string, Profile>();
-  readArray(input, Number.MAX_SAFE_INTEGER, CONFIG, (provider) => {
+  readArray(input, capacity?.limits.workerProfiles ?? Number.MAX_SAFE_INTEGER, CONFIG, (provider) => {
     const ref = validateProviderRef(readPortMember(provider, 'ref'), CONFIG);
+    assertPortCapacity(provider, capacity);
+    assertCapacityProvider(ref, capacity, CONFIG);
     if (profiles.has(ref.key)) invalid(CONFIG);
     profiles.set(ref.key, Object.freeze({ ref, prepare: bindMethod<Profile['prepare']>(provider, 'prepare') }));
   });
+  if (capacity && profiles.size === 0) invalid(CONFIG);
   return profiles;
 }
 
@@ -101,15 +108,18 @@ export function readWorkerConfig(input: unknown) {
   const raw = readRecord(
     input,
     ['scope', 'store', 'providers'],
-    ['attachmentResolvers', 'rateLimiter', 'clock', 'limits'],
+    ['attachmentResolvers', 'rateLimiter', 'clock', 'limits', 'smtpCapacity'],
     CONFIG,
   );
   const { store } = raw;
+  const capacity = readCapacityOption(raw);
+  assertPortCapacity(store, capacity);
   return Object.freeze({
+    capacity,
     scope: scopeToken(raw.scope, CONFIG),
-    limits: readLimits(raw.limits),
+    limits: readLimits(raw.limits, capacity),
     clock: readWorkerClock(raw.clock),
-    profiles: readProfiles(raw.providers),
+    profiles: readProfiles(raw.providers, capacity),
     resolvers: readResolvers(raw.attachmentResolvers),
     limiter: readLimiter(raw.rateLimiter),
     store: Object.freeze({
@@ -126,7 +136,7 @@ export function readWorkerConfig(input: unknown) {
 
 export type WorkerConfig = ReturnType<typeof readWorkerConfig>;
 
-export function readRunOptions(input: unknown, limits: Readonly<EmailWorkerLimits>) {
+export function readRunOptions(input: unknown, limits: Readonly<EmailWorkerLimits>, capacity?: CapacityContext) {
   const { limit, concurrency, maintenanceLimit, ...call } = readRecord(
     input,
     [],
@@ -135,9 +145,9 @@ export function readRunOptions(input: unknown, limits: Readonly<EmailWorkerLimit
   );
   return Object.freeze({
     ...readCallOptions(call, CALL_BUDGETS.batchOrRun),
-    limit: boundedOption(limit, RUN_CLAIM_LIMIT),
+    limit: boundedOption(limit, capacity?.limits.runClaims ?? RUN_CLAIM_LIMIT),
     concurrency: boundedOption(concurrency, { min: 1, max: limits.maxConcurrency, default: limits.maxConcurrency }),
-    maintenanceLimit: boundedOption(maintenanceLimit, RUN_MAINTENANCE_LIMIT),
+    maintenanceLimit: boundedOption(maintenanceLimit, capacity?.limits.runMaintenance ?? RUN_MAINTENANCE_LIMIT),
   });
 }
 

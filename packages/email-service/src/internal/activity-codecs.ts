@@ -11,14 +11,19 @@ import type { EmailJobSummary, JobDisposition } from '../contracts/job';
 import type { AttemptResult } from '../contracts/provider';
 import type { AttemptCommit, ProjectionPermit } from '../contracts/store';
 import type { EmailErrorCode } from '../errors';
-import { assertEvidenceContext, assertEvidencePhase, readAttemptResult } from './attempt-codecs';
-import { canonicalJson, hashJson } from './canonical-json';
+import {
+  assertEvidenceContext,
+  assertEvidencePhase,
+  readAttemptResult,
+  readRecipientCounts,
+  type RecipientCounts,
+} from './attempt-codecs';
+import { canonicalJson, encodeEvidence, sha256 } from './canonical-json';
 import { validateCorrelation, validateProviderRef, validateTemplateIdentity } from './message-codecs';
+import { assertCapacityProvider, assertCapacityTag, capacityTag, type CapacityContext } from './smtp-capacity';
 import { readStoreId } from './store-codecs';
 import { hashToken, integer, invalid, readArray, readRecord, scopeToken, unixMs } from './validation';
 
-// Covers all 50 recipient outcomes and the maximum widths of v1 redacted metadata.
-const ACTIVITY_BYTES = 8_192;
 const dispositions = [
   'accepted',
   'partially_accepted',
@@ -55,11 +60,11 @@ export function assertActivityDisposition(
   }
 }
 
-/** Read only plain, complete, redacted projections; an identity stub is not an activity. */
-export function readActivity(
+function captureActivity(
   scope: string,
   input: unknown,
-  code: EmailErrorCode = 'store_incompatible',
+  code: EmailErrorCode,
+  capacity?: CapacityContext,
 ): EmailActivity {
   const raw = readRecord(
     input,
@@ -77,27 +82,32 @@ export function readActivity(
       'result',
       'disposition',
     ],
-    ['handedOffAt'],
+    ['handedOffAt', 'smtpCapacity', 'recipientCounts'],
     code,
   );
   if (raw.version !== EMAIL_FORMAT_VERSION || scopeToken(raw.scope, code) !== scope) invalid(code);
+  assertCapacityTag(raw, capacity, code);
+  if (!capacity && Object.hasOwn(raw, 'recipientCounts')) invalid(code);
+  const counts = capacity ? readRecipientCounts(raw.recipientCounts, code, capacity) : undefined;
   const jobId = readStoreId(raw.jobId, code);
   const attemptId = readStoreId(raw.attemptId, code);
   const provider = validateProviderRef(raw.provider, code);
+  assertCapacityProvider(provider, capacity, code);
   const startedAt = unixMs(raw.startedAt, code);
   const finishedAt = unixMs(raw.finishedAt, code);
   const handedOffAt = Object.hasOwn(raw, 'handedOffAt') ? unixMs(raw.handedOffAt, code) : undefined;
   if (finishedAt < startedAt || (handedOffAt !== undefined && (handedOffAt < startedAt || handedOffAt > finishedAt))) {
     invalid(code);
   }
-  const result = readAttemptResult(raw.result, code, true);
+  const result = readAttemptResult(raw.result, code, true, capacity);
   assertEvidencePhase(result.reason, handedOffAt === undefined ? 'pre_handoff' : 'handed_off', 'ledger', code);
-  // Full recipient accounting is checked against the authoritative row. Activity reads have only the redacted DTO.
-  assertEvidenceContext(result, provider, attemptId, undefined, code);
+  assertEvidenceContext(result, provider, attemptId, counts, code);
   const disposition = readDisposition(raw.disposition, code);
   assertActivityDisposition(result, disposition, code);
   return Object.freeze({
     version: EMAIL_FORMAT_VERSION,
+    ...capacityTag(capacity),
+    ...(counts ? { recipientCounts: counts } : {}),
     scope,
     jobId,
     attemptId,
@@ -113,37 +123,59 @@ export function readActivity(
   });
 }
 
-type ActivityJob = Pick<EmailJobSummary, 'scope' | 'jobId' | 'provider' | 'template' | 'correlation'>;
-
-export function activityFor(job: ActivityJob, commit: AttemptCommit): EmailActivity {
-  const { outcome, retry, stage, reason, recipients, messageId, providerMessageId } = commit.result;
-  return readActivity(job.scope, {
-    version: EMAIL_FORMAT_VERSION,
-    scope: job.scope,
-    jobId: job.jobId,
-    attemptId: commit.attemptId,
-    ordinal: commit.ordinal,
-    provider: job.provider,
-    template: job.template,
-    correlation: job.correlation,
-    startedAt: commit.startedAt,
-    ...(commit.handedOffAt === undefined ? {} : { handedOffAt: commit.handedOffAt }),
-    finishedAt: commit.finishedAt,
-    disposition: commit.disposition,
-    result: {
-      outcome,
-      retry,
-      stage,
-      reason,
-      ...(recipients === undefined ? {} : { recipients }),
-      ...(messageId === undefined ? {} : { messageId }),
-      ...(providerMessageId === undefined ? {} : { providerMessageId }),
-    },
-  });
+/** Read only plain, complete, redacted projections; an identity stub is not an activity. */
+export function readActivity(
+  scope: string,
+  input: unknown,
+  code: EmailErrorCode = 'store_incompatible',
+  capacity?: CapacityContext,
+): EmailActivity {
+  const activity = captureActivity(scope, input, code, capacity);
+  if (capacity) encodeEvidence(activity, code, capacity);
+  return activity;
 }
 
-export function activityDigest(activity: EmailActivity): string {
-  return hashJson(activity, ACTIVITY_BYTES, 'store_incompatible');
+type ActivityJob = Pick<EmailJobSummary, 'scope' | 'jobId' | 'provider' | 'template' | 'correlation'> & {
+  readonly recipientCounts?: RecipientCounts;
+};
+
+export function activityFor(job: ActivityJob, commit: AttemptCommit, capacity?: CapacityContext): EmailActivity {
+  const { outcome, retry, stage, reason, recipients, messageId, providerMessageId } = commit.result;
+  // Used with the digest or with a previously validated ledger digest.
+  return captureActivity(
+    job.scope,
+    {
+      version: EMAIL_FORMAT_VERSION,
+      ...capacityTag(capacity),
+      ...(capacity ? { recipientCounts: job.recipientCounts } : {}),
+      scope: job.scope,
+      jobId: job.jobId,
+      attemptId: commit.attemptId,
+      ordinal: commit.ordinal,
+      provider: job.provider,
+      template: job.template,
+      correlation: job.correlation,
+      startedAt: commit.startedAt,
+      ...(commit.handedOffAt === undefined ? {} : { handedOffAt: commit.handedOffAt }),
+      finishedAt: commit.finishedAt,
+      disposition: commit.disposition,
+      result: {
+        outcome,
+        retry,
+        stage,
+        reason,
+        ...(recipients === undefined ? {} : { recipients }),
+        ...(messageId === undefined ? {} : { messageId }),
+        ...(providerMessageId === undefined ? {} : { providerMessageId }),
+      },
+    },
+    'store_incompatible',
+    capacity,
+  );
+}
+
+export function activityDigest(activity: EmailActivity, capacity?: CapacityContext): string {
+  return sha256(encodeEvidence(activity, 'store_incompatible', capacity));
 }
 
 export type StoredActivity = Readonly<{ activity: EmailActivity; digest: string }>;
@@ -152,22 +184,23 @@ export function readStoredActivity(
   scope: string,
   input: unknown,
   code: EmailErrorCode = 'store_incompatible',
+  capacity?: CapacityContext,
 ): StoredActivity {
   const raw = readRecord(input, ['activity', 'digest'], [], code);
-  const activity = readActivity(scope, raw.activity, code);
+  const activity = captureActivity(scope, raw.activity, code, capacity);
   const digest = hashToken(raw.digest, code);
-  if (activityDigest(activity) !== digest) invalid(code);
+  if (activityDigest(activity, capacity) !== digest) invalid(code);
   return Object.freeze({ activity, digest });
 }
 
-export function readProjectionPermit(scope: string, input: unknown): ProjectionPermit {
+export function readProjectionPermit(scope: string, input: unknown, capacity?: CapacityContext): ProjectionPermit {
   const code = 'invalid_command';
   const {
     activity,
     digest,
     permitUntil: rawUntil,
   } = readRecord(input, ['activity', 'digest', 'permitUntil'], [], code);
-  const stored = readStoredActivity(scope, { activity, digest }, code);
+  const stored = readStoredActivity(scope, { activity, digest }, code, capacity);
   const permitUntil = unixMs(rawUntil, code);
   if (permitUntil - stored.activity.finishedAt < PROJECTION_PERMIT_MS) invalid(code);
   return Object.freeze({ ...stored, permitUntil });
@@ -182,6 +215,7 @@ export type ActivityCriteria = Readonly<{
   before: number | null;
   limit: number;
   after?: ActivityPosition;
+  capacity?: CapacityContext;
 }>;
 
 export function compareAscii(a: string, b: string): number {
@@ -193,6 +227,7 @@ export function compareActivity(a: ActivityPosition, b: ActivityPosition): numbe
 }
 
 function cursorPayload(criteria: ActivityCriteria, position: ActivityPosition) {
+  const binding = criteria.capacity?.binding;
   return {
     v: EMAIL_FORMAT_VERSION,
     s: criteria.scope,
@@ -200,6 +235,7 @@ function cursorPayload(criteria: ActivityCriteria, position: ActivityPosition) {
     f: criteria.from,
     b: criteria.before,
     p: [position.finishedAt, position.jobId, position.attemptId],
+    ...(binding ? { c: [binding.format, binding.namespace, binding.maxRecipients] } : {}),
   };
 }
 
@@ -227,7 +263,7 @@ function decodeCursor(criteria: ActivityCriteria, cursor: unknown): ActivityPosi
   } catch {
     invalid(code);
   }
-  const { p } = readRecord(input, ['v', 's', 'j', 'f', 'b', 'p'], [], code);
+  const { p } = readRecord(input, ['v', 's', 'j', 'f', 'b', 'p'], criteria.capacity ? ['c'] : [], code);
   const tuple = readArray(p, 3, code, (entry) => entry);
   const position = Object.freeze({
     finishedAt: unixMs(tuple[0], code),
@@ -245,17 +281,16 @@ function decodeCursor(criteria: ActivityCriteria, cursor: unknown): ActivityPosi
   return position;
 }
 
-export function readActivityCriteria(scope: string, input: unknown): ActivityCriteria {
+export function readActivityCriteria(scope: string, input: unknown, capacity?: CapacityContext): ActivityCriteria {
   const code = 'invalid_command';
   const raw = readRecord(input, [], ['jobId', 'from', 'before', 'limit', 'cursor'], code);
   const jobId = Object.hasOwn(raw, 'jobId') ? readStoreId(raw.jobId, code) : null;
   const from = Object.hasOwn(raw, 'from') ? unixMs(raw.from, code) : null;
   const before = Object.hasOwn(raw, 'before') ? unixMs(raw.before, code) : null;
   if (from !== null && before !== null && from > before) invalid(code);
-  const limit = Object.hasOwn(raw, 'limit')
-    ? integer(raw.limit, ACTIVITY_PAGE_LIMIT.min, ACTIVITY_PAGE_LIMIT.max, code)
-    : ACTIVITY_PAGE_LIMIT.default;
-  const criteria = { scope, jobId, from, before, limit };
+  const page = capacity?.limits.page ?? ACTIVITY_PAGE_LIMIT;
+  const limit = Object.hasOwn(raw, 'limit') ? integer(raw.limit, page.min, page.max, code) : page.default;
+  const criteria = { scope, jobId, from, before, limit, ...(capacity ? { capacity } : {}) };
   return Object.freeze({
     ...criteria,
     ...(Object.hasOwn(raw, 'cursor') ? { after: decodeCursor(criteria, raw.cursor) } : {}),
@@ -278,7 +313,7 @@ function readOrderedActivities(criteria: ActivityCriteria, input: unknown, maxRo
   const code = 'store_incompatible';
   let previous = criteria.after;
   return readArray(input, maxRows, code, (row) => {
-    const activity = readActivity(criteria.scope, row);
+    const activity = readActivity(criteria.scope, row, code, criteria.capacity);
     if (
       (previous && compareActivity(previous, activity) >= 0) ||
       (criteria.jobId !== null && criteria.jobId !== activity.jobId) ||

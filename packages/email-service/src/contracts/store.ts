@@ -17,11 +17,17 @@ import type {
   EmailScope,
   EmailSnapshot,
   PreparedEmailCommand,
+  SmtpCapacity,
   UnixMs,
 } from './message';
 import type { AttemptReason, AttemptResult } from './provider';
 
-export type StoreCall = { signal: AbortSignal; timeoutMs: number };
+export type StoreCall = {
+  signal: AbortSignal;
+  timeoutMs: number;
+  /** An opted-in store must check this exact binding before every primitive. V1 calls omit it. */
+  readonly smtpCapacity?: SmtpCapacity;
+};
 export type StoreNext<T> =
   | { readonly status: 'applied'; readonly value: T }
   | { readonly status: 'none' | 'contended' };
@@ -80,6 +86,7 @@ export type CleanupStep = 'payload_pruned' | 'retirement_started' | 'purged';
  * time for durable guards. Do not report an unconfirmed write as a definite miss or fall back to memory.
  */
 export interface EmailStore {
+  readonly smtpCapacity?: SmtpCapacity;
   ready(options?: CallOptions): Promise<void>;
   findAdmission(
     scope: EmailScope,
@@ -137,8 +144,10 @@ export interface EmailStore {
 
 /** Settings for a single-process, non-durable development/test store. */
 export type MemoryEmailStoreOptions = {
+  /** Opt into the SMTP queue format. Assign a different namespace to each independent backing. */
+  smtpCapacity?: SmtpCapacity;
   /** Store wall time governs transitions; elapsed time enforces call budgets. Defaults to system time. */
   clock?: EmailClock;
-  /** Capacity across all scopes in this instance; default 256, range 1–4096. */
+  /** Across all scopes: default 256, range 1–4,096 (SMTP opt-in: default 8, range 1–16). */
   maxJobs?: number;
 };

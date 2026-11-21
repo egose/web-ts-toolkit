@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { verifyCapacityBindings } from './readme-build/capacity-mixed.mjs';
 import { prepared } from './readme-build/readme-local.mjs';
 import { smtp } from './readme-build/readme-smtp-profile.mjs';
 import { admission, resumed, batch, worker } from './readme-build/readme-batch.mjs';
 import { openStore } from './readme-build/readme-mongoose.mjs';
+import { configureCapacityLane } from './readme-build/readme-smtp-capacity.mjs';
 import './readme-build/readme-entry-types.mjs';
 import { inspectResults } from './readme-build/readme-results.mjs';
 
@@ -25,6 +27,19 @@ try {
   const { job, page } = await inspectResults(durable.store, admission.items[0].job.jobId);
   assert.equal(job, null);
   assert.deepEqual(page, { items: [] });
+  const opted = await configureCapacityLane(durable.connection, {
+    key: 'large-smtp',
+    host: 'smtp.example.invalid',
+    tls: 'starttls',
+  });
+  try {
+    assert.equal(opted.admission.status, 'enqueued');
+    assert.equal(opted.admission.job.smtpCapacity.maxRecipients, 51);
+    assert.deepEqual(await opted.admin.getJob(opted.admission.job.jobId), opted.admission.job);
+  } finally {
+    await opted.worker.shutdown();
+  }
+  await verifyCapacityBindings(durable.connection, durable.store);
 } finally {
   await durable.close();
 }

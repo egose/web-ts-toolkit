@@ -13,21 +13,15 @@ import type { EmailErrorCode } from '../errors';
 import { assertEvidencePhase, readAttemptResult } from './attempt-codecs';
 import { readCallOptions } from './budget';
 import { encodeAdmissionKey, validatePreparedCommand } from './command-codecs';
-import { integer, invalid, readRecord } from './validation';
+import { assertCapacityTag, type CapacityContext } from './smtp-capacity';
+import { integer, invalid, readRecord, uuidV4 } from './validation';
 
 const REQUEST = 'invalid_command';
 const LEASE = WORKER_LIMIT_BOUNDS.leaseMs;
 
 /** Opaque random UUIDs, in the canonical spelling produced by Node's randomUUID(). */
 export function readStoreId(value: unknown, code: EmailErrorCode = REQUEST): string {
-  if (
-    typeof value !== 'string' ||
-    value.length !== 36 ||
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value)
-  ) {
-    invalid(code);
-  }
-  return value;
+  return uuidV4(value, code);
 }
 
 /** The caller generates an independent random secret (at least 128 bits); syntax alone cannot establish entropy. */
@@ -54,14 +48,18 @@ export function timeAfter(start: UnixMs, delayMs: number): UnixMs | undefined {
 }
 
 /** Child operations may have a shorter budget than the worker's public override floor. */
-export function readStoreCall(input: unknown, worker = false): StoreCall {
+export function readStoreCall(input: unknown, worker = false, capacity?: CapacityContext): StoreCall {
   const code = 'invalid_config';
-  const raw = readRecord(input, ['signal', 'timeoutMs'], [], code);
+  const { smtpCapacity, ...raw } = readRecord(input, ['signal', 'timeoutMs'], capacity ? ['smtpCapacity'] : [], code);
+  if (capacity) assertCapacityTag({ smtpCapacity }, capacity, 'store_incompatible');
   const max = worker ? WORKER_LIMIT_BOUNDS.storeTimeoutMs.max : CALL_BUDGETS.admissionOrAdmin.max;
   const timeoutMs = integer(raw.timeoutMs, 1, max, code);
   const call = readCallOptions(raw, { default: STORE_PRIMITIVE_TIMEOUT_MS, min: 1, max });
   if (!call.signal) invalid(code);
-  return { signal: call.signal, timeoutMs: worker ? timeoutMs : Math.min(timeoutMs, STORE_PRIMITIVE_TIMEOUT_MS) };
+  return {
+    signal: call.signal,
+    timeoutMs: worker && !capacity ? timeoutMs : Math.min(timeoutMs, STORE_PRIMITIVE_TIMEOUT_MS),
+  };
 }
 
 export function readStoreNext<T>(value: unknown, read: (input: unknown) => T): StoreNext<T> {
@@ -104,9 +102,9 @@ export function readRetentionPolicy(input: unknown, code: EmailErrorCode = REQUE
 
 export type ValidatedAdmission = Readonly<StoreAdmission & { admissionKey: string }>;
 
-export function readStoreAdmission(scope: string, input: unknown): ValidatedAdmission {
+export function readStoreAdmission(scope: string, input: unknown, capacity?: CapacityContext): ValidatedAdmission {
   const raw = readRecord(input, ['command', 'jobId', 'retry', 'retention'], [], REQUEST);
-  const command = validatePreparedCommand(scope, raw.command);
+  const command = validatePreparedCommand(scope, raw.command, capacity);
   return Object.freeze({
     command,
     admissionKey: encodeAdmissionKey(command.key),
@@ -132,7 +130,7 @@ export function readClaim(input: unknown) {
 }
 
 export type FinishRequest = ReturnType<typeof readFinish>;
-export function readFinish(input: unknown) {
+export function readFinish(input: unknown, capacity?: CapacityContext) {
   const { fence, phase, operationId, result } = readRecord(
     input,
     ['fence', 'phase', 'operationId', 'result'],
@@ -140,7 +138,7 @@ export function readFinish(input: unknown) {
     REQUEST,
   );
   if (phase !== 'pre_handoff' && phase !== 'handed_off') invalid(REQUEST);
-  const evidence = readAttemptResult(result);
+  const evidence = readAttemptResult(result, REQUEST, false, capacity);
   assertEvidencePhase(evidence.reason, phase, 'owner', REQUEST);
   return Object.freeze({ fence: readFence(fence), phase, operationId: readStoreId(operationId), result: evidence });
 }

@@ -1,3 +1,4 @@
+import { STORE_PRIMITIVE_TIMEOUT_MS } from '../constants';
 import type { EmailRunEntry, EmailRunReport } from '../contracts/worker';
 import type { OperationBudget } from './budget';
 import { runStoreCall } from './store-call';
@@ -37,11 +38,16 @@ export class WorkerRun {
     budget: OperationBudget,
     operation: Omit<StoreOperation<T>, 'maxMs' | 'onError'> & { maxMs?: number; authorize?: true },
   ): Promise<T> {
-    const { clock, limits } = this.config;
+    const { clock, limits, capacity } = this.config;
     let invoked = false;
     return runStoreCall(clock, budget, {
       ...operation,
-      maxMs: Math.min(operation.maxMs ?? limits.storeTimeoutMs, limits.storeTimeoutMs),
+      capacity,
+      maxMs: Math.min(
+        operation.maxMs ?? limits.storeTimeoutMs,
+        limits.storeTimeoutMs,
+        capacity ? STORE_PRIMITIVE_TIMEOUT_MS : Infinity,
+      ),
       beforeInvoke: () => {
         if (operation.authorize) this.checkLaunch();
         operation.beforeInvoke?.();

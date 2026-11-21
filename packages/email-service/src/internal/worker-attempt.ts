@@ -127,7 +127,7 @@ async function launch(
   submit: PreparedEmailSubmission['submit'],
   preflight: OperationBudget,
 ): Promise<AttemptResult | undefined> {
-  const { clock, limits } = run.config;
+  const { clock, limits, capacity } = run.config;
   const { provider, envelope, expiresAt } = owner.claim.snapshot;
   const { attemptId } = owner.claim.fence;
   const launchEnd = Math.min(
@@ -165,7 +165,7 @@ async function launch(
       if (!types.isPromise(returned)) return unknown('transport_uncertain');
       let result: ProviderResult;
       try {
-        result = readProviderResult(raw, provider, attemptId, envelope);
+        result = readProviderResult(raw, provider, attemptId, envelope, capacity);
       } catch {
         return unknown('transport_uncertain');
       }

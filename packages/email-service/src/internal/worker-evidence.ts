@@ -15,9 +15,10 @@ import {
   readAttemptResult,
   recipientCounts,
 } from './attempt-codecs';
-import { canonicalJson } from './canonical-json';
+import { canonicalJson, encodeEvidence } from './canonical-json';
 import { readJobSummary } from './job-summary';
 import { validateSnapshot } from './message-codecs';
+import type { CapacityContext } from './smtp-capacity';
 import { readFence, readStoreId, type ClaimRequest, type FinishRequest } from './store-codecs';
 import { integer, invalid, readRecord, unixMs } from './validation';
 import { sameProvider } from './worker-config';
@@ -32,10 +33,15 @@ function readGrant(times: { grantedAt: unknown; leaseEndsAt: unknown }, leaseMs:
   return Object.freeze({ grantedAt, leaseEndsAt });
 }
 
-export function readClaimed(value: unknown, scope: string, expected: ClaimRequest): ClaimedEmail {
+export function readClaimed(
+  value: unknown,
+  scope: string,
+  expected: ClaimRequest,
+  capacity?: CapacityContext,
+): ClaimedEmail {
   const raw = readRecord(value, ['job', 'snapshot', 'fence', 'lease', 'ordinal', 'manual'], [], STORED);
-  const job = readJobSummary(scope, raw.job);
-  const { snapshot } = validateSnapshot(raw.snapshot);
+  const job = readJobSummary(scope, raw.job, capacity);
+  const { snapshot } = validateSnapshot(raw.snapshot, capacity);
   const fence = readFence(raw.fence);
   const lease = readGrant(readRecord(raw.lease, ['grantedAt', 'leaseEndsAt'], [], STORED), expected.leaseMs);
   const ordinal = integer(raw.ordinal, 1, MAX_ATTEMPT_LEDGER, STORED);
@@ -113,7 +119,7 @@ export function readHandoff(value: unknown, last: TimedGrant, claim: ClaimedEmai
   return Object.freeze({ ...grant, handoffAt });
 }
 
-function readCommit(value: unknown): AttemptCommit {
+function readCommit(value: unknown, capacity?: CapacityContext): AttemptCommit {
   const raw = readRecord(
     value,
     ['jobId', 'attemptId', 'ordinal', 'operationId', 'startedAt', 'finishedAt', 'result', 'disposition', 'reason'],
@@ -124,7 +130,7 @@ function readCommit(value: unknown): AttemptCommit {
   const finishedAt = unixMs(raw.finishedAt, STORED);
   const handedOffAt = Object.hasOwn(raw, 'handedOffAt') ? unixMs(raw.handedOffAt, STORED) : undefined;
   const retryAt = Object.hasOwn(raw, 'retryAt') ? unixMs(raw.retryAt, STORED) : undefined;
-  const result = readAttemptResult(raw.result, STORED);
+  const result = readAttemptResult(raw.result, STORED, false, capacity);
   const disposition = readDisposition(raw.disposition, STORED);
   const reason = raw.reason === 'attempts_exhausted' ? raw.reason : readAttemptReason(raw.reason, STORED);
   assertEvidencePhase(result.reason, handedOffAt === undefined ? 'pre_handoff' : 'handed_off', 'ledger', STORED);
@@ -162,8 +168,8 @@ function readCommit(value: unknown): AttemptCommit {
   });
 }
 
-export function readRecovery(value: unknown): AttemptCommit {
-  const commit = readCommit(value);
+export function readRecovery(value: unknown, capacity?: CapacityContext): AttemptCommit {
+  const commit = readCommit(value, capacity);
   const { result, startedAt, handedOffAt, finishedAt } = commit;
   if (
     (result.reason !== 'pre_handoff_lease_expired' && result.reason !== 'post_handoff_lease_expired') ||
@@ -174,8 +180,8 @@ export function readRecovery(value: unknown): AttemptCommit {
   return commit;
 }
 
-export function readQueuedExpiry(value: unknown, scope: string) {
-  const job = readJobSummary(scope, value);
+export function readQueuedExpiry(value: unknown, scope: string, capacity?: CapacityContext) {
+  const job = readJobSummary(scope, value, capacity);
   if (
     job.state !== 'terminal' ||
     job.disposition !== 'expired' ||
@@ -202,8 +208,9 @@ export function readOwnedCommit(
   request: FinishRequest | undefined,
   providerInvoked: boolean,
   direct: boolean,
+  capacity?: CapacityContext,
 ): AttemptCommit {
-  const commit = readCommit(value);
+  const commit = readCommit(value, capacity);
   const { attemptId, startedAt, handedOffAt, finishedAt, result, disposition, retryAt } = commit;
   const { job, snapshot, fence, ordinal, manual } = claim;
   const { expiresAt } = job;
@@ -239,7 +246,7 @@ export function readOwnedCommit(
     if (
       phase !== request.phase ||
       finishedAt >= last.leaseEndsAt ||
-      canonicalJson(result, 8_192, STORED).encoded !== canonicalJson(request.result, 8_192, STORED).encoded
+      encodeEvidence(result, STORED, capacity) !== encodeEvidence(request.result, STORED, capacity)
     ) {
       invalid(STORED);
     }

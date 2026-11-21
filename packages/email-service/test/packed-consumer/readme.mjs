@@ -30,6 +30,7 @@ const snippets = {
   },
   results: { exports: 'inspectResults' },
   mongoose: { needsBoth: true, exports: 'openStore' },
+  'smtp-capacity': { needsBoth: true, exports: 'configureCapacityLane' },
   'entry-types': { needsBoth: true },
 };
 

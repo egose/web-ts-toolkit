@@ -4,10 +4,12 @@ import {
   EmailError,
   type EmailBatchItem,
   type EmailBatchResult,
+  type EmailActivity,
   type EmailActivityPage,
   type EmailAdmin,
   type EmailCommand,
   type EmailErrorCode,
+  type EmailJobSummary,
   type EmailProvider,
   type EmailService,
   type EmailStore,
@@ -17,6 +19,7 @@ import {
   type ProviderResult,
   type SendGridSnapshot,
   type SendGridTemplate,
+  type SmtpCapacity,
   type TemplateDefinitions,
 } from '@web-ts-toolkit/email-service';
 import { createSendGridProvider, type SendGridProviderOptions } from '@web-ts-toolkit/email-service/sendgrid';
@@ -97,7 +100,27 @@ export const smtp: SmtpProviderOptions = { key: 'local', host: 'smtp.example.tes
 export const sendgrid: SendGridProviderOptions = { key: 'test', apiKey: 'synthetic-key', mode: 'sandbox' };
 export const mailSend: EmailProvider<SendGridSnapshot> = createSendGridProvider(sendgrid);
 
+export const capacity = {
+  format: 'smtp-v2',
+  namespace: '6d36e018-b27f-4f3d-88d1-9b10ad86aaff',
+  maxRecipients: 1_000,
+} satisfies SmtpCapacity;
+export const boundSmtp: SmtpProviderOptions = { ...smtp, smtpCapacity: capacity };
+
+export function dtoVersions(
+  command: PreparedEmailCommand,
+  job: EmailJobSummary,
+  activity: EmailActivity,
+): readonly [1, 1, 1, 1] {
+  return [command.version, command.snapshot.version, job.version, activity.version];
+}
+
 export function rejectSendGridEndpoint() {
   // @ts-expect-error the deployed HTTPS endpoint and transport are not caller options
   return createSendGridProvider({ ...sendgrid, endpoint: 'https://example.invalid/mail' });
+}
+
+export function rejectSendGridCapacity() {
+  // @ts-expect-error capacity is SMTP-only
+  return createSendGridProvider({ ...sendgrid, smtpCapacity: capacity });
 }

@@ -14,6 +14,7 @@ import { createBudget, readCallOptions, systemEmailClock, type OperationBudget }
 import { bindMethod, readPortMember } from './internal/callbacks';
 import { parseCommandIdentity, type CommandIdentity } from './internal/command-codecs';
 import { matchesAdmissionJob, readJobSummary } from './internal/job-summary';
+import { assertPortCapacity, readCapacityOption, type CapacityContext } from './internal/smtp-capacity';
 import { STORE_PERSISTENCE_ERRORS } from './internal/store-call';
 import { allowedErrorCode, identifier, invalid, readArray, readRecord, scopeToken } from './internal/validation';
 import { findServiceAdmission } from './service';
@@ -42,7 +43,7 @@ function boundScope(port: unknown): string {
   return scopeToken(readPortMember(port, 'scope'), 'invalid_config');
 }
 
-function readBatch(scope: string, input: unknown) {
+function readBatch(scope: string, input: unknown, capacity?: CapacityContext) {
   const code = 'invalid_command';
   const raw = readRecord(input, ['batchId', 'items'], [], code);
   const batchId = identifier(raw.batchId, code);
@@ -53,7 +54,10 @@ function readBatch(scope: string, input: unknown) {
     if (seen.has(itemId)) invalid(code);
     seen.add(itemId);
     const command = readRecord(item.command, ['templateKey', 'input', 'provider', 'intent'], ['scheduleAt'], code);
-    return { itemId, parsed: parseCommandIdentity(scope, { ...command, key: { kind: 'batch', batchId, itemId } }) };
+    return {
+      itemId,
+      parsed: parseCommandIdentity(scope, { ...command, key: { kind: 'batch', batchId, itemId } }, capacity),
+    };
   });
   if (!items.length) invalid(code);
   return { batchId, items };
@@ -64,12 +68,12 @@ function stopReason(budget: OperationBudget) {
   return allowedErrorCode(budget.signal.reason, STOP_ERRORS) ?? invalid('invalid_config');
 }
 
-function readAdmissionResult(input: unknown, identity: CommandIdentity): AdmissionResult {
+function readAdmissionResult(input: unknown, identity: CommandIdentity, capacity?: CapacityContext): AdmissionResult {
   // A bad service reply does not prove a noncommit, even if it claimed to be a replay.
   const code = 'write_unconfirmed';
   const { status, job: raw } = readRecord(input, ['status', 'job'], [], code);
   if (status !== 'enqueued' && status !== 'replayed') invalid(code);
-  const job = readJobSummary(identity.scope, raw);
+  const job = readJobSummary(identity.scope, raw, capacity);
   if (!matchesAdmissionJob(job, identity, status)) invalid(code);
   return { status, job };
 }
@@ -89,7 +93,11 @@ export function createEmailBatchServiceWithClock<T extends TemplateMap>(
   options: EmailBatchServiceOptions<T>,
   clock: EmailClock,
 ): EmailBatchService<T> {
-  const { service, worker } = readRecord(options, ['service', 'worker'], [], 'invalid_config');
+  const raw = readRecord(options, ['service', 'worker'], ['smtpCapacity'], 'invalid_config');
+  const { service, worker } = raw;
+  const capacity = readCapacityOption(raw);
+  assertPortCapacity(service, capacity);
+  assertPortCapacity(worker, capacity);
   const scope = boundScope(service);
   if (scope !== boundScope(worker)) invalid('invalid_config');
   const run = bindMethod<EmailWorker['run']>(worker, 'run');
@@ -98,6 +106,7 @@ export function createEmailBatchServiceWithClock<T extends TemplateMap>(
     findServiceAdmission(service as object) ??
     (async ({ command, identity }, budget) => {
       if (boundScope(service) !== scope) invalid('invalid_config');
+      assertPortCapacity(service, capacity);
       const bounds = CALL_BUDGETS.admissionOrAdmin;
       const timeoutMs = Math.max(bounds.min, Math.min(bounds.max, Math.floor(budget.remainingMs())));
       budget.check();
@@ -115,19 +124,22 @@ export function createEmailBatchServiceWithClock<T extends TemplateMap>(
         throw error;
       }
       try {
-        return readAdmissionResult(raw, identity);
+        return readAdmissionResult(raw, identity, capacity);
       } catch {
         return invalid('write_unconfirmed');
       }
     });
 
+  let admitting = false;
   const batch: EmailBatchService<T> = {
     async enqueueBatch(input, call: CallOptions = {}) {
+      if (capacity && admitting) invalid('busy');
       const { signal, timeoutMs } = readCallOptions(call, CALL_BUDGETS.batchOrRun);
       const budget = createBudget(clock, timeoutMs, signal);
+      admitting = true;
       try {
         // Validate and detach the complete ordered request before any admission or host preparation.
-        const { batchId, items: commands } = readBatch(scope, input);
+        const { batchId, items: commands } = readBatch(scope, input, capacity);
         const items: EmailBatchResult['items'][number][] = [];
         const counts = { enqueued: 0, replayed: 0, failed: 0, notStarted: 0, persistenceFailures: 0 };
         for (const { itemId, parsed } of commands) {
@@ -150,11 +162,13 @@ export function createEmailBatchServiceWithClock<T extends TemplateMap>(
         }
         return Object.freeze({ batchId, items: Object.freeze(items), counts: Object.freeze(counts) });
       } finally {
+        admitting = false;
         budget.close();
       }
     },
     async run(options) {
       if (boundScope(worker) !== scope) invalid('invalid_config');
+      assertPortCapacity(worker, capacity);
       return run(options);
     },
   };

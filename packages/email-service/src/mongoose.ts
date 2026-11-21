@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Connection } from 'mongoose';
 import { CALL_BUDGETS, MONGOOSE_DEFAULT_NAMES, STORE_PRIMITIVE_TIMEOUT_MS } from './constants';
+import type { SmtpCapacity } from './contracts/message';
 import type { EmailStore, StoreCall } from './contracts/store';
 import { readActivityCriteria, readProjectionPermit } from './internal/activity-codecs';
 import { createBudget, readCallOptions, systemEmailClock } from './internal/budget';
@@ -21,6 +22,7 @@ import {
   reserveJobProjection,
   resolveJob,
 } from './internal/job-transitions';
+import { capacityTag, readCapacityOption } from './internal/smtp-capacity';
 import {
   readClaim,
   readFence,
@@ -40,14 +42,18 @@ import {
   ADMISSION_ID,
   JOB_ID,
   activitySchema,
+  checkExistingCollection,
+  indexName,
   jobSchema,
   prepareCollection,
 } from './stores/mongoose/schema';
 
 const MAX_IN_FLIGHT = 32;
 
-/** Names for a store on a caller-owned Mongoose connection. All four names use ASCII letters, numbers and `_`. */
+/** Store on a caller-owned connection. Name overrides are V1-only and use ASCII letters, numbers and `_`. */
 export type MongooseEmailStoreOptions = {
+  /** Owns a separate jobs/activities pair under an immutable binding; do not combine with V1 name overrides. */
+  smtpCapacity?: SmtpCapacity;
   /** Defaults to `email_jobs`. */
   jobsCollection?: string;
   /** Defaults to `email_activities`. */
@@ -58,11 +64,26 @@ export type MongooseEmailStoreOptions = {
   activitiesModelName?: string;
 };
 
-function readNames(options: MongooseEmailStoreOptions): Names {
-  const keys = ['jobsCollection', 'activitiesCollection', 'jobsModelName', 'activitiesModelName'] as const;
-  const input = readRecord(options, [], keys, 'invalid_config');
-  const names = { ...MONGOOSE_DEFAULT_NAMES } as Record<(typeof keys)[number], string>;
-  for (const key of keys) {
+const NAME_KEYS = ['jobsCollection', 'activitiesCollection', 'jobsModelName', 'activitiesModelName'] as const;
+
+function readStoreConfig(options: MongooseEmailStoreOptions) {
+  const input = readRecord(options, [], [...NAME_KEYS, 'smtpCapacity'], 'invalid_config');
+  const capacity = readCapacityOption(input);
+  if (capacity) {
+    if (NAME_KEYS.some((key) => Object.hasOwn(input, key))) invalid('invalid_config');
+    const { namespace } = capacity.binding;
+    const prefix = `email_smtp_v2.${namespace}`;
+    const modelId = namespace.replaceAll('-', '_');
+    const names: Names = Object.freeze({
+      jobsCollection: `${prefix}.jobs`,
+      activitiesCollection: `${prefix}.activities`,
+      jobsModelName: `EmailSmtpV2Job_${modelId}`,
+      activitiesModelName: `EmailSmtpV2Activity_${modelId}`,
+    });
+    return { names, capacity };
+  }
+  const names = { ...MONGOOSE_DEFAULT_NAMES } as Record<(typeof NAME_KEYS)[number], string>;
+  for (const key of NAME_KEYS) {
     const value = input[key];
     if (value === undefined) continue;
     if (typeof value !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(value)) invalid('invalid_config');
@@ -70,26 +91,27 @@ function readNames(options: MongooseEmailStoreOptions): Names {
   }
   if (names.jobsCollection === names.activitiesCollection || names.jobsModelName === names.activitiesModelName)
     invalid('invalid_config');
-  return Object.freeze(names);
+  return { names: Object.freeze(names), capacity };
 }
 
 /**
- * Durable V1 store on an explicit caller-owned Mongoose 9.12.2+ connection. Open it yourself, then await
+ * Durable store on an explicit caller-owned Mongoose 9.12.2+ connection. Open it yourself, then await
  * `store.ready()` before use. Requires a writable, journaled MongoDB 8.x WiredTiger replica set. The store
  * never registers models, connects, closes, or joins a caller session. Use dedicated private collections.
+ * For `smtpCapacity`, readiness installs missing definitions in the bound pair, never changes V1 definitions.
  * After `write_unconfirmed` do not work an unconfirmed claim or launch after an unconfirmed handoff.
  */
 export function createMongooseEmailStore(connection: Connection, options: MongooseEmailStoreOptions = {}): EmailStore {
   checkConnectionType(connection);
-  const names = readNames(options);
+  const { names, capacity } = readStoreConfig(options);
   const io = new MongoConnection(connection, names);
   let readyBinding: Binding | undefined;
   let preparing = false;
   let inFlight = 0;
 
   async function run<T>(call: StoreCall, worker: boolean, fn: (ops: MongoOperations) => Promise<T>): Promise<T> {
-    const { signal, timeoutMs } = readStoreCall(call, worker);
-    if (inFlight >= MAX_IN_FLIGHT) invalid('busy');
+    const { signal, timeoutMs } = readStoreCall(call, worker, capacity);
+    if (inFlight >= (capacity?.limits.mongoInFlight ?? MAX_IN_FLIGHT)) invalid('busy');
     const budget = createBudget(systemEmailClock, Math.min(timeoutMs, STORE_PRIMITIVE_TIMEOUT_MS), signal);
     inFlight++;
     try {
@@ -97,7 +119,7 @@ export function createMongooseEmailStore(connection: Connection, options: Mongoo
       if (!readyBinding) invalid('store_unavailable');
       const binding = io.bind();
       if (binding.client !== readyBinding.client || binding.db !== readyBinding.db) invalid('store_unavailable');
-      return await fn(new MongoOperations(io, binding, budget, names));
+      return await fn(new MongoOperations(io, binding, budget, names, capacity));
     } finally {
       inFlight--;
       budget.close();
@@ -105,6 +127,7 @@ export function createMongooseEmailStore(connection: Connection, options: Mongoo
   }
 
   const store: EmailStore = {
+    ...capacityTag(capacity),
     async ready(options = {}) {
       const { timeoutMs, signal } = readCallOptions(options, CALL_BUDGETS.admissionOrAdmin);
       if (preparing || inFlight) invalid('busy');
@@ -115,8 +138,15 @@ export function createMongooseEmailStore(connection: Connection, options: Mongoo
         budget.check();
         const binding = io.bind();
         await io.verifyTopology(binding, budget);
-        await prepareCollection(io, binding, budget, jobSchema(names.jobsCollection));
-        await prepareCollection(io, binding, budget, activitySchema(names.activitiesCollection));
+        const jobs = jobSchema(names.jobsCollection, capacity);
+        const activities = activitySchema(names.activitiesCollection, capacity);
+        if (capacity) {
+          await checkExistingCollection(io, binding, budget, jobs);
+          await checkExistingCollection(io, binding, budget, activities);
+        }
+        // Establish jobs first: another cap for this namespace cannot win the activities half.
+        await prepareCollection(io, binding, budget, jobs);
+        await prepareCollection(io, binding, budget, activities);
         // Confirm the server can execute the actual exact read path on both namespaces. Probe
         // with a reserved, non-application identity; do not create a synthetic write in the queue.
         const jobId = randomUUID();
@@ -129,7 +159,7 @@ export function createMongooseEmailStore(connection: Connection, options: Mongoo
           await io.read(binding, budget, {
             find,
             filter,
-            hint,
+            hint: indexName(hint, capacity),
             collation: SIMPLE,
             readConcern: { level: 'linearizable' },
             singleBatch: true,
@@ -155,10 +185,10 @@ export function createMongooseEmailStore(connection: Connection, options: Mongoo
     },
     insert(scope, input, call) {
       return run(call, false, async (ops) => {
-        const safe = readStoreAdmission(scopeToken(scope), input);
+        const safe = readStoreAdmission(scopeToken(scope), input, capacity);
         if (await ops.byAdmission(scope, safe.admissionKey)) return Object.freeze({ status: 'duplicate' });
         if (await ops.byJob(scope, safe.jobId)) invalid('invalid_command');
-        const job = newJob(safe, { now: await ops.now(), revision: randomUUID() });
+        const job = newJob(safe, { now: await ops.now(), revision: randomUUID() }, capacity);
         const summary = jobSummary(job);
         return (await ops.insert(job)) === 'inserted'
           ? Object.freeze({ status: 'inserted', job: summary })
@@ -176,13 +206,13 @@ export function createMongooseEmailStore(connection: Connection, options: Mongoo
         const id = readStoreId(attemptId);
         const job = await ops.byJob(scopeToken(scope), readStoreId(jobId));
         const commit = job?.attempts.find((entry) => entry.commit.attemptId === id)?.commit;
-        return commit ? copyCommit(commit) : null;
+        return commit ? copyCommit(commit, capacity) : null;
       });
     },
     claimNext(scope, input, call) {
       return run(call, true, (ops) => {
         const safe = readClaim(input);
-        return ops.next(scopeToken(scope), 'nextAt', (job, time) => claimJob(job, safe, time));
+        return ops.next(scopeToken(scope), 'nextAt', (job, time) => claimJob(job, safe, time, capacity));
       });
     },
     renew(scope, fence, leaseMs, call) {
@@ -201,14 +231,14 @@ export function createMongooseEmailStore(connection: Connection, options: Mongoo
     },
     finish(scope, input, call) {
       return run(call, true, (ops) => {
-        const safe = readFinish(input);
-        return ops.point(scopeToken(scope), safe.fence.jobId, (job, time) => finishJob(job, safe, time));
+        const safe = readFinish(input, capacity);
+        return ops.point(scopeToken(scope), safe.fence.jobId, (job, time) => finishJob(job, safe, time, capacity));
       });
     },
     recoverNext(scope, call) {
       return run(call, true, (ops) => {
         const operationId = randomUUID();
-        return ops.next(scopeToken(scope), 'leaseEndsAt', (job, time) => recoverJob(job, operationId, time));
+        return ops.next(scopeToken(scope), 'leaseEndsAt', (job, time) => recoverJob(job, operationId, time, capacity));
       });
     },
     expireNext(scope, call) {
@@ -218,8 +248,9 @@ export function createMongooseEmailStore(connection: Connection, options: Mongoo
       return run(call, false, async (ops) => {
         const operationId = randomUUID();
         return (
-          (await ops.point(scopeToken(scope), readStoreId(jobId), (job, time) => cancelJob(job, operationId, time))) ??
-          Object.freeze({ status: 'not_found' })
+          (await ops.point(scopeToken(scope), readStoreId(jobId), (job, time) =>
+            cancelJob(job, operationId, time, capacity),
+          )) ?? Object.freeze({ status: 'not_found' })
         );
       });
     },
@@ -233,11 +264,13 @@ export function createMongooseEmailStore(connection: Connection, options: Mongoo
       });
     },
     reserveProjection(scope, call) {
-      return run(call, false, (ops) => ops.next(scopeToken(scope), 'pendingAt', reserveJobProjection));
+      return run(call, false, (ops) =>
+        ops.next(scopeToken(scope), 'pendingAt', (job, time) => reserveJobProjection(job, time, capacity)),
+      );
     },
     putActivity(scope, input, call) {
       return run(call, false, async (ops) => {
-        const permit = readProjectionPermit(scopeToken(scope), input);
+        const permit = readProjectionPermit(scopeToken(scope), input, capacity);
         const identity = activityKey(permit.activity);
         const job = await ops.byJob(scope, identity.jobId);
         const activity = await ops.byActivity(identity);
@@ -249,7 +282,7 @@ export function createMongooseEmailStore(connection: Connection, options: Mongoo
     },
     ackProjection(scope, input, call) {
       return run(call, false, async (ops) => {
-        const permit = readProjectionPermit(scopeToken(scope), input);
+        const permit = readProjectionPermit(scopeToken(scope), input, capacity);
         const identity = activityKey(permit.activity);
         return (
           (await ops.point(scope, identity.jobId, async (job, time) =>
@@ -259,7 +292,7 @@ export function createMongooseEmailStore(connection: Connection, options: Mongoo
       });
     },
     listActivities(scope, query, call) {
-      return run(call, false, (ops) => ops.list(readActivityCriteria(scopeToken(scope), query)));
+      return run(call, false, (ops) => ops.list(readActivityCriteria(scopeToken(scope), query, capacity)));
     },
     cleanupNext(scope, call) {
       return run(call, false, (ops) => ops.next(scopeToken(scope), 'nextCleanupAt', cleanupJob));

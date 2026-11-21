@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import * as esm from '@web-ts-toolkit/email-service';
 
@@ -61,3 +62,10 @@ for (const [facadeRoot, serviceRoot] of [
   assert.equal((await batch.run({ signal: AbortSignal.abort() })).stop, 'aborted');
   await worker.shutdown();
 }
+
+// Even the opted-in core can use a bound store without loading either adapter peer.
+const smtpCapacity = { format: 'smtp-v2', namespace: randomUUID(), maxRecipients: 51 };
+const store = cjs.createMemoryEmailStore({ smtpCapacity });
+await store.ready();
+const admin = esm.createEmailAdmin({ scope, store, smtpCapacity });
+assert.deepEqual(await admin.listActivities(), { items: [] });

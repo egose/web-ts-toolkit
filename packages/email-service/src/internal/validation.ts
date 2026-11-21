@@ -135,6 +135,17 @@ export function identifier(value: unknown, code: EmailErrorCode): string {
   return opaqueToken(value, MESSAGE_LIMITS.identifierBytes, code);
 }
 
+export function uuidV4(value: unknown, code: EmailErrorCode): string {
+  if (
+    typeof value !== 'string' ||
+    value.length !== 36 ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value)
+  ) {
+    invalid(code);
+  }
+  return value;
+}
+
 export function hashToken(value: unknown, code: EmailErrorCode): string {
   if (typeof value !== 'string' || value.length !== 64 || !/^[0-9a-f]{64}$/.test(value)) invalid(code);
   return value;

@@ -3,6 +3,7 @@ import { isIP } from 'node:net';
 import { createSecureContext, type SecureContext } from 'node:tls';
 import { SMTP_DEFAULT_PORTS, SMTP_MIN_TLS_VERSION } from '../../constants';
 import type { SmtpSnapshot } from '../../contracts/provider';
+import { readCapacityOption, type CapacityContext } from '../../internal/smtp-capacity';
 import {
   headerString,
   identifier,
@@ -28,6 +29,7 @@ export type SmtpConfig = Readonly<{
   servername: string | undefined;
   secureContext: SecureContext;
   auth: Readonly<{ user: string; pass: string }> | undefined;
+  capacity: CapacityContext | undefined;
 }>;
 
 function dnsName(value: string): boolean {
@@ -62,7 +64,8 @@ function readAuth(input: unknown): SmtpConfig['auth'] {
 }
 
 export function readSmtpConfig(input: unknown): SmtpConfig {
-  const raw = readRecord(input, ['key', 'host', 'tls'], ['port', 'servername', 'ca', 'auth'], CONFIG);
+  const raw = readRecord(input, ['key', 'host', 'tls'], ['port', 'servername', 'ca', 'auth', 'smtpCapacity'], CONFIG);
+  const capacity = readCapacityOption(raw);
   const ref = Object.freeze({ kind: 'smtp', key: identifier(raw.key, CONFIG), mode: 'live' } as const);
   const { tls } = raw;
   if (tls !== 'implicit' && tls !== 'starttls') invalid(CONFIG);
@@ -81,7 +84,17 @@ export function readSmtpConfig(input: unknown): SmtpConfig {
   if (ca?.length === 0) invalid(CONFIG);
   try {
     const secureContext = createSecureContext({ minVersion: SMTP_MIN_TLS_VERSION, ...(ca ? { ca: [...ca] } : {}) });
-    return Object.freeze({ ref, host, port, tls, identity: servername ?? host, servername, secureContext, auth });
+    return Object.freeze({
+      ref,
+      host,
+      port,
+      tls,
+      identity: servername ?? host,
+      servername,
+      secureContext,
+      auth,
+      capacity,
+    });
   } catch {
     return invalid(CONFIG);
   }

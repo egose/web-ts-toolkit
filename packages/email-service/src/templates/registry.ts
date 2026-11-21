@@ -39,6 +39,12 @@ import {
   validateExpiry,
   validateMailbox,
 } from '../internal/message-codecs';
+import {
+  assertCapacityProvider,
+  capacityTag,
+  readCapacityOption,
+  type CapacityContext,
+} from '../internal/smtp-capacity';
 import { boundedOption, identifier, invalid, ownData, plainKeys, readRecord, unixMs } from '../internal/validation';
 import { createLocalRenderer } from './local-renderer';
 import { readSourceConfig } from './local-sources';
@@ -107,6 +113,7 @@ function captureFields(
   scheduleAt: number | null,
   budget: OperationBudget,
   slot: CallbackSlot,
+  capacity?: CapacityContext,
 ) {
   const code = 'invalid_snapshot';
   const fields = readRecord(
@@ -126,6 +133,8 @@ function captureFields(
       ...(replyTo === undefined ? {} : { replyTo }),
     },
     context.provider.kind,
+    code,
+    capacity,
   );
   const expiresAt = validateExpiry(
     fields.expiresAt === undefined ? context.now + DEFAULT_EXPIRY_MS : fields.expiresAt,
@@ -157,13 +166,19 @@ export function createEmailTemplateRegistry<const T extends TemplateMap>(
   options: TemplateRegistryOptions = {},
 ): EmailTemplateRegistry<T> {
   const code = 'invalid_config';
-  const config = readRecord(options, [], ['clock', 'cacheEntries', 'maxPending', 'helpers'], code);
+  const config = readRecord(options, [], ['clock', 'cacheEntries', 'maxPending', 'helpers', 'smtpCapacity'], code);
+  const capacity = readCapacityOption(config);
   const clock = readClock(config.clock);
-  const maxPending = boundedOption(config.maxPending, TEMPLATE_MAX_PENDING);
-  const renderer = createLocalRenderer(boundedOption(config.cacheEntries, TEMPLATE_CACHE_ENTRIES), config.helpers);
+  const maxPending = boundedOption(config.maxPending, capacity?.limits.registryPending ?? TEMPLATE_MAX_PENDING);
+  const renderer = createLocalRenderer(
+    boundedOption(config.cacheEntries, capacity?.limits.registryCache ?? TEMPLATE_CACHE_ENTRIES),
+    config.helpers,
+  );
   const registered = new Map<string, Definition>();
   for (const key of plainKeys(definitions, Infinity, code)) {
-    registered.set(identifier(key, code), readDefinition(ownData(definitions, key, code)));
+    const definition = readDefinition(ownData(definitions, key, code));
+    if (capacity && definition.kind !== 'handlebars') invalid(code);
+    registered.set(identifier(key, code), definition);
   }
   let pending = 0;
 
@@ -173,6 +188,7 @@ export function createEmailTemplateRegistry<const T extends TemplateMap>(
   ): Promise<PreparedEmailCommand> {
     budget.check();
     const { templateKey, provider, key, scheduleAt } = identity;
+    assertCapacityProvider(provider, capacity, 'provider_mismatch');
     const definition = registered.get(templateKey);
     if (!definition) invalid('template_not_found');
     if ((definition.kind === 'handlebars' ? 'smtp' : 'sendgrid') !== provider.kind) invalid('provider_mismatch');
@@ -196,7 +212,7 @@ export function createEmailTemplateRegistry<const T extends TemplateMap>(
         slot,
         'preparation_failed',
         () => prepare(input, context),
-        (raw) => captureFields(raw, definition, context, scheduleAt, budget, slot),
+        (raw) => captureFields(raw, definition, context, scheduleAt, budget, slot, capacity),
       );
       budget.check();
       const base = {
@@ -208,17 +224,18 @@ export function createEmailTemplateRegistry<const T extends TemplateMap>(
       let snapshot: EmailSnapshot;
       if (provider.kind === 'smtp' && definition.kind === 'handlebars') {
         const content = await renderer.render(templateKey, definition, data, budget, slot);
-        snapshot = Object.freeze({ ...base, kind: provider.kind, provider, ...content });
+        snapshot = Object.freeze({ ...base, kind: provider.kind, provider, ...capacityTag(capacity), ...content });
       } else if (provider.kind === 'sendgrid' && definition.kind === 'sendgrid') {
         snapshot = Object.freeze({ ...base, kind: provider.kind, provider, templateId: definition.templateId, data });
       } else {
         return invalid('provider_mismatch');
       }
       budget.check();
-      const snapshotHash = hashSnapshot(snapshot);
+      const snapshotHash = hashSnapshot(snapshot, capacity);
       budget.check();
       return Object.freeze({
         version: EMAIL_FORMAT_VERSION,
+        ...capacityTag(capacity),
         scope: identity.scope,
         key,
         scheduleAt,
@@ -233,6 +250,7 @@ export function createEmailTemplateRegistry<const T extends TemplateMap>(
   }
 
   const registry: EmailTemplateRegistry<T> = Object.freeze({
+    ...capacityTag(capacity),
     invalidate(key?: keyof T & string): void {
       if (key !== undefined) identifier(key, code);
       renderer.invalidate(key);
@@ -242,7 +260,7 @@ export function createEmailTemplateRegistry<const T extends TemplateMap>(
       const budget = createBudget(clock, call.timeoutMs, call.signal);
       try {
         budget.check();
-        return await prepareParsed(parseCommandIdentity(scope, command), budget);
+        return await prepareParsed(parseCommandIdentity(scope, command, capacity), budget);
       } finally {
         budget.close();
       }

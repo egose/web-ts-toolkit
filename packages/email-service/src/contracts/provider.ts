@@ -1,4 +1,4 @@
-import type { EmailAttemptId, EmailJobId, EmailSnapshot, ResolvedAttachment, UnixMs } from './message';
+import type { EmailAttemptId, EmailJobId, EmailSnapshot, ResolvedAttachment, SmtpCapacity, UnixMs } from './message';
 
 /** Outcome of submission only, never an inbox-delivery receipt. Sandbox is `validated`, not `accepted`. */
 export type SubmissionOutcome =
@@ -100,6 +100,7 @@ export interface PreparedEmailSubmission {
 
 export interface EmailProvider<M extends EmailSnapshot> {
   readonly ref: M['provider'];
+  readonly smtpCapacity?: SmtpCapacity;
   /** Validate and prepare without I/O. Direct unmanaged submission has no queue or retry guarantees. */
   prepare(input: ProviderSubmission<M>): PreparedEmailSubmission;
 }

@@ -11,6 +11,7 @@ import type {
   JsonValue,
   PreparedEmailCommand,
   ProviderRef,
+  SmtpCapacity,
   UnixMs,
 } from './message';
 
@@ -87,6 +88,8 @@ export type TemplateCommand<T extends TemplateMap> = {
 export type EmailCommand<T extends TemplateMap> = TemplateCommand<T> & { key: EmailAdmissionKey };
 
 export type TemplateRegistryOptions = {
+  /** Prepare only local SMTP messages under this binding. Use the same tuple for their admission. */
+  smtpCapacity?: SmtpCapacity;
   clock?: EmailClock;
   cacheEntries?: number;
   maxPending?: number;
@@ -95,6 +98,7 @@ export type TemplateRegistryOptions = {
 };
 
 export interface EmailTemplateRegistry<T extends TemplateMap> {
+  readonly smtpCapacity?: SmtpCapacity;
   /** Prepare a detached snapshot without using a queue or contacting a provider. */
   prepare(scope: EmailScope, command: EmailCommand<T>, options?: CallOptions): Promise<PreparedEmailCommand>;
   /** Evict one or all compilation cache entries and fence their prior in-flight loads. */

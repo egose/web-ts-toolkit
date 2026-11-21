@@ -4,6 +4,7 @@ import { readDisposition } from './activity-codecs';
 import { attemptOutcome, readAttemptReason } from './attempt-codecs';
 import { sameCommandMetadata, validateAdmissionKey, type CommandIdentity } from './command-codecs';
 import { validateCorrelation, validateProviderRef, validateTemplateIdentity } from './message-codecs';
+import { assertCapacityProvider, assertCapacityTag, capacityTag, type CapacityContext } from './smtp-capacity';
 import { readStoreId } from './store-codecs';
 import { integer, invalid, readArray, readRecord, scopeToken, unixMs } from './validation';
 
@@ -34,14 +35,18 @@ export function readUnknownResolution(input: unknown): UnknownResolution {
 }
 
 /** Decode the bounded redacted DTO, never returning store object identities, hidden fields or raw evidence. */
-export function readJobSummary(scope: string, input: unknown): EmailJobSummary {
+export function readJobSummary(scope: string, input: unknown, capacity?: CapacityContext): EmailJobSummary {
   const raw = readRecord(
     input,
     COMMON,
-    ['latestAttempt', 'nextAt', 'phase', 'disposition', 'terminalReason', 'terminalAt'],
+    ['latestAttempt', 'nextAt', 'phase', 'disposition', 'terminalReason', 'terminalAt', 'smtpCapacity'],
     STORED,
   );
   if (raw.version !== EMAIL_FORMAT_VERSION || scopeToken(raw.scope, STORED) !== scope) invalid(STORED);
+  assertCapacityTag(raw, capacity, STORED);
+  const optional = capacity ? (['latestAttempt', 'smtpCapacity'] as const) : (['latestAttempt'] as const);
+  const provider = validateProviderRef(raw.provider, STORED);
+  assertCapacityProvider(provider, capacity, STORED);
   const createdAt = unixMs(raw.createdAt, STORED);
   const updatedAt = unixMs(raw.updatedAt, STORED);
   const expiresAt = unixMs(raw.expiresAt, STORED);
@@ -51,16 +56,16 @@ export function readJobSummary(scope: string, input: unknown): EmailJobSummary {
 
   let state: EmailJobState;
   if (raw.state === 'queued') {
-    readRecord(raw, [...COMMON, 'nextAt'], ['latestAttempt'], STORED);
+    readRecord(raw, [...COMMON, 'nextAt'], optional, STORED);
     const nextAt = unixMs(raw.nextAt, STORED);
     if (nextAt < firstDue || nextAt >= expiresAt) invalid(STORED);
     state = { state: raw.state, nextAt };
   } else if (raw.state === 'leased') {
-    readRecord(raw, [...COMMON, 'phase'], ['latestAttempt'], STORED);
+    readRecord(raw, [...COMMON, 'phase'], optional, STORED);
     if (raw.phase !== 'pre_handoff' && raw.phase !== 'handed_off') invalid(STORED);
     state = { state: raw.state, phase: raw.phase };
   } else if (raw.state === 'terminal') {
-    readRecord(raw, [...COMMON, 'disposition', 'terminalAt', 'terminalReason'], ['latestAttempt'], STORED);
+    readRecord(raw, [...COMMON, 'disposition', 'terminalAt', 'terminalReason'], optional, STORED);
     const terminalAt = unixMs(raw.terminalAt, STORED);
     const disposition = readDisposition(raw.disposition, STORED);
     if (terminalAt < createdAt || terminalAt > updatedAt || disposition === 'retry_scheduled') invalid(STORED);
@@ -92,10 +97,11 @@ export function readJobSummary(scope: string, input: unknown): EmailJobSummary {
   const resolutions = readArray(raw.resolutions, Math.min(2, attemptCount - active), STORED, readUnknownResolution);
   return Object.freeze({
     version: EMAIL_FORMAT_VERSION,
+    ...capacityTag(capacity),
     scope,
     jobId: readStoreId(raw.jobId, STORED),
     key: validateAdmissionKey(raw.key, STORED),
-    provider: validateProviderRef(raw.provider, STORED),
+    provider,
     template: validateTemplateIdentity(raw.template, STORED),
     correlation: validateCorrelation(raw.correlation, STORED),
     scheduleAt,

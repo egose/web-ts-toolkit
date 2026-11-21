@@ -27,6 +27,7 @@ export type {
   PreparedEmailCommand,
   ProviderRef,
   ResolvedAttachment,
+  SmtpCapacity,
   TemplateIdentity,
   UnixMs,
 } from './contracts/message';

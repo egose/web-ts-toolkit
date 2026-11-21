@@ -3,6 +3,7 @@ import type { EmailClock } from '../contracts/message';
 import type { StoreCall } from '../contracts/store';
 import type { EmailErrorCode } from '../errors';
 import { createChildBudgetUntil, monotonicNow, type OperationBudget } from './budget';
+import { capacityTag, type CapacityContext } from './smtp-capacity';
 import { allowedErrorCode, invalid } from './validation';
 
 export const STORE_PERSISTENCE_ERRORS = [
@@ -24,6 +25,7 @@ export async function runStoreCall<T>(
   parent: OperationBudget,
   options: {
     maxMs: number;
+    capacity?: CapacityContext | undefined;
     /** Additional absolute cutoff, e.g. the conservative end of a confirmed lease. */
     deadline?: number;
     effect: 'read' | 'mutation';
@@ -52,7 +54,7 @@ export async function runStoreCall<T>(
       budget.check();
       invalid('deadline');
     }
-    const call = Object.freeze({ timeoutMs, signal: budget.signal });
+    const call = Object.freeze({ timeoutMs, signal: budget.signal, ...capacityTag(options.capacity) });
     let raw: unknown;
     try {
       const pending = options.invoke(call, dispatchedAt);

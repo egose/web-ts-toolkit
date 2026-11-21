@@ -24,9 +24,11 @@ import {
   TEMPLATE_ID,
   traceLoopback,
 } from '../sendgrid/fixtures';
-import { latch, openLoopbackSmtp } from '../smtp/loopback';
+import { atBarrier, latch, openLoopbackSmtp } from '../smtp/loopback';
 import { base64Body, decodeMimeWords, parseMime } from '../smtp/mime-fixture';
 import type { createSmtpTlsFixture } from '../smtp/tls-fixture';
+
+export { atBarrier };
 
 export const SENDGRID_HOST = 'api.sendgrid.com';
 export const GRID_ID = 'fixture.lifecycle-accepted';
@@ -92,21 +94,6 @@ export function commandFor(provider: ProviderRef, scheduleAt?: number) {
   return provider.kind === 'smtp'
     ? { ...common, templateKey: 'local' as const, provider }
     : { ...common, templateKey: 'remote' as const, provider };
-}
-
-/** Timeout is a test diagnostic, not a substitute for an event or for owned transport/driver teardown. */
-export async function atBarrier<T>(event: Promise<T>, label: string, timeoutMs = 5_000): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      event,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(`Did not observe ${label}`)), timeoutMs);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 export type Transport = 'smtp' | 'sendgrid' | 'sandbox';

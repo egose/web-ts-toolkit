@@ -14,6 +14,13 @@ import type {
 import type { EmailErrorCode } from '../errors';
 import { canonicalJson, copyJsonObject, sha256 } from './canonical-json';
 import {
+  assertCapacityProvider,
+  assertCapacityTag,
+  capacityTag,
+  recipientLimit,
+  type CapacityContext,
+} from './smtp-capacity';
+import {
   hashToken,
   headerString,
   identifier,
@@ -80,7 +87,9 @@ export function validateEnvelope(
   input: unknown,
   kind: ProviderRef['kind'],
   code: EmailErrorCode = SNAPSHOT,
+  capacity?: CapacityContext,
 ): EmailEnvelope {
+  const limit = recipientLimit(capacity);
   const envelope = readRecord(input, ['from', 'to', 'cc', 'bcc'], ['replyTo'], code);
   const seen = new Set<string>();
   const recipient = (raw: unknown) => {
@@ -91,9 +100,9 @@ export function validateEnvelope(
     return mailbox;
   };
   const from = validateMailbox(envelope.from, code);
-  const to = readArray(envelope.to, L.recipients, code, recipient);
-  const cc = readArray(envelope.cc, L.recipients - to.length, code, recipient);
-  const bcc = readArray(envelope.bcc, L.recipients - to.length - cc.length, code, recipient);
+  const to = readArray(envelope.to, limit, code, recipient);
+  const cc = readArray(envelope.cc, limit - to.length, code, recipient);
+  const bcc = readArray(envelope.bcc, limit - to.length - cc.length, code, recipient);
   if (seen.size === 0 || (kind === 'sendgrid' && to.length === 0)) invalid(code);
   return Object.freeze({
     from,
@@ -207,13 +216,18 @@ export function validateExpiry(
 
 // 256 non-data values cover the fixed V1 envelope, refs and metadata even at their maximum widths.
 // Data is still checked at its own depth/value/byte limits relative to its own root.
-export function hashSnapshot(snapshot: EmailSnapshot): string {
+export function hashSnapshot(snapshot: EmailSnapshot, capacity?: CapacityContext): string {
   return sha256(
-    canonicalJson(snapshot, L.snapshotBytes, SNAPSHOT, { depth: L.jsonDepth + 1, values: L.jsonValues + 256 }).encoded,
+    canonicalJson(
+      snapshot,
+      capacity?.limits.snapshotBytes ?? L.snapshotBytes,
+      SNAPSHOT,
+      capacity?.limits.snapshotTree ?? { depth: L.jsonDepth + 1, values: L.jsonValues + 256 },
+    ).encoded,
   );
 }
 
-function readSnapshot(input: unknown): EmailSnapshot {
+function readSnapshot(input: unknown, capacity?: CapacityContext): EmailSnapshot {
   const dto = readRecord(
     input,
     [
@@ -228,17 +242,19 @@ function readSnapshot(input: unknown): EmailSnapshot {
       'attachments',
       'correlation',
     ],
-    ['subject', 'html', 'text', 'templateId', 'data'],
+    ['subject', 'html', 'text', 'templateId', 'data', 'smtpCapacity'],
     SNAPSHOT,
   );
   if (dto.version !== EMAIL_FORMAT_VERSION || (dto.kind !== 'smtp' && dto.kind !== 'sendgrid')) invalid(SNAPSHOT);
+  assertCapacityTag(dto, capacity, SNAPSHOT);
   const provider = validateProviderRef(dto.provider);
   if (provider.kind !== dto.kind) invalid('provider_mismatch');
+  assertCapacityProvider(provider, capacity, 'provider_mismatch');
   const preparedAt = unixMs(dto.preparedAt, SNAPSHOT);
   const common = {
     version: EMAIL_FORMAT_VERSION,
     template: validateTemplateIdentity(dto.template),
-    envelope: validateEnvelope(dto.envelope, provider.kind),
+    envelope: validateEnvelope(dto.envelope, provider.kind, SNAPSHOT, capacity),
     preparedAt,
     expiresAt: validateExpiry(dto.expiresAt, preparedAt, null),
     priority: integer(dto.priority, PRIORITY.min, PRIORITY.max, SNAPSHOT),
@@ -252,7 +268,7 @@ function readSnapshot(input: unknown): EmailSnapshot {
       ...(Object.hasOwn(dto, 'html') ? { html: dto.html } : {}),
       ...(Object.hasOwn(dto, 'text') ? { text: dto.text } : {}),
     });
-    return Object.freeze({ ...common, kind: provider.kind, provider, ...content });
+    return Object.freeze({ ...common, kind: provider.kind, provider, ...capacityTag(capacity), ...content });
   }
   if (Object.hasOwn(dto, 'subject') || Object.hasOwn(dto, 'html') || Object.hasOwn(dto, 'text')) invalid(SNAPSHOT);
   return Object.freeze({
@@ -265,7 +281,10 @@ function readSnapshot(input: unknown): EmailSnapshot {
 }
 
 /** Validate wire/stored structure, including the aggregate canonical byte bound. No registry or time-of-use checks. */
-export function validateSnapshot(input: unknown): { readonly snapshot: EmailSnapshot; readonly snapshotHash: string } {
-  const snapshot = readSnapshot(input);
-  return { snapshot, snapshotHash: hashSnapshot(snapshot) };
+export function validateSnapshot(
+  input: unknown,
+  capacity?: CapacityContext,
+): { readonly snapshot: EmailSnapshot; readonly snapshotHash: string } {
+  const snapshot = readSnapshot(input, capacity);
+  return { snapshot, snapshotHash: hashSnapshot(snapshot, capacity) };
 }
