@@ -35,6 +35,7 @@ import {
   type DecisionTime,
   type JobDecision,
 } from '../internal/job-transitions';
+import { capacityTag, readCapacityOption } from '../internal/smtp-capacity';
 import {
   readClaim,
   readFence,
@@ -140,17 +141,19 @@ const NONE = Object.freeze({ status: 'none' } as const);
 const CONTENDED = Object.freeze({ status: 'contended' } as const);
 
 /**
- * Single-process V1 store for tests and development. State is lost on restart and is not shared across
+ * Single-process store for tests and development. State is lost on restart and is not shared across
  * instances or processes. Capacity is global across scopes; it never evicts a protected job or acts as
  * a fallback for another store. Uses the injected clock's wall time for store guards.
  */
 export function createMemoryEmailStore(options: MemoryEmailStoreOptions = {}): EmailStore {
-  const config = readRecord(options, [], ['clock', 'maxJobs'], 'invalid_config');
+  const config = readRecord(options, [], ['clock', 'maxJobs', 'smtpCapacity'], 'invalid_config');
+  const capacity = readCapacityOption(config);
   const clock = readClock(config.clock);
-  const maxJobs = boundedOption(config.maxJobs, MEMORY_MAX_JOBS);
+  const maxJobs = boundedOption(config.maxJobs, capacity?.limits.memoryJobs ?? MEMORY_MAX_JOBS);
   const scopes = new Map<string, ScopeRows>();
   let count = 0;
   let active = false;
+  let ready = false;
   let lastWall = 0;
 
   function wallNow(): number {
@@ -197,8 +200,14 @@ export function createMemoryEmailStore(options: MemoryEmailStoreOptions = {}): E
     }
   }
 
+  function primitive<T>(call: StoreCall, worker: boolean, run: (check: () => void) => T): T {
+    const safe = readStoreCall(call, worker, capacity);
+    if (capacity && !ready) invalid('store_unavailable');
+    return atomic(safe, run);
+  }
+
   function read<T>(call: StoreCall, worker: boolean, get: () => T): T {
-    return atomic(readStoreCall(call, worker), (check) => {
+    return primitive(call, worker, (check) => {
       const value = get();
       check();
       return value;
@@ -277,12 +286,14 @@ export function createMemoryEmailStore(options: MemoryEmailStoreOptions = {}): E
   }
 
   const store: EmailStore = {
+    ...capacityTag(capacity),
     async ready(options = {}) {
       const call = readCallOptions(options, CALL_BUDGETS.admissionOrAdmin);
       atomic({ ...call, timeoutMs: Math.min(call.timeoutMs, STORE_PRIMITIVE_TIMEOUT_MS) }, (check) => {
         wallNow();
         check();
       });
+      ready = true;
     },
     async findAdmission(scope, key, call) {
       return read(call, false, () => {
@@ -294,15 +305,15 @@ export function createMemoryEmailStore(options: MemoryEmailStoreOptions = {}): E
       });
     },
     async insert(scope, admission, call) {
-      return atomic(readStoreCall(call), (check) => {
-        const parsed = readStoreAdmission(scope, admission);
+      return primitive(call, false, (check) => {
+        const parsed = readStoreAdmission(scope, admission, capacity);
         const rows = scopes.get(parsed.command.scope);
         if (rows?.identities.has(parsed.admissionKey)) {
           check();
           return Object.freeze({ status: 'duplicate' });
         }
         if (rows?.jobs.has(parsed.jobId)) invalid('invalid_command');
-        const row = newJob(parsed, { now: wallNow(), revision: randomUUID() });
+        const row = newJob(parsed, { now: wallNow(), revision: randomUUID() }, capacity);
         if (count >= maxJobs) invalid('store_capacity');
         const result = Object.freeze({ status: 'inserted', job: jobSummary(row) } as const);
         check();
@@ -329,65 +340,67 @@ export function createMemoryEmailStore(options: MemoryEmailStoreOptions = {}): E
         const job = readStoreId(jobId);
         const id = readStoreId(attemptId);
         const entry = rows?.jobs.get(job)?.attempts.find(({ commit }) => commit.attemptId === id);
-        return entry ? copyCommit(entry.commit) : null;
+        return entry ? copyCommit(entry.commit, capacity) : null;
       });
     },
     async claimNext(scope, claim, call) {
-      return atomic(readStoreCall(call, true), (check) => {
+      return primitive(call, true, (check) => {
         const safe = readClaim(claim);
-        return next(scope, 'nextAt', check, (row, time) => claimJob(row, safe, time));
+        return next(scope, 'nextAt', check, (row, time) => claimJob(row, safe, time, capacity));
       });
     },
     async renew(scope, fence, leaseMs, call) {
-      return atomic(readStoreCall(call, true), (check) => {
+      return primitive(call, true, (check) => {
         const safe = readFence(fence);
         const duration = readLeaseMs(leaseMs);
         return point(scope, safe.jobId, check, (row, time) => renewJob(row, safe, duration, time));
       });
     },
     async markHandoff(scope, fence, leaseMs, call) {
-      return atomic(readStoreCall(call, true), (check) => {
+      return primitive(call, true, (check) => {
         const safe = readFence(fence);
         const duration = readLeaseMs(leaseMs);
         return point(scope, safe.jobId, check, (row, time) => markJob(row, safe, duration, time));
       });
     },
     async finish(scope, finish, call) {
-      return atomic(readStoreCall(call, true), (check) => {
-        const safe = readFinish(finish);
-        return point(scope, safe.fence.jobId, check, (row, time) => finishJob(row, safe, time));
+      return primitive(call, true, (check) => {
+        const safe = readFinish(finish, capacity);
+        return point(scope, safe.fence.jobId, check, (row, time) => finishJob(row, safe, time, capacity));
       });
     },
     async recoverNext(scope, call) {
-      return atomic(readStoreCall(call, true), (check) => {
+      return primitive(call, true, (check) => {
         const operationId = randomUUID();
-        return next(scope, 'leaseEndsAt', check, (row, time) => recoverJob(row, operationId, time));
+        return next(scope, 'leaseEndsAt', check, (row, time) => recoverJob(row, operationId, time, capacity));
       });
     },
     async expireNext(scope, call) {
-      return atomic(readStoreCall(call, true), (check) => next(scope, 'queuedExpiresAt', check, expireJob));
+      return primitive(call, true, (check) => next(scope, 'queuedExpiresAt', check, expireJob));
     },
     async cancel(scope, jobId, call) {
-      return atomic(readStoreCall(call), (check) => {
+      return primitive(call, false, (check) => {
         const operationId = randomUUID();
         return (
-          point(scope, readStoreId(jobId), check, (row, time) => cancelJob(row, operationId, time)) ??
+          point(scope, readStoreId(jobId), check, (row, time) => cancelJob(row, operationId, time, capacity)) ??
           Object.freeze({ status: 'not_found' })
         );
       });
     },
     async resolveUnknown(scope, command, call) {
-      return atomic(readStoreCall(call), (check) => {
+      return primitive(call, false, (check) => {
         const safe = readResolution(command);
         return point(scope, safe.jobId, check, (row, time) => resolveJob(row, safe, time)) ?? invalid('not_found');
       });
     },
     async reserveProjection(scope, call) {
-      return atomic(readStoreCall(call), (check) => next(scope, 'pendingAt', check, reserveJobProjection));
+      return primitive(call, false, (check) =>
+        next(scope, 'pendingAt', check, (row, time) => reserveJobProjection(row, time, capacity)),
+      );
     },
     async putActivity(scope, permit, call) {
-      return atomic(readStoreCall(call), (check) => {
-        const safe = readProjectionPermit(scopeToken(scope), permit);
+      return primitive(call, false, (check) => {
+        const safe = readProjectionPermit(scopeToken(scope), permit, capacity);
         const rows = scopes.get(scope);
         const { jobId, attemptId } = safe.activity;
         const existing = rows?.byJob.get(jobId)?.byId.get(attemptId);
@@ -403,8 +416,8 @@ export function createMemoryEmailStore(options: MemoryEmailStoreOptions = {}): E
       });
     },
     async ackProjection(scope, permit, call) {
-      return atomic(readStoreCall(call), (check) => {
-        const safe = readProjectionPermit(scopeToken(scope), permit);
+      return primitive(call, false, (check) => {
+        const safe = readProjectionPermit(scopeToken(scope), permit, capacity);
         const { jobId, attemptId } = safe.activity;
         const proof = scopes.get(scope)?.byJob.get(jobId)?.byId.get(attemptId);
         return point(scope, jobId, check, (row, time) => acknowledgeJobProjection(row, safe, proof, time)) ?? 'stale';
@@ -412,7 +425,7 @@ export function createMemoryEmailStore(options: MemoryEmailStoreOptions = {}): E
     },
     async listActivities(scope, query, call) {
       return read(call, false, () => {
-        const criteria = readActivityCriteria(scopeToken(scope), query);
+        const criteria = readActivityCriteria(scopeToken(scope), query, capacity);
         const rows = scopes.get(scope);
         const { jobId, before, from, after, limit } = criteria;
         const index = (jobId === null ? rows?.activities : rows?.byJob.get(jobId)?.ordered) ?? [];
@@ -426,7 +439,7 @@ export function createMemoryEmailStore(options: MemoryEmailStoreOptions = {}): E
       });
     },
     async cleanupNext(scope, call) {
-      return atomic(readStoreCall(call), (check) => next(scope, 'nextCleanupAt', check, cleanupJob));
+      return primitive(call, false, (check) => next(scope, 'nextCleanupAt', check, cleanupJob));
     },
   };
   return Object.freeze(store);

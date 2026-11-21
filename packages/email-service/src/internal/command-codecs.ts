@@ -3,6 +3,7 @@ import type { EmailAdmissionKey, JsonValue, PreparedEmailCommand, ProviderRef, U
 import type { EmailErrorCode } from '../errors';
 import { canonicalJson, hashJson, sha256 } from './canonical-json';
 import { validateExpiry, validateProviderRef, validateSnapshot } from './message-codecs';
+import { assertCapacityProvider, assertCapacityTag, capacityTag, type CapacityContext } from './smtp-capacity';
 import { hashToken, identifier, invalid, readRecord, scopeToken, unixMs } from './validation';
 
 export function validateAdmissionKey(input: unknown, code: EmailErrorCode = 'invalid_command'): EmailAdmissionKey {
@@ -62,10 +63,19 @@ export function sameCommandMetadata(
   );
 }
 
-function fingerprintFor(identity: Omit<CommandIdentity, 'fingerprint'>): string {
+export function fingerprintFor(identity: Omit<CommandIdentity, 'fingerprint'>, capacity?: CapacityContext): string {
   const { scope, key, templateKey, provider, scheduleAt, intentHash } = identity;
   return hashJson(
-    [EMAIL_FORMAT_VERSION, scope, key, templateKey, provider, scheduleAt, intentHash],
+    [
+      ...(capacity ? ['smtp-v2-admission', capacity.binding] : []),
+      EMAIL_FORMAT_VERSION,
+      scope,
+      key,
+      templateKey,
+      provider,
+      scheduleAt,
+      intentHash,
+    ],
     MESSAGE_LIMITS.intentBytes,
   );
 }
@@ -74,18 +84,19 @@ function fingerprintFor(identity: Omit<CommandIdentity, 'fingerprint'>): string 
  * Registry-independent shape and identity. The returned command holds validated, detached metadata for later
  * preparation after an async lookup. Its opaque business input alone is the original, uninspected reference.
  */
-export function parseCommandIdentity(scope: unknown, command: unknown): ParsedEmailCommand {
+export function parseCommandIdentity(scope: unknown, command: unknown, capacity?: CapacityContext): ParsedEmailCommand {
   const code = 'invalid_command';
   const parsedScope = scopeToken(scope, code);
   const raw = readRecord(command, ['key', 'templateKey', 'input', 'provider', 'intent'], ['scheduleAt'], code);
   const key = validateAdmissionKey(raw.key, code);
   const templateKey = identifier(raw.templateKey, code);
   const provider = validateProviderRef(raw.provider, code);
+  assertCapacityProvider(provider, capacity, 'provider_mismatch');
   const scheduleAt = raw.scheduleAt === undefined ? null : unixMs(raw.scheduleAt, code);
   const intent = canonicalJson(raw.intent, MESSAGE_LIMITS.intentBytes, code);
   const identity = { scope: parsedScope, key, templateKey, provider, scheduleAt, intentHash: sha256(intent.encoded) };
   return Object.freeze({
-    identity: Object.freeze({ ...identity, fingerprint: fingerprintFor(identity) }),
+    identity: Object.freeze({ ...identity, fingerprint: fingerprintFor(identity, capacity) }),
     command: Object.freeze({
       key,
       templateKey,
@@ -97,40 +108,49 @@ export function parseCommandIdentity(scope: unknown, command: unknown): ParsedEm
   });
 }
 
-/** Revalidate and detach a staged V1 command. Store-relative freshness is checked only on a new insertion. */
-export function validatePreparedCommand(scope: unknown, input: unknown): PreparedEmailCommand {
+/** Revalidate and detach a staged command. Store-relative freshness is checked only on a new insertion. */
+export function validatePreparedCommand(
+  scope: unknown,
+  input: unknown,
+  capacity?: CapacityContext,
+): PreparedEmailCommand {
   const expectedScope = scopeToken(scope);
   const code = 'invalid_snapshot';
   const dto = readRecord(
     input,
     ['version', 'scope', 'key', 'scheduleAt', 'intentHash', 'fingerprint', 'snapshotHash', 'snapshot'],
-    [],
+    ['smtpCapacity'],
     code,
   );
   if (dto.version !== EMAIL_FORMAT_VERSION || scopeToken(dto.scope, code) !== expectedScope) invalid(code);
+  assertCapacityTag(dto, capacity, code);
   const key = validateAdmissionKey(dto.key, code);
   const scheduleAt = dto.scheduleAt === null ? null : unixMs(dto.scheduleAt, code);
   const intentHash = hashToken(dto.intentHash, code);
   const fingerprint = hashToken(dto.fingerprint, code);
   const storedSnapshotHash = hashToken(dto.snapshotHash, code);
-  const { snapshot, snapshotHash } = validateSnapshot(dto.snapshot);
+  const { snapshot, snapshotHash } = validateSnapshot(dto.snapshot, capacity);
   validateExpiry(snapshot.expiresAt, snapshot.preparedAt, scheduleAt);
   if (
     snapshotHash !== storedSnapshotHash ||
     fingerprint !==
-      fingerprintFor({
-        scope: expectedScope,
-        key,
-        templateKey: snapshot.template.key,
-        provider: snapshot.provider,
-        scheduleAt,
-        intentHash,
-      })
+      fingerprintFor(
+        {
+          scope: expectedScope,
+          key,
+          templateKey: snapshot.template.key,
+          provider: snapshot.provider,
+          scheduleAt,
+          intentHash,
+        },
+        capacity,
+      )
   ) {
     invalid(code);
   }
   return Object.freeze({
     version: EMAIL_FORMAT_VERSION,
+    ...capacityTag(capacity),
     scope: expectedScope,
     key,
     scheduleAt,

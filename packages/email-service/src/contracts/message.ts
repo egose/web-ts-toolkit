@@ -6,6 +6,14 @@ export type EmailJobId = string;
 export type EmailAttemptId = string;
 export type Awaitable<T> = T | PromiseLike<T>;
 
+/**
+ * Trusted live SMTP opt-in. Pass the same tuple at each factory in the queue; omit it for V1 (50 recipients).
+ * `namespace` is a canonical lowercase UUIDv4 for one logical backing. Keep its cap fixed; use a new namespace
+ * to change it. `maxRecipients` is an integer from 51 to 1,000, counting To, Cc and Bcc together.
+ * `format` selects storage, not the DTO's `version: 1`. Never select the binding from request data.
+ */
+export type SmtpCapacity = Readonly<{ format: 'smtp-v2'; namespace: string; maxRecipients: number }>;
+
 /** Plain JSON at the validation boundary; this type alone does not check serialization or size. */
 export type JsonValue = null | boolean | number | string | readonly JsonValue[] | JsonObject;
 export type JsonObject = { readonly [key: string]: JsonValue };
@@ -73,6 +81,7 @@ export type EmailSnapshot = SnapshotFields &
     | {
         readonly kind: 'smtp';
         readonly provider: Extract<ProviderRef, { kind: 'smtp' }>;
+        readonly smtpCapacity?: SmtpCapacity;
         readonly subject: string;
         readonly html?: string;
         readonly text?: string;
@@ -80,6 +89,7 @@ export type EmailSnapshot = SnapshotFields &
     | {
         readonly kind: 'sendgrid';
         readonly provider: Extract<ProviderRef, { kind: 'sendgrid' }>;
+        readonly smtpCapacity?: never;
         readonly templateId: string;
         readonly data: JsonObject;
       }
@@ -88,6 +98,8 @@ export type EmailSnapshot = SnapshotFields &
 /** Versioned, sensitive outbox value. Store it with the host's business write, then relay it unchanged. */
 export type PreparedEmailCommand = {
   readonly version: 1;
+  /** Present on every staged message from an opted-in SMTP lane, even below 51 recipients. */
+  readonly smtpCapacity?: SmtpCapacity;
   readonly scope: EmailScope;
   readonly key: EmailAdmissionKey;
   readonly scheduleAt: UnixMs | null;

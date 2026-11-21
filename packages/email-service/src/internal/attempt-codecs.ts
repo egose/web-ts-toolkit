@@ -1,9 +1,10 @@
-import { MAX_RATE_DEFERRAL_MS, MAX_UNIX_MS, MESSAGE_LIMITS } from '../constants';
+import { MAX_RATE_DEFERRAL_MS, MAX_UNIX_MS } from '../constants';
 import type { JobDisposition, RetryPolicy } from '../contracts/job';
 import type { EmailEnvelope, ProviderRef, UnixMs } from '../contracts/message';
 import type { AttemptReason, AttemptResult, ProviderResult, RecipientResult, RetryHint } from '../contracts/provider';
 import type { EmailErrorCode } from '../errors';
-import { sha256 } from './canonical-json';
+import { encodeEvidence, sha256 } from './canonical-json';
+import { recipientLimit, type CapacityContext } from './smtp-capacity';
 import { integer, invalid, readArray, readRecord, unixMs } from './validation';
 
 type Evidence = readonly [
@@ -66,6 +67,16 @@ export function recipientCounts(envelope: EmailEnvelope): RecipientCounts {
   return Object.freeze({ to: envelope.to.length, cc: envelope.cc.length, bcc: envelope.bcc.length });
 }
 
+export function readRecipientCounts(input: unknown, code: EmailErrorCode, capacity?: CapacityContext): RecipientCounts {
+  const limit = recipientLimit(capacity);
+  const counts = readRecord(input, recipientGroups, [], code);
+  const to = integer(counts.to, 0, limit, code);
+  const cc = integer(counts.cc, 0, limit - to, code);
+  const bcc = integer(counts.bcc, 0, limit - to - cc, code);
+  if (to + cc + bcc === 0) invalid(code);
+  return Object.freeze({ to, cc, bcc });
+}
+
 export function smtpMessageId(attemptId: string): string {
   return `<${attemptId}@email.invalid>`;
 }
@@ -97,6 +108,7 @@ export function readAttemptResult(
   input: unknown,
   code: EmailErrorCode = 'invalid_command',
   projected = false,
+  capacity?: CapacityContext,
 ): AttemptResult {
   const raw = readRecord(
     input,
@@ -109,6 +121,7 @@ export function readAttemptResult(
   // Return an allowlisted value, not the caller's raw value.
   const stage = stages.find((value) => value === raw.stage);
   if (raw.outcome !== outcome || raw.retry !== retry || !stage) invalid(code);
+  if (capacity && (origin === 'sendgrid' || stage === 'http')) invalid(code);
   const hasHint = Object.hasOwn(raw, 'retryHint');
   if ((projected && hasHint) || (!projected && reason === 'rate_deferred' && !hasHint)) invalid(code);
 
@@ -119,14 +132,23 @@ export function readAttemptResult(
   if (hasRecipients) {
     if ((origin !== 'smtp' && origin !== 'provider') || (stage !== 'envelope' && stage !== 'data')) invalid(code);
     const seen = new Set<string>();
-    recipients = readArray(raw.recipients, MESSAGE_LIMITS.recipients, code, (value) => {
+    const limit = recipientLimit(capacity);
+    let previous = -1;
+    recipients = readArray(raw.recipients, limit, code, (value) => {
       const { group, index: rawIndex, status } = readRecord(value, ['group', 'index', 'status'], [], code);
       if (group !== 'to' && group !== 'cc' && group !== 'bcc') invalid(code);
       if (status !== 'rejected' && (status !== 'accepted' || !smtpSuccess)) invalid(code);
-      const index = integer(rawIndex, 0, MESSAGE_LIMITS.recipients - 1, code);
-      const key = `${group}:${index}`;
-      if (seen.has(key)) invalid(code);
-      seen.add(key);
+      const index = integer(rawIndex, 0, limit - 1, code);
+      if (capacity) {
+        // Enforce the transport's original To/Cc/Bcc order, including for rejected subsets.
+        const position = recipientGroups.indexOf(group) * limit + index;
+        if (position <= previous) invalid(code);
+        previous = position;
+      } else {
+        const key = `${group}:${index}`;
+        if (seen.has(key)) invalid(code);
+        seen.add(key);
+      }
       return Object.freeze({ group, index, status });
     });
     const accepted = recipients.filter(({ status }) => status === 'accepted').length;
@@ -151,7 +173,7 @@ export function readAttemptResult(
   ) {
     invalid(code);
   }
-  return Object.freeze({
+  const result = Object.freeze({
     outcome,
     retry,
     stage,
@@ -161,6 +183,9 @@ export function readAttemptResult(
     ...(typeof messageId === 'string' ? { messageId } : {}),
     ...(typeof providerMessageId === 'string' ? { providerMessageId } : {}),
   });
+  // Projected evidence is sized as part of the full activity, including metadata.
+  if (capacity && !projected) encodeEvidence(result, code, capacity);
+  return result;
 }
 
 export function assertEvidencePhase(
@@ -215,9 +240,15 @@ export function assertEvidenceContext(
 }
 
 /** Use after handoff; an invalid result is not safe retry evidence. */
-export function readProviderResult(input: unknown, provider: ProviderRef, attemptId: string, envelope: EmailEnvelope) {
+export function readProviderResult(
+  input: unknown,
+  provider: ProviderRef,
+  attemptId: string,
+  envelope: EmailEnvelope,
+  capacity?: CapacityContext,
+) {
   const code = 'invalid_command';
-  const result = readAttemptResult(input, code);
+  const result = readAttemptResult(input, code, false, capacity);
   const origin = evidence[result.reason][3];
   if (origin !== 'smtp' && origin !== 'sendgrid' && origin !== 'provider') invalid(code);
   assertEvidenceContext(result, provider, attemptId, recipientCounts(envelope), code);

@@ -30,6 +30,7 @@ import {
   type ParsedEmailCommand,
 } from './internal/command-codecs';
 import { matchesAdmissionJob, readJobSummary } from './internal/job-summary';
+import { assertPortCapacity, capacityTag, readCapacityOption } from './internal/smtp-capacity';
 import { runStoreCall } from './internal/store-call';
 import { readRetentionPolicy, readRetryPolicy } from './internal/store-codecs';
 import { allowedErrorCode, hashToken, invalid, readRecord, scopeToken } from './internal/validation';
@@ -81,7 +82,10 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
   options: EmailServiceOptions<T>,
   clock: EmailClock,
 ): EmailService<T> {
-  const raw = readRecord(options, ['scope', 'store', 'registry'], ['retry', 'retention'], CONFIG);
+  const raw = readRecord(options, ['scope', 'store', 'registry'], ['retry', 'retention', 'smtpCapacity'], CONFIG);
+  const capacity = readCapacityOption(raw);
+  assertPortCapacity(raw.store, capacity);
+  assertPortCapacity(raw.registry, capacity);
   const scope = scopeToken(raw.scope, CONFIG);
   const retry = readRetryPolicy(readPolicy(raw.retry, DEFAULT_RETRY_POLICY), CONFIG);
   const retention = readRetentionPolicy(readPolicy(raw.retention, DEFAULT_RETENTION_POLICY), CONFIG);
@@ -91,11 +95,12 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
   const registry = raw.registry;
   const prepare = bindMethod<EmailTemplateRegistry<T>['prepare']>(registry, 'prepare');
   const internalPrepare = findRegistryPreparation(registry);
+  let admissions = 0;
 
   async function prepareMiss(parsed: ParsedEmailCommand, parent: OperationBudget): Promise<PreparedEmailCommand> {
     const { identity, command } = parsed;
     const accept = (value: unknown) => {
-      const staged = validatePreparedCommand(scope, value);
+      const staged = validatePreparedCommand(scope, value, capacity);
       if (
         !sameCommandMetadata(
           staged.key,
@@ -129,7 +134,7 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
       slots = { pending: 0 };
       injectedRegistrySlots.set(registry, slots);
     }
-    if (slots.pending >= TEMPLATE_MAX_PENDING.default) invalid('busy');
+    if (slots.pending >= (capacity?.limits.registryPending.default ?? TEMPLATE_MAX_PENDING.default)) invalid('busy');
     const budget = createChildBudget(clock, parent, CALL_BUDGETS.prepare.default);
     const occupied = slots;
     slots.pending++;
@@ -160,12 +165,13 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
   function findWinner(key: CommandIdentity['key'], budget: OperationBudget) {
     return runStoreCall(clock, budget, {
       maxMs: STORE_PRIMITIVE_TIMEOUT_MS,
+      capacity,
       effect: 'read',
       invoke: (call) => find(scope, key, call),
       accept(value) {
         if (value === null) return null;
         const raw = readRecord(value, ['job', 'fingerprint'], [], STORED);
-        const job = readJobSummary(scope, raw.job);
+        const job = readJobSummary(scope, raw.job, capacity);
         if (encodeAdmissionKey(job.key) !== encodeAdmissionKey(key)) invalid(STORED);
         return { job, fingerprint: hashToken(raw.fingerprint, STORED) };
       },
@@ -191,6 +197,7 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
     try {
       const job = await runStoreCall(clock, budget, {
         maxMs: STORE_PRIMITIVE_TIMEOUT_MS,
+        capacity,
         effect: 'mutation',
         definite: INSERT_REJECTIONS,
         invoke: (call) => insert(scope, admission, call),
@@ -198,7 +205,7 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
           const raw = readRecord(value, ['status'], ['job'], STORED);
           if (raw.status === 'duplicate' && !Object.hasOwn(raw, 'job')) return null;
           if (raw.status !== 'inserted') invalid(STORED);
-          const job = readJobSummary(scope, raw.job);
+          const job = readJobSummary(scope, raw.job, capacity);
           const { snapshot } = command;
           if (
             job.jobId !== admission.jobId ||
@@ -236,25 +243,39 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
     return insertOrConfirm(await prepareMiss(parsed, budget), parsed.identity, budget);
   }
 
-  async function inOperation(call: CallOptions, run: (budget: OperationBudget) => Promise<AdmissionResult>) {
-    const { timeoutMs, signal } = readCallOptions(call, CALL_BUDGETS.admissionOrAdmin);
-    const budget = createBudget(clock, timeoutMs, signal);
+  async function withAdmission(run: () => Promise<AdmissionResult>) {
+    if (!capacity) return run();
+    if (admissions >= capacity.limits.servicePending) invalid('busy');
+    admissions++;
     try {
-      budget.check();
-      return await run(budget);
+      return await run();
     } finally {
-      budget.close();
+      admissions--;
     }
+  }
+
+  function inOperation(call: CallOptions, run: (budget: OperationBudget) => Promise<AdmissionResult>) {
+    return withAdmission(async () => {
+      const { timeoutMs, signal } = readCallOptions(call, CALL_BUDGETS.admissionOrAdmin);
+      const budget = createBudget(clock, timeoutMs, signal);
+      try {
+        budget.check();
+        return await run(budget);
+      } finally {
+        budget.close();
+      }
+    });
   }
 
   const service: EmailService<T> = Object.freeze({
     scope,
+    ...capacityTag(capacity),
     enqueue(command: EmailCommand<T>, call: CallOptions = {}) {
-      return inOperation(call, (budget) => enqueueParsed(parseCommandIdentity(scope, command), budget));
+      return inOperation(call, (budget) => enqueueParsed(parseCommandIdentity(scope, command, capacity), budget));
     },
     enqueuePrepared(input: PreparedEmailCommand, call: CallOptions = {}) {
       return inOperation(call, async (budget) => {
-        const command = validatePreparedCommand(scope, input);
+        const command = validatePreparedCommand(scope, input, capacity);
         const identity = {
           scope,
           key: command.key,
@@ -269,7 +290,7 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
       });
     },
   });
-  serviceAdmissions.set(service, enqueueParsed);
+  serviceAdmissions.set(service, (parsed, budget) => withAdmission(() => enqueueParsed(parsed, budget)));
   return service;
 }
 

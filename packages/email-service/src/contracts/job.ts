@@ -6,6 +6,7 @@ import type {
   EmailJobId,
   EmailScope,
   ProviderRef,
+  SmtpCapacity,
   TemplateIdentity,
   UnixMs,
 } from './message';
@@ -45,6 +46,7 @@ export type EmailJobState =
 /** Authoritative redacted job state, available without waiting for activity projection. */
 export type EmailJobSummary = EmailJobState & {
   readonly version: 1;
+  readonly smtpCapacity?: SmtpCapacity;
   readonly scope: EmailScope;
   readonly jobId: EmailJobId;
   readonly key: EmailAdmissionKey;

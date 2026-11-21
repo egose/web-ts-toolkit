@@ -3,6 +3,7 @@ import type { EmailActivity } from '../../contracts/admin';
 import type { ProjectionPermit } from '../../contracts/store';
 import { readStoredActivity, type StoredActivity } from '../../internal/activity-codecs';
 import { jobSelectors, readJobRecord, type JobRecord, type JobSelectors } from '../../internal/job-record';
+import { assertCapacityTag, recipientLimit, type CapacityContext } from '../../internal/smtp-capacity';
 import { readStoreId } from '../../internal/store-codecs';
 import { invalid, readRecord, scopeToken, unixMs } from '../../internal/validation';
 
@@ -81,10 +82,10 @@ const jobOptional = [
   'nextCleanupAt',
 ] as const satisfies readonly (keyof JobBson)[];
 
-export function readJobBson(scope: string, raw: unknown): JobRecord {
+export function readJobBson(scope: string, raw: unknown, capacity?: CapacityContext): JobRecord {
   const { _id, lifecycle, messageExpiresAt, state, nextAt, expiresAt, leaseEndsAt, pendingAt, nextCleanupAt, ...rest } =
-    readRecord(raw, jobRequired, jobOptional, STORED);
-  const job = readJobRecord(scope, { ...rest, state: lifecycle, expiresAt: messageExpiresAt });
+    readRecord(raw, jobRequired, capacity ? [...jobOptional, 'smtpCapacity', 'intentHash'] : jobOptional, STORED);
+  const job = readJobRecord(scope, { ...rest, state: lifecycle, expiresAt: messageExpiresAt }, capacity);
   const selectors = jobSelectors(job);
   for (const [key, value, expected] of [
     ['state', state, selectors.state],
@@ -118,14 +119,19 @@ const activityRequired = [
 const activityOptional = ['handedOffAt'] as const;
 
 /** A stub is not committed activity proof. Validate its entire shape, even when discarding it. */
-export function readActivityBson(expectedScope: string, row: object): StoredActivity | undefined {
+export function readActivityBson(
+  expectedScope: string,
+  row: object,
+  capacity?: CapacityContext,
+): StoredActivity | undefined {
   if (!Object.hasOwn(row, 'complete')) {
-    const { _id, scope, jobId, attemptId, stubDeleteAt } = readRecord(
+    const { _id, scope, jobId, attemptId, stubDeleteAt, ...tag } = readRecord(
       row,
       [...activityIdentity, 'stubDeleteAt'],
-      [],
+      capacity ? ['smtpCapacity'] : [],
       STORED,
     );
+    assertCapacityTag(tag, capacity, STORED);
     readStoreId(_id, STORED);
     readStoreId(jobId, STORED);
     readStoreId(attemptId, STORED);
@@ -133,9 +139,14 @@ export function readActivityBson(expectedScope: string, row: object): StoredActi
     unixMs(stubDeleteAt.getTime(), STORED);
     return;
   }
-  const { _id, complete, digest, ...activity } = readRecord(row, activityRequired, activityOptional, STORED);
+  const { _id, complete, digest, ...activity } = readRecord(
+    row,
+    activityRequired,
+    capacity ? [...activityOptional, 'smtpCapacity', 'recipientCounts'] : activityOptional,
+    STORED,
+  );
   readStoreId(_id, STORED);
-  const stored = readStoredActivity(expectedScope, { activity, digest });
+  const stored = readStoredActivity(expectedScope, { activity, digest }, STORED, capacity);
   if (complete !== true) invalid(STORED);
   return stored;
 }
@@ -169,49 +180,59 @@ const provider = objectSchema({
 });
 const template = objectSchema({ key: string, revision: string });
 const correlation = { ...bsonObject, maxProperties: MESSAGE_LIMITS.correlationEntries, additionalProperties: string };
-const recipient = objectSchema({
-  group: { enum: ['to', 'cc', 'bcc'] },
-  index: { ...numeric, minimum: 0, maximum: MESSAGE_LIMITS.recipients - 1 },
-  status: { enum: ['accepted', 'rejected'] },
-});
-const result = {
-  outcome: string,
-  retry: { enum: ['never', 'safe_transient'] },
-  stage: string,
-  reason: string,
-  recipients: { bsonType: 'array', maxItems: MESSAGE_LIMITS.recipients, items: recipient },
-  messageId: { ...string, maxLength: '<00000000-0000-4000-8000-000000000000@email.invalid>'.length },
-  providerMessageId: { ...string, maxLength: 128 },
-};
+const smtpProvider = objectSchema({ kind: { enum: ['smtp'] }, key: string, mode: { enum: ['live'] } });
+
+function resultFields(capacity?: CapacityContext) {
+  const max = recipientLimit(capacity);
+  const recipient = objectSchema({
+    group: { enum: ['to', 'cc', 'bcc'] },
+    index: { ...numeric, minimum: 0, maximum: max - 1 },
+    status: { enum: ['accepted', 'rejected'] },
+  });
+  return {
+    outcome: string,
+    retry: { enum: ['never', 'safe_transient'] },
+    stage: string,
+    reason: string,
+    recipients: { bsonType: 'array', maxItems: max, items: recipient },
+    messageId: { ...string, maxLength: '<00000000-0000-4000-8000-000000000000@email.invalid>'.length },
+    ...(capacity ? {} : { providerMessageId: { ...string, maxLength: 128 } }),
+  };
+}
 const resultOptional = ['recipients', 'messageId', 'providerMessageId'] as const;
-const ledgerAttempt = objectSchema(
-  {
-    commit: objectSchema(
-      {
-        jobId: uuid,
-        attemptId: uuid,
-        ordinal,
-        operationId: uuid,
-        startedAt: time,
-        handedOffAt: time,
-        finishedAt: time,
-        result: objectSchema(
-          { ...result, retryHint: objectSchema({ delayMs: numeric, notBefore: time }, ['delayMs', 'notBefore']) },
-          [...resultOptional, 'retryHint'],
-        ),
-        disposition: string,
-        reason: string,
-        retryAt: time,
-      },
-      ['handedOffAt', 'retryAt'],
-    ),
-    digest,
-    ownerDigest: digest,
-    permitUntil: time,
-    projectionAckAt: time,
-  },
-  ['ownerDigest', 'permitUntil', 'projectionAckAt'],
-);
+function ledgerAttempt(capacity?: CapacityContext) {
+  return objectSchema(
+    {
+      commit: objectSchema(
+        {
+          jobId: uuid,
+          attemptId: uuid,
+          ordinal,
+          operationId: uuid,
+          startedAt: time,
+          handedOffAt: time,
+          finishedAt: time,
+          result: objectSchema(
+            {
+              ...resultFields(capacity),
+              retryHint: objectSchema({ delayMs: numeric, notBefore: time }, ['delayMs', 'notBefore']),
+            },
+            [...resultOptional, 'retryHint'],
+          ),
+          disposition: string,
+          reason: string,
+          retryAt: time,
+        },
+        ['handedOffAt', 'retryAt'],
+      ),
+      digest,
+      ownerDigest: digest,
+      permitUntil: time,
+      projectionAckAt: time,
+    },
+    ['ownerDigest', 'permitUntil', 'projectionAckAt'],
+  );
+}
 const lifecycle = {
   oneOf: [
     objectSchema({ state: { enum: ['queued'] }, nextAt: time }),
@@ -242,13 +263,64 @@ const lifecycle = {
   ],
 };
 
-export function jobValidator(): Document {
+function capacityField({ binding }: CapacityContext): Document {
   return {
+    smtpCapacity: objectSchema({
+      format: { enum: [binding.format] },
+      namespace: { enum: [binding.namespace] },
+      maxRecipients: { ...numeric, enum: [binding.maxRecipients] },
+    }),
+  };
+}
+
+function countsSchema(capacity?: CapacityContext) {
+  const count = capacity ? { ...numeric, minimum: 0, maximum: recipientLimit(capacity) } : numeric;
+  return objectSchema({ to: count, cc: count, bcc: count });
+}
+
+function smtpSnapshot(capacity: CapacityContext) {
+  const mailbox = objectSchema({ address: string, name: string }, ['name']);
+  const recipients = { bsonType: 'array', maxItems: recipientLimit(capacity), items: mailbox };
+  return objectSchema(
+    {
+      version,
+      ...capacityField(capacity),
+      kind: { enum: ['smtp'] },
+      provider: smtpProvider,
+      template,
+      envelope: objectSchema({ from: mailbox, to: recipients, cc: recipients, bcc: recipients, replyTo: mailbox }, [
+        'replyTo',
+      ]),
+      preparedAt: time,
+      expiresAt: time,
+      priority: { ...numeric, minimum: PRIORITY.min, maximum: PRIORITY.max },
+      attachments: { bsonType: 'array', maxItems: MESSAGE_LIMITS.attachments, items: bsonObject },
+      correlation,
+      subject: string,
+      html: string,
+      text: string,
+    },
+    ['html', 'text'],
+  );
+}
+
+function withBsonLimit(validator: Document, maxBytes: number | undefined): Document {
+  // Use the replica set's actual encoded size, including metadata, array indexes and stub dates.
+  return maxBytes === undefined
+    ? validator
+    : {
+        $and: [validator, { $expr: { $lte: [{ $bsonSize: '$$ROOT' }, maxBytes] } }],
+      };
+}
+
+export function jobValidator(capacity?: CapacityContext): Document {
+  const validator = {
     $jsonSchema: {
       ...objectSchema(
         {
           _id: string,
           version,
+          ...(capacity ? { ...capacityField(capacity), intentHash: digest } : {}),
           scope,
           jobId: uuid,
           key: {
@@ -260,13 +332,13 @@ export function jobValidator(): Document {
           admissionKey: string,
           fingerprint: digest,
           snapshotHash: digest,
-          snapshot: bsonObject,
+          snapshot: capacity ? smtpSnapshot(capacity) : bsonObject,
           retry: objectSchema({ maxAttempts: numeric, baseDelayMs: numeric, maxDelayMs: numeric }),
           retention: objectSchema({ payloadMs: numeric, historyMs: numeric, idempotencyMs: numeric }),
-          provider,
+          provider: capacity ? smtpProvider : provider,
           template,
           correlation,
-          recipientCounts: objectSchema({ to: numeric, cc: numeric, bcc: numeric }),
+          recipientCounts: countsSchema(capacity),
           scheduleAt: { anyOf: [time, { bsonType: 'null' }] },
           createdAt: time,
           updatedAt: time,
@@ -275,7 +347,7 @@ export function jobValidator(): Document {
           revision: uuid,
           lifecycle,
           state: { enum: ['queued', 'leased', 'terminal'] },
-          attempts: { bsonType: 'array', items: ledgerAttempt, maxItems: MAX_ATTEMPT_LEDGER },
+          attempts: { bsonType: 'array', items: ledgerAttempt(capacity), maxItems: MAX_ATTEMPT_LEDGER },
           resolutions: {
             bsonType: 'array',
             maxItems: 2,
@@ -288,7 +360,7 @@ export function jobValidator(): Document {
           leaseEndsAt: time,
           pendingAt: time,
           nextCleanupAt: time,
-        } satisfies Record<keyof JobBson, Document>,
+        } satisfies Record<Exclude<keyof JobBson, 'smtpCapacity' | 'intentHash'>, Document>,
         jobOptional,
       ),
       oneOf: [
@@ -309,11 +381,12 @@ export function jobValidator(): Document {
       ],
     },
   };
+  return withBsonLimit(validator, capacity?.limits.jobBsonBytes);
 }
 
-export function activityValidator(): Document {
-  const identity = { _id: uuid, scope, jobId: uuid, attemptId: uuid };
-  return {
+export function activityValidator(capacity?: CapacityContext): Document {
+  const identity = { _id: uuid, scope, jobId: uuid, attemptId: uuid, ...(capacity ? capacityField(capacity) : {}) };
+  const validator = {
     $jsonSchema: {
       oneOf: [
         objectSchema(
@@ -323,19 +396,21 @@ export function activityValidator(): Document {
             complete: { enum: [true] },
             digest,
             ordinal,
-            provider,
+            provider: capacity ? smtpProvider : provider,
+            ...(capacity ? { recipientCounts: countsSchema(capacity) } : {}),
             template,
             correlation,
             startedAt: time,
             handedOffAt: time,
             finishedAt: time,
-            result: objectSchema(result, resultOptional),
+            result: objectSchema(resultFields(capacity), resultOptional),
             disposition: string,
-          } satisfies Record<keyof ActivityBson, Document>,
+          } satisfies Record<Exclude<keyof ActivityBson, 'smtpCapacity' | 'recipientCounts'>, Document>,
           activityOptional,
         ),
         objectSchema({ ...identity, stubDeleteAt: { bsonType: 'date' } }),
       ],
     },
   };
+  return withBsonLimit(validator, capacity?.limits.activityBsonBytes);
 }

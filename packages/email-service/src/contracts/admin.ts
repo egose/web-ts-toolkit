@@ -7,16 +7,20 @@ import type {
   EmailJobId,
   EmailScope,
   ProviderRef,
+  SmtpCapacity,
   TemplateIdentity,
   UnixMs,
 } from './message';
-import type { AttemptResult } from './provider';
+import type { AttemptResult, RecipientResult } from './provider';
 import type { EmailStore } from './store';
 import type { MaintenanceStop } from './worker';
 
 /** Redacted projection of a finalized attempt; never a queue payload or a delivery receipt. */
 export type EmailActivity = {
   readonly version: 1;
+  readonly smtpCapacity?: SmtpCapacity;
+  /** Present in opted-in history; counts refer to the original To, Cc and Bcc groups, never addresses. */
+  readonly recipientCounts?: Readonly<Record<RecipientResult['group'], number>>;
   readonly scope: EmailScope;
   readonly jobId: EmailJobId;
   readonly attemptId: EmailAttemptId;
@@ -41,7 +45,7 @@ export type EmailActivityQuery = {
 };
 
 export type EmailActivityPage = { readonly items: readonly EmailActivity[]; readonly nextCursor?: string };
-/** One sequential sweep; limit defaults to 20 and accepts 1–100. */
+/** One sequential sweep; V1 defaults to 20 (1–100); SMTP opt-in defaults to 4 (1–16). */
 export type MaintenanceOptions = CallOptions & { limit?: number };
 
 /** Confirmed work in this call, not a queue inventory. A confirmed idempotent ACK counts. */
@@ -71,7 +75,7 @@ export interface EmailAdmin {
   cancel(jobId: EmailJobId, options?: CallOptions): Promise<CancelResult>;
   /** Dismiss or requeue an exact unknown attempt. Redrive can duplicate a previously accepted submission. */
   resolveUnknown(command: ResolveUnknownCommand, options?: CallOptions): Promise<ResolveUnknownResult>;
-  /** Read a bounded page of committed activities (default 25, max 100), even if the source ACK is pending. */
+  /** Read committed activities even before source ACK. V1 default/max: 25/100; SMTP opt-in: 8/16. */
   listActivities(query?: EmailActivityQuery, options?: CallOptions): Promise<EmailActivityPage>;
   /** Project from the authoritative ledger; no send can result from this operation. */
   reconcile(options?: MaintenanceOptions): Promise<ReconcileReport>;
@@ -81,6 +85,8 @@ export interface EmailAdmin {
 
 export type EmailAdminOptions = {
   scope: EmailScope;
+  /** Must match the store. Opted-in history stays redacted and cursors remain bound to this tuple. */
+  smtpCapacity?: SmtpCapacity;
   store: EmailStore;
   /** Best effort after a new confirmed projection ACK. One unresolved callback per admin; no wait or retry. */
   onActivity?: (activity: EmailActivity) => Awaitable<void>;

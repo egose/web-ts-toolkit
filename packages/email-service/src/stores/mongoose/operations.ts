@@ -10,6 +10,7 @@ import { activityPage, type ActivityCriteria, type StoredActivity } from '../../
 import type { OperationBudget } from '../../internal/budget';
 import type { JobRecord } from '../../internal/job-record';
 import type { DecisionTime, JobDecision, JobGuard, JobWrite } from '../../internal/job-transitions';
+import { capacityTag, type CapacityContext } from '../../internal/smtp-capacity';
 import { readStoreId } from '../../internal/store-codecs';
 import { invalid } from '../../internal/validation';
 import {
@@ -31,6 +32,7 @@ import {
   JOB_ID,
   activityOrder,
   dueIndexes,
+  indexName,
   jobActivityOrder,
   type DueKey,
 } from './schema';
@@ -53,13 +55,28 @@ function modifiedValue(reply: BsonDocument): unknown {
   return reply.value;
 }
 
-function casFilter({ scope, jobId, revision, state, retiring, pendingAck, atOrAfter, before }: JobGuard): BsonDocument {
+function capacityFilter(capacity?: CapacityContext): BsonDocument {
+  const binding = capacity?.binding;
+  return binding
+    ? {
+        'smtpCapacity.format': binding.format,
+        'smtpCapacity.namespace': binding.namespace,
+        'smtpCapacity.maxRecipients': binding.maxRecipients,
+      }
+    : {};
+}
+
+function casFilter(
+  { scope, jobId, revision, state, retiring, pendingAck, atOrAfter, before }: JobGuard,
+  capacity?: CapacityContext,
+): BsonDocument {
   const lease = state.state === 'leased' ? state.lease : undefined;
   return {
     _id: jobIdKey(scope, jobId),
     scope,
     jobId,
     version: EMAIL_FORMAT_VERSION,
+    ...capacityFilter(capacity),
     revision,
     state: state.state,
     'lifecycle.state': state.state,
@@ -97,6 +114,7 @@ export class MongoOperations {
     private readonly binding: Binding,
     private readonly budget: OperationBudget,
     private readonly names: Names,
+    private readonly capacity?: CapacityContext,
   ) {}
 
   check(): void {
@@ -123,7 +141,7 @@ export class MongoOperations {
     const reply = await this.io.read(this.binding, this.budget, {
       find,
       filter,
-      hint,
+      hint: indexName(hint, this.capacity),
       collation: SIMPLE,
       readConcern: { level },
       limit,
@@ -136,9 +154,11 @@ export class MongoOperations {
   }
 
   async byJob(scope: string, jobId: string): Promise<JobRecord | undefined> {
+    // The private collection is already the bounded namespace. Check the tuple on the exact
+    // returned record rather than using a filter that could disguise a corrupt row as a miss.
     const [raw] = await this.find(this.names.jobsCollection, { scope, jobId }, JOB_ID, 1, 'linearizable');
     if (!raw) return;
-    const job = readJobBson(scope, raw);
+    const job = readJobBson(scope, raw, this.capacity);
     if (job.jobId !== jobId) invalid('store_incompatible');
     this.check();
     return job;
@@ -147,7 +167,7 @@ export class MongoOperations {
   async byAdmission(scope: string, admissionKey: string): Promise<JobRecord | undefined> {
     const [raw] = await this.find(this.names.jobsCollection, { scope, admissionKey }, ADMISSION_ID, 1, 'linearizable');
     if (!raw) return;
-    const job = readJobBson(scope, raw);
+    const job = readJobBson(scope, raw, this.capacity);
     if (job.admissionKey !== admissionKey) invalid('store_incompatible');
     this.check();
     return job;
@@ -158,7 +178,7 @@ export class MongoOperations {
     if (!raw) return;
     const { jobId, attemptId } = doc(raw, 'store_incompatible');
     if (jobId !== identity.jobId || attemptId !== identity.attemptId) invalid('store_incompatible');
-    const row = readActivityBson(identity.scope, raw);
+    const row = readActivityBson(identity.scope, raw, this.capacity);
     this.check();
     return row;
   }
@@ -199,12 +219,12 @@ export class MongoOperations {
       this.budget,
       {
         findAndModify: this.names.jobsCollection,
-        query: casFilter(guard),
+        query: casFilter(guard, this.capacity),
         // Treat the whole replacement as literal, including rendered strings beginning with '$'.
         update: [{ $replaceWith: { $literal: jobBson(next) } }],
         fields: { _id: 1, revision: 1 },
         new: true,
-        hint: JOB_ID,
+        hint: indexName(JOB_ID, this.capacity),
         collation: SIMPLE,
       },
       [121],
@@ -228,7 +248,7 @@ export class MongoOperations {
         const identity = { scope, jobId, attemptId };
         const [raw] = await this.find(this.names.activitiesCollection, identity, ACTIVITY_ID, 1, 'linearizable');
         if (raw) {
-          readActivityBson(scope, raw);
+          readActivityBson(scope, raw, this.capacity);
           exact.push({ ...identity, _id: readStoreId(doc(raw, 'store_incompatible')._id, 'store_incompatible') });
         }
       }
@@ -239,9 +259,9 @@ export class MongoOperations {
           delete: this.names.activitiesCollection,
           // An exact indexed delete per attempt in one ordered command.
           deletes: exact.map((identity) => ({
-            q: { ...identity, $expr: serverWindow(guard.atOrAfter) },
+            q: { ...identity, ...capacityFilter(this.capacity), $expr: serverWindow(guard.atOrAfter) },
             limit: 1,
-            hint: ACTIVITY_ID,
+            hint: indexName(ACTIVITY_ID, this.capacity),
             collation: SIMPLE,
           })),
         });
@@ -256,7 +276,14 @@ export class MongoOperations {
     }
     const outcome = await this.io.write(this.binding, this.budget, {
       delete: this.names.jobsCollection,
-      deletes: [{ q: casFilter(guard), limit: 1, hint: JOB_ID, collation: SIMPLE }],
+      deletes: [
+        {
+          q: casFilter(guard, this.capacity),
+          limit: 1,
+          hint: indexName(JOB_ID, this.capacity),
+          collation: SIMPLE,
+        },
+      ],
     });
     if (outcome.kind !== 'ack') invalid('write_unconfirmed');
     return writeCount(outcome.reply, 1) === 1;
@@ -301,7 +328,7 @@ export class MongoOperations {
         [due]: { $exists: true, $lte: selectionAt },
       },
       name,
-      MAX_STORE_CANDIDATES,
+      this.capacity?.limits.dueCandidates ?? MAX_STORE_CANDIDATES,
       'majority',
       sort,
       { _id: 0, jobId: 1 },
@@ -343,10 +370,10 @@ export class MongoOperations {
       this.budget,
       {
         findAndModify: this.names.activitiesCollection,
-        query: identity,
+        query: { ...identity, ...capacityFilter(this.capacity) },
         new: true,
         upsert: true,
-        hint: ACTIVITY_ID,
+        hint: indexName(ACTIVITY_ID, this.capacity),
         collation: SIMPLE,
         update: [
           {
@@ -367,7 +394,7 @@ export class MongoOperations {
                 ],
                 default: {
                   $mergeObjects: [
-                    { $literal: identity },
+                    { $literal: { ...identity, ...capacityTag(this.capacity) } },
                     { _id: { $literal: candidateId }, stubDeleteAt: { $add: ['$$NOW', ACTIVITY_STUB_TTL_MS] } },
                   ],
                 },
@@ -381,7 +408,11 @@ export class MongoOperations {
     if (result.kind === 'definite_error' && result.code === 121) invalid('store_incompatible');
     let confirmedComplete = false;
     if (result.kind === 'ack') {
-      const row = readActivityBson(identity.scope, doc(modifiedValue(result.reply), 'write_unconfirmed'));
+      const row = readActivityBson(
+        identity.scope,
+        doc(modifiedValue(result.reply), 'write_unconfirmed'),
+        this.capacity,
+      );
       if (row && row.digest !== permit.digest) invalid('store_incompatible');
       confirmedComplete = row !== undefined;
     }
@@ -445,7 +476,7 @@ export class MongoOperations {
     await readRange(Object.keys(range).length ? { finishedAt: range } : {});
     const page = activityPage(
       criteria,
-      rows.map((row) => readActivityBson(scope, row)?.activity ?? invalid('store_incompatible')),
+      rows.map((row) => readActivityBson(scope, row, this.capacity)?.activity ?? invalid('store_incompatible')),
     );
     this.check();
     return page;

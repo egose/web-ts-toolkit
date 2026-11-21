@@ -7,6 +7,7 @@ import type {
   EmailJobId,
   EmailScope,
   ProviderRef,
+  SmtpCapacity,
 } from './message';
 import type { JobDisposition } from './job';
 import type { AttemptReason, ConfiguredEmailProvider } from './provider';
@@ -79,6 +80,7 @@ export type EmailShutdownReport = {
 
 export interface EmailWorker {
   readonly scope: EmailScope;
+  readonly smtpCapacity?: SmtpCapacity;
   /** Do bounded work in this scope. The host schedules runs; only one run per instance may be active. */
   run(options?: EmailRunOptions): Promise<EmailRunReport>;
   /** Stop permanently. `stopped` means no active run or provider I/O, not remote recall. */
@@ -88,6 +90,8 @@ export interface EmailWorker {
 /** Dependencies for a bounded worker; provider profile keys must be unique. */
 export type EmailWorkerOptions = {
   scope: EmailScope;
+  /** Must match the store and every profile. Only live SMTP profiles are allowed with this option. */
+  smtpCapacity?: SmtpCapacity;
   store: EmailStore;
   providers: readonly ConfiguredEmailProvider[];
   attachmentResolvers?: Readonly<Record<string, AttachmentResolver>>;

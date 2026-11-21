@@ -2,7 +2,6 @@ import {
   EMAIL_FORMAT_VERSION,
   MAX_ATTEMPT_LEDGER,
   MAX_PREPARED_AT_SKEW_MS,
-  MESSAGE_LIMITS,
   PRIORITY,
   PROJECTION_DRAIN_MS,
   PROJECTION_PERMIT_MS,
@@ -14,6 +13,7 @@ import type {
   EmailAdmissionKey,
   EmailSnapshot,
   ProviderRef,
+  SmtpCapacity,
   TemplateIdentity,
   UnixMs,
 } from '../contracts/message';
@@ -25,13 +25,15 @@ import {
   attemptEffect,
   readAttemptReason,
   readAttemptResult,
+  readRecipientCounts,
   recipientCounts,
   type RecipientCounts,
 } from './attempt-codecs';
 import { canonicalJson } from './canonical-json';
-import { encodeAdmissionKey, validateAdmissionKey } from './command-codecs';
+import { encodeAdmissionKey, fingerprintFor, validateAdmissionKey } from './command-codecs';
 import { readUnknownResolution } from './job-summary';
 import { validateCorrelation, validateProviderRef, validateSnapshot, validateTemplateIdentity } from './message-codecs';
+import { assertCapacityProvider, assertCapacityTag, capacityTag, type CapacityContext } from './smtp-capacity';
 import { readLeaseToken, readRetentionPolicy, readRetryPolicy, readStoreId, timeAfter } from './store-codecs';
 import { hashToken, integer, invalid, readArray, readRecord, scopeToken, unixMs } from './validation';
 
@@ -58,14 +60,17 @@ export type LedgerAttempt = Readonly<{
   projectionAckAt?: UnixMs;
 }>;
 
-/** V1 logical JSON, not a hydrated model or a physical database row. */
+/** Authoritative logical JSON, not a hydrated model or a physical database row. */
 export type JobRecord = Readonly<{
   version: 1;
+  smtpCapacity?: SmtpCapacity;
   scope: string;
   jobId: string;
   key: EmailAdmissionKey;
   admissionKey: string;
   fingerprint: string;
+  /** V2 retains only the intent digest, so fingerprint integrity survives snapshot pruning. */
+  intentHash?: string;
   snapshot?: EmailSnapshot;
   snapshotHash: string;
   retry: Readonly<RetryPolicy>;
@@ -173,6 +178,7 @@ export function jobSummary(job: JobRecord): EmailJobSummary {
   const latest = job.attempts.at(-1)?.commit;
   return Object.freeze({
     version: EMAIL_FORMAT_VERSION,
+    ...(job.smtpCapacity ? { smtpCapacity: job.smtpCapacity } : {}),
     scope: job.scope,
     jobId: job.jobId,
     key: Object.freeze({ ...job.key }),
@@ -200,8 +206,8 @@ export function jobSummary(job: JobRecord): EmailJobSummary {
   });
 }
 
-export function copyCommit(commit: AttemptCommit): AttemptCommit {
-  return Object.freeze({ ...commit, result: readAttemptResult(commit.result, STORED) });
+export function copyCommit(commit: AttemptCommit, capacity?: CapacityContext): AttemptCommit {
+  return Object.freeze({ ...commit, result: readAttemptResult(commit.result, STORED, false, capacity) });
 }
 
 type JobMetadata = Pick<
@@ -209,10 +215,10 @@ type JobMetadata = Pick<
   'provider' | 'template' | 'correlation' | 'recipientCounts' | 'snapshotHash' | 'expiresAt' | 'priority' | 'createdAt'
 >;
 
-export function readStoredSnapshot(job: JobMetadata, input: unknown): EmailSnapshot {
+export function readStoredSnapshot(job: JobMetadata, input: unknown, capacity?: CapacityContext): EmailSnapshot {
   let validated;
   try {
-    validated = validateSnapshot(input);
+    validated = validateSnapshot(input, capacity);
   } catch {
     return invalid(STORED);
   }
@@ -298,6 +304,7 @@ function readLedgerAttempt(
     JobRecord,
     'scope' | 'jobId' | 'provider' | 'template' | 'correlation' | 'recipientCounts' | 'expiresAt' | 'updatedAt'
   >,
+  capacity?: CapacityContext,
 ): LedgerAttempt {
   const entry = readRecord(input, ['commit', 'digest'], ['ownerDigest', 'permitUntil', 'projectionAckAt'], STORED);
   const raw = readRecord(
@@ -311,7 +318,7 @@ function readLedgerAttempt(
   const handedOffAt = optionalTime(raw, 'handedOffAt');
   const finishedAt = unixMs(raw.finishedAt, STORED);
   const retryAt = optionalTime(raw, 'retryAt');
-  const result = readAttemptResult(raw.result, STORED);
+  const result = readAttemptResult(raw.result, STORED, false, capacity);
   const ownerDigest = Object.hasOwn(entry, 'ownerDigest') ? hashToken(entry.ownerDigest, STORED) : undefined;
   const internal =
     result.reason === 'pre_handoff_lease_expired' ||
@@ -361,7 +368,7 @@ function readLedgerAttempt(
     invalid(STORED);
   }
   const digest = hashToken(entry.digest, STORED);
-  if (digest !== activityDigest(activityFor(job, commit))) invalid(STORED);
+  if (digest !== activityDigest(activityFor(job, commit, capacity), capacity)) invalid(STORED);
   return Object.freeze({
     commit,
     digest,
@@ -477,7 +484,7 @@ function assertHistory(job: JobRecord): void {
 }
 
 /** Decode a mapped physical row at the storage boundary, rejecting malformed or inconsistent logical JSON. */
-export function readJobRecord(scope: string, input: unknown): JobRecord {
+export function readJobRecord(scope: string, input: unknown, capacity?: CapacityContext): JobRecord {
   const raw = readRecord(
     input,
     [
@@ -504,27 +511,26 @@ export function readJobRecord(scope: string, input: unknown): JobRecord {
       'attempts',
       'resolutions',
     ],
-    ['snapshot', 'projectionPermitUntil', 'retiring'],
+    ['snapshot', 'projectionPermitUntil', 'retiring', 'smtpCapacity', 'intentHash'],
     STORED,
   );
   if (raw.version !== EMAIL_FORMAT_VERSION || scopeToken(raw.scope, STORED) !== scope) invalid(STORED);
-  const counts = readRecord(raw.recipientCounts, ['to', 'cc', 'bcc'], [], STORED);
-  const recipients = Object.freeze({
-    to: integer(counts.to, 0, MESSAGE_LIMITS.recipients, STORED),
-    cc: integer(counts.cc, 0, MESSAGE_LIMITS.recipients, STORED),
-    bcc: integer(counts.bcc, 0, MESSAGE_LIMITS.recipients, STORED),
-  });
-  integer(recipients.to + recipients.cc + recipients.bcc, 1, MESSAGE_LIMITS.recipients, STORED);
+  assertCapacityTag(raw, capacity, STORED);
+  const recipients = readRecipientCounts(raw.recipientCounts, STORED, capacity);
   const key = validateAdmissionKey(raw.key, STORED);
   const admissionKey = encodeAdmissionKey(key);
   if (raw.admissionKey !== admissionKey) invalid(STORED);
+  if (!capacity && Object.hasOwn(raw, 'intentHash')) invalid(STORED);
+  const intentHash = capacity ? hashToken(raw.intentHash, STORED) : undefined;
   const base = {
     version: EMAIL_FORMAT_VERSION,
+    ...capacityTag(capacity),
     scope,
     jobId: readStoreId(raw.jobId, STORED),
     key,
     admissionKey,
     fingerprint: hashToken(raw.fingerprint, STORED),
+    ...(intentHash === undefined ? {} : { intentHash }),
     snapshotHash: hashToken(raw.snapshotHash, STORED),
     retry: readRetryPolicy(raw.retry, STORED),
     retention: readRetentionPolicy(raw.retention, STORED),
@@ -540,6 +546,13 @@ export function readJobRecord(scope: string, input: unknown): JobRecord {
     revision: readStoreId(raw.revision, STORED),
     state: readState(raw.state),
   } as const;
+  assertCapacityProvider(base.provider, capacity, STORED);
+  if (
+    intentHash !== undefined &&
+    base.fingerprint !== fingerprintFor({ ...base, templateKey: base.template.key, intentHash }, capacity)
+  ) {
+    invalid(STORED);
+  }
   if (
     base.createdAt > base.updatedAt ||
     Math.max(base.createdAt, base.scheduleAt ?? 0) >= base.expiresAt ||
@@ -550,10 +563,12 @@ export function readJobRecord(scope: string, input: unknown): JobRecord {
   const projectionPermitUntil = optionalTime(raw, 'projectionPermitUntil');
   const retiring = Object.hasOwn(raw, 'retiring');
   if (retiring && raw.retiring !== true) invalid(STORED);
+  // The checked snapshot, up to 11 bounded ledger entries and shape-bounded metadata
+  // (including Mongo selectors) fit the 3 MiB V2 job budget without serializing the full job.
   const job: JobRecord = Object.freeze({
     ...base,
-    ...(Object.hasOwn(raw, 'snapshot') ? { snapshot: readStoredSnapshot(base, raw.snapshot) } : {}),
-    attempts: readArray(raw.attempts, MAX_ATTEMPT_LEDGER, STORED, (entry) => readLedgerAttempt(entry, base)),
+    ...(Object.hasOwn(raw, 'snapshot') ? { snapshot: readStoredSnapshot(base, raw.snapshot, capacity) } : {}),
+    attempts: readArray(raw.attempts, MAX_ATTEMPT_LEDGER, STORED, (entry) => readLedgerAttempt(entry, base, capacity)),
     resolutions: readArray(raw.resolutions, 2, STORED, readUnknownResolution),
     ...(projectionPermitUntil === undefined ? {} : { projectionPermitUntil }),
     ...(retiring ? { retiring: true } : {}),

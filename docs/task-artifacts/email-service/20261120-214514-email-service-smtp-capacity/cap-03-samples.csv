@@ -1,0 +1,5 @@
+mode,tls_version,target,rcpt_delay_ms,rcpt_commands,rcpt_replies,early_commands,run_limit_ms,provider_limit_ms,effective_submit_ms,rcpt_wait_ms,final_wait_ms,submit_ms,run_ms,mime_bytes,observed_outcome_or_reason
+starttls,TLSv1.3,1000,5,1000,1000,0,30000,15000,14999,5151.366,31.995,5851.228,6149.630,8582415,partially_accepted
+implicit,TLSv1.3,1000,25,1000,1000,0,75000,60000,59999,25202.159,31.164,26004.366,26249.914,8582415,partially_accepted
+implicit,TLSv1.3,1000,50,1000,1000,0,75000,60000,59999,50152.516,30.697,50979.637,51246.309,8582415,partially_accepted
+implicit,TLSv1.3,1000,60,33,32,0,2000,15000,1956,1923.811,0.000,1957.917,2006.422,0,provider_timeout

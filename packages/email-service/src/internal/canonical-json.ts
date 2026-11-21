@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { MESSAGE_LIMITS } from '../constants';
 import type { JsonObject, JsonValue } from '../contracts/message';
 import type { EmailErrorCode } from '../errors';
+import type { CapacityContext } from './smtp-capacity';
 import { denseArrayLength, invalid, isArray, jsonKey, ownData, plainKeys, utf8Length } from './validation';
 
 type TreeLimits = { readonly depth: number; readonly values: number };
@@ -111,4 +112,9 @@ export function sha256(input: string | Uint8Array): string {
 
 export function hashJson(input: unknown, maxBytes: number, code: EmailErrorCode = 'invalid_snapshot'): string {
   return sha256(canonicalJson(input, maxBytes, code).encoded);
+}
+
+/** Same exact representation for evidence validation, equality and projection digests. */
+export function encodeEvidence(input: unknown, code: EmailErrorCode, capacity?: CapacityContext): string {
+  return canonicalJson(input, capacity?.limits.evidenceBytes ?? 8_192, code, capacity?.limits.evidenceTree).encoded;
 }

@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
 import type { OperationBudget } from '../../internal/budget';
+import type { CapacityContext } from '../../internal/smtp-capacity';
 import { invalid } from '../../internal/validation';
 import { batch, doc, SIMPLE, type Binding, type BsonDocument, type MongoConnection } from './connection';
 import { activityValidator, jobValidator } from './records';
@@ -54,12 +55,20 @@ const activityIndexes: readonly Index[] = [
 
 export type CollectionSchema = Readonly<{ name: string; validator: BsonDocument; indexes: readonly Index[] }>;
 
-export function jobSchema(name: string): CollectionSchema {
-  return { name, validator: jobValidator(), indexes: jobIndexes };
+export function indexName(v1Name: string, capacity?: CapacityContext): string {
+  return capacity ? `v2_${v1Name.slice(3)}` : v1Name;
 }
 
-export function activitySchema(name: string): CollectionSchema {
-  return { name, validator: activityValidator(), indexes: activityIndexes };
+function laneIndexes(indexes: readonly Index[], capacity?: CapacityContext): readonly Index[] {
+  return capacity ? indexes.map((index) => ({ ...index, name: indexName(index.name, capacity) })) : indexes;
+}
+
+export function jobSchema(name: string, capacity?: CapacityContext): CollectionSchema {
+  return { name, validator: jobValidator(capacity), indexes: laneIndexes(jobIndexes, capacity) };
+}
+
+export function activitySchema(name: string, capacity?: CapacityContext): CollectionSchema {
+  return { name, validator: activityValidator(capacity), indexes: laneIndexes(activityIndexes, capacity) };
 }
 
 function simple(collation: unknown): boolean {
@@ -123,6 +132,19 @@ async function missingIndexes(
   }
   if (!seen.has('_id_')) invalid('store_incompatible');
   return indexes.filter((index) => !seen.has(index.name));
+}
+
+/** Check both halves of a bound pair before installing missing definitions on either. */
+export async function checkExistingCollection(
+  io: MongoConnection,
+  binding: Binding,
+  budget: OperationBudget,
+  schema: CollectionSchema,
+): Promise<void> {
+  const row = await getCollection(io, binding, budget, schema.name);
+  if (!row) return;
+  checkCollection(row, schema);
+  await missingIndexes(io, binding, budget, schema);
 }
 
 /** Install missing definitions only. Never modify existing options, validators or indexes. */

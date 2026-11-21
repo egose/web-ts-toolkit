@@ -164,6 +164,16 @@ function checkJSDoc(packageDir, packedFiles) {
     createEmailTemplateRegistry: /isolated registry/,
     EmailCommand: /scoped idempotency/,
     PreparedEmailCommand: /sensitive outbox value/,
+    SmtpCapacity: /canonical lowercase UUIDv4[\s\S]*51 to 1,000[\s\S]*DTO's `version: 1`/,
+    'TemplateRegistryOptions.smtpCapacity': /same tuple/,
+    'EmailServiceOptions.smtpCapacity': /match the registry and store/,
+    'EmailWorkerOptions.smtpCapacity': /Only live SMTP profiles/,
+    'EmailBatchServiceOptions.smtpCapacity': /exact tuple explicitly/,
+    'EmailAdminOptions.smtpCapacity': /stays redacted/,
+    'StoreCall.smtpCapacity': /before every primitive/,
+    'MemoryEmailStoreOptions.smtpCapacity': /different namespace/,
+    'SmtpProviderOptions.smtpCapacity': /Omit for the V1 cap of 50/,
+    'MongooseEmailStoreOptions.smtpCapacity': /immutable binding/,
     createEmailService: /Scope-bound admission only/,
     enqueuePrepared: /does not join a host transaction/i,
     createEmailWorker: /durable handoff acknowledgement/,
@@ -187,7 +197,14 @@ function checkJSDoc(packageDir, packedFiles) {
       function visit(node) {
         if (node.name && typescript.isIdentifier(node.name)) {
           const comments = typescript.getJSDocCommentsAndTags(node).filter(typescript.isJSDoc);
-          if (comments.length) docs.set(node.name.text, comments.map((comment) => comment.getText(source)).join('\n'));
+          const owner =
+            typescript.isPropertySignature(node) &&
+            typescript.isTypeLiteralNode(node.parent) &&
+            typescript.isTypeAliasDeclaration(node.parent.parent)
+              ? `${node.parent.parent.name.text}.`
+              : '';
+          if (comments.length)
+            docs.set(owner + node.name.text, comments.map((comment) => comment.getText(source)).join('\n'));
         }
         typescript.forEachChild(node, visit);
       }
@@ -330,7 +347,10 @@ function compileReadme(consumer, env, packageDir, both) {
     consumer,
     env,
   );
-  run(consumerNode, [...options, '--module', 'NodeNext', '--outDir', 'readme-build', ...files], consumer, env);
+  // In the both-peer integration we also compile an actual mixed import/require consumer
+  // in the same strict NodeNext invocation. Bundler and single-condition checks stay separate.
+  const nodeNextFiles = both ? [...files, 'capacity-mixed.mts'] : files;
+  run(consumerNode, [...options, '--module', 'NodeNext', '--outDir', 'readme-build', ...nodeNextFiles], consumer, env);
   runRuntime(consumer, env, 'readme-core.mjs');
 }
 
