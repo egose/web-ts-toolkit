@@ -34,10 +34,33 @@ try {
   });
   try {
     assert.equal(opted.admission.status, 'enqueued');
+    assert.equal(opted.admission.job.state, 'queued');
     assert.equal(opted.admission.job.smtpCapacity.maxRecipients, 51);
     assert.deepEqual(await opted.admin.getJob(opted.admission.job.jobId), opted.admission.job);
+    const request = {
+      batchId: 'capacity-readme',
+      items: [
+        {
+          itemId: 'notice-1',
+          command: {
+            templateKey: 'notice',
+            input: null,
+            intent: 'synthetic-notice',
+            provider: opted.admission.job.provider,
+          },
+        },
+      ],
+    };
+    const admitted = await opted.batchAdmission.enqueueBatch(request);
+    assert.equal(admitted.items[0].status, 'enqueued');
+    assert.deepEqual(admitted.items[0].job.smtpCapacity, opted.admission.job.smtpCapacity);
+    assert.deepEqual(await opted.admin.getJob(admitted.items[0].job.jobId), admitted.items[0].job);
+    assert.equal((await opted.batch.enqueueBatch(request)).items[0].job.jobId, admitted.items[0].job.jobId);
+    const stopped = await opted.batch.run({ limit: 1, signal: AbortSignal.abort() });
+    assert.equal(stopped.stop, 'aborted');
+    assert.equal(stopped.counts.providerCalls, 0);
   } finally {
-    await opted.worker.shutdown();
+    assert.equal((await opted.worker.shutdown()).status, 'stopped');
   }
   await verifyCapacityBindings(durable.connection, durable.store);
 } finally {

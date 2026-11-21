@@ -6,6 +6,7 @@ import {
   createEmailService,
   createEmailTemplateRegistry,
   createEmailWorker,
+  createSmtpAcceptanceResult,
   defineLocalTemplate,
   type AttachmentRef,
   type AttemptCommit,
@@ -14,7 +15,6 @@ import {
   type EmailStore,
   type PreparedEmailCommand,
   type ProviderResult,
-  type RecipientResult,
   type SmtpCapacity,
   type SmtpSnapshot,
   type StoreCall,
@@ -177,23 +177,27 @@ export async function stageMaximum(
   return { ...fixture, command, staged: { ...staged, snapshot: staged.snapshot } };
 }
 
-export function outcomes(attemptId: string, mixed: boolean): ProviderResult {
-  const recipients = recipientGroups.flatMap((group) =>
-    Array.from(
-      { length: COUNTS[group] },
-      (_, index): RecipientResult => ({ group, index, status: mixed && index % 2 === 0 ? 'accepted' : 'rejected' }),
+export function partialEvidence(attemptId: string) {
+  return createSmtpAcceptanceResult(
+    recipientGroups.flatMap((group) =>
+      Array.from({ length: COUNTS[group] }, (_, index) => ({
+        group,
+        index,
+        status: index % 2 === 0 ? ('accepted' as const) : ('rejected' as const),
+      })),
     ),
+    smtpMessageId(attemptId),
   );
-  return mixed
-    ? {
-        outcome: 'partially_accepted',
-        retry: 'never',
-        stage: 'data',
-        reason: 'smtp_partial',
-        messageId: smtpMessageId(attemptId),
-        recipients,
-      }
-    : { ...TRANSIENT, stage: 'envelope', recipients };
+}
+
+export function refusalEvidence() {
+  return {
+    ...TRANSIENT,
+    stage: 'envelope',
+    recipients: recipientGroups.flatMap((group) =>
+      Array.from({ length: COUNTS[group] }, (_, index) => ({ group, index, status: 'rejected' as const })),
+    ),
+  } satisfies ProviderResult;
 }
 
 export function expectRedacted(input: unknown) {
@@ -286,7 +290,11 @@ export async function driveCapacityLedger(
       return {
         async submit() {
           providerCalls++;
-          return providerCalls === 10 ? AMBIGUOUS : outcomes(input.attemptId, providerCalls === 11);
+          return providerCalls === 10
+            ? AMBIGUOUS
+            : providerCalls === 11
+              ? partialEvidence(input.attemptId)
+              : refusalEvidence();
         },
       };
     },
@@ -317,7 +325,7 @@ export async function driveCapacityLedger(
     const commit = required(await peer.findAttempt(A, jobId, attemptId, call), 'authoritative attempt');
     expect(commit.ordinal).toBe(commits.length + 1);
     expect(commit.result).toEqual(
-      expectedStatus === 'unknown' ? AMBIGUOUS : outcomes(attemptId, commits.length === 10),
+      expectedStatus === 'unknown' ? AMBIGUOUS : commits.length === 10 ? partialEvidence(attemptId) : refusalEvidence(),
     );
     commits.push(commit);
     return report;
@@ -389,7 +397,7 @@ export async function fillCapacityPage(store: EmailStore, smtpCapacity: SmtpCapa
     prepare({ attemptId }) {
       return {
         async submit() {
-          return outcomes(attemptId, true);
+          return partialEvidence(attemptId);
         },
       };
     },

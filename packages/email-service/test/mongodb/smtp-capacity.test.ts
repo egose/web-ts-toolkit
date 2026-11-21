@@ -6,6 +6,7 @@ import {
   createEmailService,
   createEmailTemplateRegistry,
   createEmailWorker,
+  createSmtpAcceptanceResult,
   type EmailProvider,
   type SmtpCapacity,
   type SmtpSnapshot,
@@ -360,16 +361,14 @@ it('rolls back new routing to V1 without reusing staged V2 work or uncertain ACK
   await expect(service.enqueuePrepared(v1Equivalent)).rejects.toMatchObject({ code: 'invalid_snapshot' });
   const v1Staged = await v1Template.registry.prepare(A, { ...command, intent: { input: 1, event: 'new-v1-intent' } });
   const v1 = await v1Service.enqueuePrepared(v1Staged);
-  const v1Submit = vi.fn(async (attemptId: string, envelope: SmtpSnapshot['envelope']) => ({
-    outcome: 'accepted' as const,
-    reason: 'smtp_accepted' as const,
-    stage: 'data' as const,
-    retry: 'never' as const,
-    messageId: smtpMessageId(attemptId),
-    recipients: (['to', 'cc', 'bcc'] as const).flatMap((group) =>
-      envelope[group].map((_, index) => ({ group, index, status: 'accepted' as const })),
+  const v1Submit = vi.fn(async (attemptId: string, envelope: SmtpSnapshot['envelope']) =>
+    createSmtpAcceptanceResult(
+      (['to', 'cc', 'bcc'] as const).flatMap((group) =>
+        envelope[group].map((_, index) => ({ group, index, status: 'accepted' as const })),
+      ),
+      smtpMessageId(attemptId),
     ),
-  }));
+  );
   function provider(binding?: SmtpCapacity): EmailProvider<SmtpSnapshot> {
     return {
       ref: SMTP,

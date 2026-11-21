@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import {
   createEmailWorker,
   createMemoryEmailStore,
+  createSmtpAcceptanceResult,
   type AttachmentRef,
   type EmailProvider,
   type EmailWorkerOptions,
@@ -25,17 +26,15 @@ export const WORKER_LIMITS = Object.freeze({
   maxConcurrency: 1,
 });
 
-export function smtpEvidence({ attemptId, snapshot: { envelope } }: ProviderSubmission<SmtpSnapshot>): ProviderResult {
-  return {
-    outcome: 'accepted',
-    retry: 'never',
-    stage: 'data',
-    reason: 'smtp_accepted',
-    messageId: `<${attemptId}@email.invalid>`,
-    recipients: (['to', 'cc', 'bcc'] as const).flatMap((group) =>
+export function smtpEvidence({ attemptId, snapshot: { envelope } }: ProviderSubmission<SmtpSnapshot>) {
+  const result = createSmtpAcceptanceResult(
+    (['to', 'cc', 'bcc'] as const).flatMap((group) =>
       envelope[group].map((_, index) => ({ group, index, status: 'accepted' as const })),
     ),
-  };
+    `<${attemptId}@email.invalid>`,
+  );
+  if (result.reason !== 'smtp_accepted') throw new Error('Expected full synthetic SMTP acceptance');
+  return result;
 }
 
 export function smtpFixture(

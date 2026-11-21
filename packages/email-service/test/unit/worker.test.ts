@@ -3,12 +3,14 @@ import {
   createEmailService,
   createEmailTemplateRegistry,
   createEmailWorker,
+  createSmtpAcceptanceResult,
+  createMemoryEmailStore,
   type EmailProvider,
   type EmailWorkerOptions,
   type SendGridSnapshot,
 } from '../../src';
 import { A, B, CALL, GRID, SANDBOX, SMTP, claim, claimData, fixtureId, lostAck } from '../conformance/store-fixtures';
-import { command, deferred, local } from './template-fixtures';
+import { command, deferred, local, ManualClock } from './template-fixtures';
 import { smtpEvidence, smtpFixture, workerFixture } from './worker-fixtures';
 
 describe('worker assembly and bounded queue runs', () => {
@@ -95,6 +97,57 @@ describe('worker assembly and bounded queue runs', () => {
     expect(f.clock.timers.size).toBe(0);
   });
 
+  it.each([
+    ['V1', {}],
+    ['smtp-v2', { smtpCapacity: { format: 'smtp-v2', namespace: fixtureId(1), maxRecipients: 51 } }],
+  ] as const)('rejects an empty %s worker before touching queued work', async (_mode, binding) => {
+    const clock = new ManualClock();
+    const store = createMemoryEmailStore({ clock, ...binding });
+    await store.ready();
+    const registry = createEmailTemplateRegistry({ local }, { clock, ...binding });
+    const service = createEmailService({ scope: A, store, registry, ...binding });
+    const { job } = await service.enqueue(command);
+    expect(job).toMatchObject({ state: 'queued', attemptCount: 0 });
+
+    const storeCalls = {
+      ready: vi.fn(store.ready),
+      recoverNext: vi.fn(store.recoverNext),
+      expireNext: vi.fn(store.expireNext),
+      claimNext: vi.fn(store.claimNext),
+      renew: vi.fn(store.renew),
+      markHandoff: vi.fn(store.markHandoff),
+      finish: vi.fn(store.finish),
+      findAttempt: vi.fn(store.findAttempt),
+    };
+    const sleep = vi.spyOn(clock, 'sleep');
+    const options = { scope: A, store: { ...store, ...storeCalls }, clock, ...binding };
+    expect(() => createEmailWorker({ ...options, providers: [] })).toThrow(
+      expect.objectContaining({ code: 'invalid_config' }),
+    );
+
+    const call = { ...CALL, ...binding };
+    expect(await store.findJob(A, job.jobId, call)).toEqual(job);
+    for (const operation of Object.values(storeCalls)) expect(operation).not.toHaveBeenCalled();
+    expect(sleep).not.toHaveBeenCalled();
+    expect(clock.timers.size).toBe(0);
+
+    const smtp = smtpFixture();
+    const worker = createEmailWorker({ ...options, providers: [{ ...smtp.provider, ...binding }] });
+    expect(smtp.prepare).not.toHaveBeenCalled();
+    expect(await worker.run({ limit: 1 })).toMatchObject({
+      items: [{ jobId: job.jobId, status: 'accepted', providerInvoked: true }],
+      counts: { claimed: 1, accepted: 1, providerCalls: 1 },
+    });
+    expect(await worker.run()).toMatchObject({ stop: 'idle', items: [] });
+    expect(smtp.transmit).toHaveBeenCalledOnce();
+    expect(await store.findJob(A, job.jobId, call)).toMatchObject({
+      state: 'terminal',
+      disposition: 'accepted',
+      attemptCount: 1,
+    });
+    await worker.shutdown();
+  });
+
   it('recovers, then expires, then takes the oldest eligible job with bounded sweeps and no other scopes', async () => {
     const f = await workerFixture();
     const job = await f.add({ jobId: fixtureId(1) });
@@ -176,6 +229,26 @@ describe('worker assembly and bounded queue runs', () => {
       expect(claimNext).not.toHaveBeenCalled();
     });
   }
+
+  it.each([
+    ['recoverNext', { status: 'expiry_maintenance_required' }],
+    ['expireNext', { status: 'expiry_maintenance_required' }],
+    ['claimNext', { status: 'expiry_maintenance_required', value: undefined }],
+  ] as const)('rejects an incompatible expiry signal from %s', async (primitive, result) => {
+    const f = await workerFixture();
+    const job = await f.add();
+    const invalidResult = vi.fn(async () => result);
+    const store = { ...f.store, [primitive]: invalidResult } as EmailWorkerOptions['store'];
+    const report = await f.worker({ store }).run();
+    expect(report).toMatchObject({
+      stop: 'store_error',
+      items: [],
+      counts: { claimed: 0, expiredInSweep: 0, persistenceFailures: 1 },
+    });
+    expect(invalidResult).toHaveBeenCalledOnce();
+    expect(await f.job(job.jobId)).toEqual(job);
+    expect(f.smtp.prepare).not.toHaveBeenCalled();
+  });
 
   it.each(['recoverNext', 'expireNext'] as const)(
     'does not count a committed %s after its ACK is lost',
@@ -312,14 +385,10 @@ describe('worker assembly and bounded queue runs', () => {
     };
     const smtp = smtpFixture(async (input) => {
       const evidence = smtpEvidence(input);
-      return {
-        ...evidence,
-        outcome: 'partially_accepted',
-        reason: 'smtp_partial',
-        recipients: evidence.recipients!.map((entry) =>
-          entry.group === 'bcc' ? { ...entry, status: 'rejected' } : entry,
-        ),
-      };
+      return createSmtpAcceptanceResult(
+        evidence.recipients.map((entry) => (entry.group === 'bcc' ? { ...entry, status: 'rejected' } : entry)),
+        evidence.messageId,
+      );
     });
     const worker = f.worker({ providers: [grid, smtp.provider] });
     const report = await worker.run();

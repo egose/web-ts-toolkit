@@ -21,7 +21,7 @@ import { copyCommit, jobSelectors, jobSummary, type JobRecord } from '../interna
 import {
   acknowledgeJobProjection,
   cancelJob,
-  claimJob,
+  claimWindow,
   cleanupJob,
   decideActivityPut,
   expireJob,
@@ -345,8 +345,8 @@ export function createMemoryEmailStore(options: MemoryEmailStoreOptions = {}): E
     },
     async claimNext(scope, claim, call) {
       return primitive(call, true, (check) => {
-        const safe = readClaim(claim);
-        return next(scope, 'nextAt', check, (row, time) => claimJob(row, safe, time, capacity));
+        const window = claimWindow(readClaim(claim), MAX_STORE_CANDIDATES, capacity);
+        return window.result(next(scope, 'nextAt', check, window.decide));
       });
     },
     async renew(scope, fence, leaseMs, call) {

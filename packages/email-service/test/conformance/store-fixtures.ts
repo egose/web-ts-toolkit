@@ -13,7 +13,7 @@ import {
   type RetryPolicy,
   type StoreAdmission,
   type StoreCall,
-  type StoreNext,
+  type StoreClaimNext,
 } from '../../src';
 import { DEFAULT_EXPIRY_MS, DEFAULT_RETENTION_POLICY, DEFAULT_RETRY_POLICY } from '../../src/constants';
 import { smtpMessageId } from '../../src/internal/attempt-codecs';
@@ -128,7 +128,7 @@ export function claimData(leaseMs = LIVE_LEASE, attemptId: string = randomUUID()
   return { leaseMs, attemptId, token: randomBytes(16).toString('base64url') };
 }
 
-export function applied<T>(next: StoreNext<T>): T {
+export function applied<T>(next: StoreClaimNext<T>): T {
   if (next.status !== 'applied') throw new Error(`Expected an applied store operation, got ${next.status}`);
   return next.value;
 }

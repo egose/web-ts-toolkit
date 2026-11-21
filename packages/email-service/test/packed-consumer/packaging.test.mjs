@@ -158,16 +158,27 @@ function checkManifest(packageDir, pack, release, output, version) {
 
 function checkJSDoc(packageDir, packedFiles) {
   const expected = {
-    EmailError: /class identity/,
+    EmailError: /class identity[\s\S]*even within one format/,
     defineLocalTemplate: /inferred from the parsers/,
     defineSendGridTemplate: /pin a remote template version/,
     createEmailTemplateRegistry: /isolated registry/,
     EmailCommand: /scoped idempotency/,
+    TemplateCommand: /widened `TemplateMap` allows either provider/,
+    'TemplateDefinition.parseInput': /declared input shape[\s\S]*`command.input`[\s\S]*`prepare`/,
+    scheduleAt: /Earliest eligible time[\s\S]*precede the snapshot expiry/,
+    expiresAt: /24 hours from preparation[\s\S]*30 days from preparation[\s\S]*Frozen/,
+    RetryPolicy: /defaults to 3 claims[\s\S]*quota deferrals[\s\S]*at or after expiry/,
+    EmailRateLimiter: /deferral consumes a claim without calling `submit`/,
     PreparedEmailCommand: /sensitive outbox value/,
     SmtpCapacity: /canonical lowercase UUIDv4[\s\S]*51 to 1,000[\s\S]*DTO's `version: 1`/,
     'TemplateRegistryOptions.smtpCapacity': /same tuple/,
     'EmailServiceOptions.smtpCapacity': /match the registry and store/,
+    EmailRelay: /does not need a template registry/,
+    'EmailRelayOptions.smtpCapacity': /exact store binding explicitly/,
     'EmailWorkerOptions.smtpCapacity': /Only live SMTP profiles/,
+    'EmailWorkerOptions.providers': /at least one configured profile; an empty array throws `invalid_config`/,
+    EmailBatchAdmission: /no worker or delivery methods/,
+    'EmailBatchAdmissionOptions.smtpCapacity': /exact tuple explicitly/,
     'EmailBatchServiceOptions.smtpCapacity': /exact tuple explicitly/,
     'EmailAdminOptions.smtpCapacity': /stays redacted/,
     'StoreCall.smtpCapacity': /before every primitive/,
@@ -175,11 +186,21 @@ function checkJSDoc(packageDir, packedFiles) {
     'SmtpProviderOptions.smtpCapacity': /Omit for the V1 cap of 50/,
     'MongooseEmailStoreOptions.smtpCapacity': /immutable binding/,
     createEmailService: /Scope-bound admission only/,
+    createEmailRelay: /without a registry[\s\S]*original scope and binding/,
     enqueuePrepared: /does not join a host transaction/i,
-    createEmailWorker: /durable handoff acknowledgement/,
+    createEmailWorker:
+      /durable handoff acknowledgement[\s\S]*empty provider array throws `invalid_config`[\s\S]*createEmailBatchAdmission/,
+    createEmailBatchAdmission: /without configuring a worker[\s\S]*same batch\/item IDs/,
+    enqueueBatch: /1–100 items[\s\S]*same batch\/item IDs/,
     createEmailBatchService: /serves the whole scope/,
     createEmailAdmin: /redacted history/,
+    getJob: /latest authoritative outcome[\s\S]*verify a current hold/,
+    listActivities: /not an inventory of open holds/,
+    resolveUnknown: /exact open unknown attempt[\s\S]*`resolutions`/,
+    ready: /V1 memory allows skipping readiness for legacy callers/,
     createMemoryEmailStore: /lost on restart/,
+    ProviderResult: /nonempty[\s\S]*all-accepted tuple[\s\S]*`createSmtpAcceptanceResult`/,
+    createSmtpAcceptanceResult: /final DATA acknowledgement[\s\S]*preserving input order[\s\S]*`invalid_command`/,
     createSmtpProvider: /not inbox delivery/,
     createSendGridProvider: /with no SDK or peer/,
     createMongooseEmailStore: /caller-owned Mongoose/,
@@ -337,6 +358,26 @@ function runRuntime(consumer, env, script, ...args) {
   return run(consumerNode, ['--import', './runtime-guard.mjs', script, ...args], consumer, env).trim();
 }
 
+function checkQuickstart(consumer, env) {
+  const output = runRuntime(consumer, env, 'readme-build/readme-quickstart.mjs');
+  const { admission, submitted, job } = JSON.parse(output);
+  assert.equal(admission, 'enqueued');
+  assert.equal(submitted, 1);
+  assert.equal(job.scope, 'example-app');
+  assert.deepEqual(job.key, { kind: 'single', idempotencyKey: 'receipt-order-paid-6042' });
+  assert.deepEqual(job.provider, { kind: 'smtp', key: 'receipt-test', mode: 'live' });
+  assert.equal(job.state, 'terminal');
+  assert.equal(job.disposition, 'accepted');
+  assert.equal(job.attemptCount, 1);
+  assert.equal(job.latestAttempt.outcome, 'accepted');
+  assert.equal(job.latestAttempt.reason, 'smtp_accepted');
+  assert.equal(job.unknownOpen, false);
+  assert.doesNotMatch(
+    output,
+    /example\.invalid|Payment received|Thank you for your payment|"(snapshot|envelope|token)"/,
+  );
+}
+
 function compileReadme(consumer, env, packageDir, both) {
   const readme = readFileSync(join(packageDir, 'README.md'), 'utf8');
   const files = writeReadmeExamples(readme, consumer, both);
@@ -351,6 +392,7 @@ function compileReadme(consumer, env, packageDir, both) {
   // in the same strict NodeNext invocation. Bundler and single-condition checks stay separate.
   const nodeNextFiles = both ? [...files, 'capacity-mixed.mts'] : files;
   run(consumerNode, [...options, '--module', 'NodeNext', '--outDir', 'readme-build', ...nodeNextFiles], consumer, env);
+  checkQuickstart(consumer, env);
   runRuntime(consumer, env, 'readme-core.mjs');
 }
 
@@ -464,6 +506,8 @@ test('installs npm tarballs and verifies the public package boundary', async (t)
             if (profile === 'neither') {
               checkJSDoc(packageDir, pack.files);
               runRuntime(consumer, env, 'batch-runtime.mjs');
+              runRuntime(consumer, env, 'admission-runtime.mjs');
+              runRuntime(consumer, env, 'provider-results-runtime.mjs');
               compileReadme(consumer, env, packageDir, false);
             }
             if (profile === 'both') {

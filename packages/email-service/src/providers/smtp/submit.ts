@@ -1,4 +1,5 @@
-import type { ProviderCall, ProviderResult, RecipientResult } from '../../contracts/provider';
+import type { ProviderCall, ProviderResult, RecipientWithStatus, RejectedRecipients } from '../../contracts/provider';
+import { createSmtpAcceptanceResult, uncertainProviderResult } from '../../internal/attempt-codecs';
 import { SmtpConnection, SmtpFailure, type SmtpResolverFactory, type SmtpStage } from './connection';
 import type { SmtpMessage } from './mime';
 import type { SmtpConfig } from './options';
@@ -7,24 +8,19 @@ import type { SmtpReply } from './reply';
 function failed(stage: SmtpStage, reason: SmtpFailure['reason']): ProviderResult {
   if (reason === 'not_transmitted') return { outcome: 'unsubmitted', retry: 'safe_transient', stage, reason };
   if (reason === 'provider_configuration') return { outcome: 'unsubmitted', retry: 'never', stage, reason };
-  return { outcome: 'unknown', retry: 'never', stage, reason };
+  return uncertainProviderResult(stage, reason);
 }
 
 function negative(
-  stage: SmtpStage,
+  at: { stage: SmtpStage } & RejectedRecipients,
   code: number,
   permanentRcptRefusal = false,
-  recipients: readonly RecipientResult[] = [],
 ): ProviderResult {
   if (code < 400 || code > 599) throw new SmtpFailure('transport_uncertain');
-  const permanent = code >= 500 || permanentRcptRefusal;
-  return {
-    outcome: 'rejected',
-    retry: permanent ? 'never' : 'safe_transient',
-    stage,
-    reason: permanent ? 'smtp_permanent_reply' : 'smtp_transient_reply',
-    ...(recipients.length ? { recipients } : {}),
-  };
+  const details = at.recipients?.length ? at : { stage: at.stage };
+  return code >= 500 || permanentRcptRefusal
+    ? { ...details, outcome: 'rejected', retry: 'never', reason: 'smtp_permanent_reply' }
+    : { ...details, outcome: 'rejected', retry: 'safe_transient', reason: 'smtp_transient_reply' };
 }
 
 function extensions({ lines }: SmtpReply): { starttls: boolean; mechanisms: Set<string> } {
@@ -55,17 +51,17 @@ async function authenticate(
     else {
       // RFC 4954: don't exceed the command length with an initial response.
       response = await connection.command('AUTH PLAIN');
-      if (response.code !== 334) return negative('auth', response.code);
+      if (response.code !== 334) return negative({ stage: 'auth' }, response.code);
       response = await connection.command(encoded);
     }
   } else if (mechanisms.has('LOGIN')) {
     response = await connection.command('AUTH LOGIN');
-    if (response.code !== 334) return negative('auth', response.code);
+    if (response.code !== 334) return negative({ stage: 'auth' }, response.code);
     response = await connection.command(Buffer.from(user, 'utf8').toString('base64'));
-    if (response.code !== 334) return negative('auth', response.code);
+    if (response.code !== 334) return negative({ stage: 'auth' }, response.code);
     response = await connection.command(Buffer.from(pass, 'utf8').toString('base64'));
   } else return failed('auth', 'provider_configuration');
-  if (response.code !== 235) return negative('auth', response.code);
+  if (response.code !== 235) return negative({ stage: 'auth' }, response.code);
 }
 
 async function exchange(connection: SmtpConnection, config: SmtpConfig, message: SmtpMessage): Promise<ProviderResult> {
@@ -73,19 +69,19 @@ async function exchange(connection: SmtpConnection, config: SmtpConfig, message:
   if (config.tls === 'implicit') await connection.startTls();
   connection.stage = 'connect';
   const greeting = await connection.greeting();
-  if (greeting.code !== 220) return negative('connect', greeting.code);
+  if (greeting.code !== 220) return negative({ stage: 'connect' }, greeting.code);
   let ehlo = await connection.command('EHLO email.invalid');
-  if (ehlo.code !== 250) return negative('connect', ehlo.code);
+  if (ehlo.code !== 250) return negative({ stage: 'connect' }, ehlo.code);
 
   if (config.tls === 'starttls') {
     connection.stage = 'tls';
     if (!extensions(ehlo).starttls) return failed('tls', 'provider_configuration');
     const upgrade = await connection.command('STARTTLS');
-    if (upgrade.code !== 220) return negative('tls', upgrade.code);
+    if (upgrade.code !== 220) return negative({ stage: 'tls' }, upgrade.code);
     await connection.startTls();
     // Discard all pre-TLS capabilities (including AUTH), per RFC 3207.
     ehlo = await connection.command('EHLO email.invalid');
-    if (ehlo.code !== 250) return negative('tls', ehlo.code);
+    if (ehlo.code !== 250) return negative({ stage: 'tls' }, ehlo.code);
   }
 
   if (config.auth) {
@@ -94,9 +90,9 @@ async function exchange(connection: SmtpConnection, config: SmtpConfig, message:
   }
   connection.stage = 'envelope';
   let { code } = await connection.command(`MAIL FROM:<${message.from}>`);
-  if (code !== 250) return negative('envelope', code);
+  if (code !== 250) return negative({ stage: 'envelope' }, code);
 
-  const recipients: RecipientResult[] = [];
+  const recipients: (RecipientWithStatus<'accepted'> | RecipientWithStatus<'rejected'>)[] = [];
   let accepted = 0;
   for (const { address, group, index } of message.destinations) {
     ({ code } = await connection.command(`RCPT TO:<${address}>`));
@@ -110,28 +106,22 @@ async function exchange(connection: SmtpConnection, config: SmtpConfig, message:
       if (code === 421) break;
     } else throw new SmtpFailure('transport_uncertain');
   }
-  const rejected = recipients.filter(({ status }) => status === 'rejected');
+  const rejected = recipients.filter((recipient) => recipient.status === 'rejected');
   if (accepted === 0 && recipients.length === message.destinations.length) {
-    return negative('envelope', code, connection.permanentRcptRefusal, rejected);
+    return negative({ stage: 'envelope', recipients: rejected }, code, connection.permanentRcptRefusal);
   }
   if (code === 421) {
     return failed('envelope', connection.permanentRcptRefusal ? 'transport_uncertain' : 'not_transmitted');
   }
 
   connection.stage = 'data';
+  const refusal = { stage: 'data', recipients: rejected } as const;
   ({ code } = await connection.command('DATA'));
-  if (code !== 354) return negative('data', code, connection.permanentRcptRefusal, rejected);
+  if (code !== 354) return negative(refusal, code, connection.permanentRcptRefusal);
   ({ code } = await connection.data(message.openMimeStream));
-  if (code !== 250) return negative('data', code, connection.permanentRcptRefusal, rejected);
+  if (code !== 250) return negative(refusal, code, connection.permanentRcptRefusal);
   // RCPT replies merely allow DATA. Only the complete post-terminator 250 confirms message acceptance.
-  return {
-    outcome: rejected.length ? 'partially_accepted' : 'accepted',
-    retry: 'never',
-    stage: 'data',
-    reason: rejected.length ? 'smtp_partial' : 'smtp_accepted',
-    messageId: message.messageId,
-    recipients,
-  };
+  return createSmtpAcceptanceResult(recipients, message.messageId);
 }
 
 export async function submitSmtp(

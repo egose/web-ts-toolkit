@@ -3,6 +3,8 @@ import { CALL_BUDGETS, MAX_BATCH_ITEMS } from './constants';
 import type { CallOptions, EmailClock } from './contracts/message';
 import type {
   AdmissionResult,
+  EmailBatchAdmission,
+  EmailBatchAdmissionOptions,
   EmailBatchResult,
   EmailBatchService,
   EmailBatchServiceOptions,
@@ -79,19 +81,33 @@ function readAdmissionResult(input: unknown, identity: CommandIdentity, capacity
 }
 
 /**
+ * Enqueue or resume a batch through a bound service without configuring a worker.
+ * Replay the same batch/item IDs and intent after `write_unconfirmed`: an item may already have committed.
+ */
+export function createEmailBatchAdmission<T extends TemplateMap>(
+  options: EmailBatchAdmissionOptions<T>,
+): EmailBatchAdmission<T> {
+  return createEmailBatchAdmissionWithClock(options, systemEmailClock);
+}
+
+/** Internal elapsed clock seam for deterministic producer tests. */
+export function createEmailBatchAdmissionWithClock<T extends TemplateMap>(
+  options: EmailBatchAdmissionOptions<T>,
+  clock: EmailClock,
+): EmailBatchAdmission<T> {
+  const raw = readRecord(options, ['service'], ['smtpCapacity'], 'invalid_config');
+  const { service } = raw;
+  const capacity = readCapacityOption(raw);
+  assertPortCapacity(service, capacity);
+  return createBatchAdmission<T>(service, boundScope(service), capacity, clock);
+}
+
+/**
  * Compose a same-scope admission service and worker. Wire both to the same underlying store.
  * Enqueue is sequential and resumable by batch/item ID, not atomic. `run` serves the whole scope.
  */
 export function createEmailBatchService<T extends TemplateMap>(
   options: EmailBatchServiceOptions<T>,
-): EmailBatchService<T> {
-  return createEmailBatchServiceWithClock(options, systemEmailClock);
-}
-
-/** Internal elapsed clock seam for batch admission; worker runs keep the worker's own clock and limits. */
-export function createEmailBatchServiceWithClock<T extends TemplateMap>(
-  options: EmailBatchServiceOptions<T>,
-  clock: EmailClock,
 ): EmailBatchService<T> {
   const raw = readRecord(options, ['service', 'worker'], ['smtpCapacity'], 'invalid_config');
   const { service, worker } = raw;
@@ -101,6 +117,24 @@ export function createEmailBatchServiceWithClock<T extends TemplateMap>(
   const scope = boundScope(service);
   if (scope !== boundScope(worker)) invalid('invalid_config');
   const run = bindMethod<EmailWorker['run']>(worker, 'run');
+  const { enqueueBatch } = createBatchAdmission<T>(service, scope, capacity, systemEmailClock);
+  const batch: EmailBatchService<T> = {
+    enqueueBatch,
+    async run(options) {
+      if (boundScope(worker) !== scope) invalid('invalid_config');
+      assertPortCapacity(worker, capacity);
+      return run(options);
+    },
+  };
+  return Object.freeze(batch);
+}
+
+function createBatchAdmission<T extends TemplateMap>(
+  service: unknown,
+  scope: string,
+  capacity: CapacityContext | undefined,
+  clock: EmailClock,
+): EmailBatchAdmission<T> {
   const enqueue = bindMethod<EmailService<T>['enqueue']>(service, 'enqueue');
   const admit =
     findServiceAdmission(service as object) ??
@@ -131,7 +165,7 @@ export function createEmailBatchServiceWithClock<T extends TemplateMap>(
     });
 
   let admitting = false;
-  const batch: EmailBatchService<T> = {
+  const batch: EmailBatchAdmission<T> = {
     async enqueueBatch(input, call: CallOptions = {}) {
       if (capacity && admitting) invalid('busy');
       const { signal, timeoutMs } = readCallOptions(call, CALL_BUDGETS.batchOrRun);
@@ -165,11 +199,6 @@ export function createEmailBatchServiceWithClock<T extends TemplateMap>(
         admitting = false;
         budget.close();
       }
-    },
-    async run(options) {
-      if (boundScope(worker) !== scope) invalid('invalid_config');
-      assertPortCapacity(worker, capacity);
-      return run(options);
     },
   };
   return Object.freeze(batch);

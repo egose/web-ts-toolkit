@@ -1,11 +1,19 @@
 import { MAX_RATE_DEFERRAL_MS, MAX_UNIX_MS } from '../constants';
 import type { JobDisposition, RetryPolicy } from '../contracts/job';
 import type { EmailEnvelope, ProviderRef, UnixMs } from '../contracts/message';
-import type { AttemptReason, AttemptResult, ProviderResult, RecipientResult, RetryHint } from '../contracts/provider';
+import type {
+  AcceptedSmtpRecipients,
+  AttemptReason,
+  AttemptResult,
+  MixedSmtpRecipients,
+  ProviderResult,
+  RecipientResult,
+  RetryHint,
+} from '../contracts/provider';
 import type { EmailErrorCode } from '../errors';
 import { encodeEvidence, sha256 } from './canonical-json';
-import { recipientLimit, type CapacityContext } from './smtp-capacity';
-import { integer, invalid, readArray, readRecord, unixMs } from './validation';
+import { MAX_SMTP_RECIPIENTS, recipientLimit, type CapacityContext } from './smtp-capacity';
+import { integer, invalid, readArray, readRecord, unixMs, uuidV4 } from './validation';
 
 type Evidence = readonly [
   AttemptResult['outcome'],
@@ -15,7 +23,7 @@ type Evidence = readonly [
 ];
 const smtpStages = ['connect', 'tls', 'auth', 'envelope', 'data'] as const;
 const providerStages = [...smtpStages, 'http'] as const;
-const evidence: Readonly<Record<AttemptReason, Evidence>> = Object.freeze({
+const evidence = Object.freeze({
   smtp_accepted: ['accepted', 'never', ['data'], 'smtp'],
   smtp_partial: ['partially_accepted', 'never', ['data'], 'smtp'],
   smtp_transient_reply: ['rejected', 'safe_transient', smtpStages, 'smtp'],
@@ -45,7 +53,28 @@ const evidence: Readonly<Record<AttemptReason, Evidence>> = Object.freeze({
   post_handoff_lease_expired: ['unknown', 'never', ['pre_handoff'], 'recovery'],
   expired: ['unsubmitted', 'never', ['pre_handoff'], 'pre'],
   cancelled: ['unsubmitted', 'never', ['pre_handoff'], 'cancel'],
-});
+} as const satisfies Readonly<Record<AttemptReason, Evidence>>);
+
+type RuntimeProviderTuple = {
+  [Reason in AttemptReason]: (typeof evidence)[Reason] extends readonly [
+    infer Outcome,
+    infer Retry,
+    readonly (infer Stage)[],
+    'smtp' | 'sendgrid' | 'provider',
+  ]
+    ? { readonly reason: Reason; readonly outcome: Outcome; readonly retry: Retry; readonly stage: Stage }
+    : never;
+}[AttemptReason];
+type ResultTuple<Result extends ProviderResult> = Result extends unknown
+  ? Pick<Result, 'reason' | 'outcome' | 'retry' | 'stage'>
+  : never;
+type Assert<Matches extends true> = Matches;
+// Check both directions, including the complete stage union for every provider reason.
+export type ProviderEvidenceMatches = Assert<
+  [RuntimeProviderTuple, ResultTuple<ProviderResult>] extends [ResultTuple<ProviderResult>, RuntimeProviderTuple]
+    ? true
+    : false
+>;
 
 export function readAttemptReason(value: unknown, code: EmailErrorCode): AttemptReason {
   if (typeof value !== 'string' || !Object.hasOwn(evidence, value)) invalid(code);
@@ -79,6 +108,87 @@ export function readRecipientCounts(input: unknown, code: EmailErrorCode, capaci
 
 export function smtpMessageId(attemptId: string): string {
   return `<${attemptId}@email.invalid>`;
+}
+
+function readRecipientResults(
+  input: unknown,
+  code: EmailErrorCode,
+  { limit, allowAccepted, ordered }: { limit: number; allowAccepted: boolean; ordered: boolean },
+): readonly RecipientResult[] {
+  const seen = new Set<string>();
+  let previous = -1;
+  return readArray(input, limit, code, (value) => {
+    const { group, index: rawIndex, status } = readRecord(value, ['group', 'index', 'status'], [], code);
+    if (group !== 'to' && group !== 'cc' && group !== 'bcc') invalid(code);
+    if (status !== 'rejected' && (status !== 'accepted' || !allowAccepted)) invalid(code);
+    const index = integer(rawIndex, 0, limit - 1, code);
+    if (ordered) {
+      // Enforce the transport's original To/Cc/Bcc order, including for rejected subsets.
+      const position = recipientGroups.indexOf(group) * limit + index;
+      if (position <= previous) invalid(code);
+      previous = position;
+    } else {
+      const key = `${group}:${index}`;
+      if (seen.has(key)) invalid(code);
+      seen.add(key);
+    }
+    return Object.freeze({ group, index, status });
+  });
+}
+
+function allAccepted(recipients: readonly RecipientResult[]): recipients is AcceptedSmtpRecipients {
+  return recipients.length !== 0 && recipients.every(({ status }) => status === 'accepted');
+}
+
+/**
+ * After SMTP's final DATA acknowledgement, build full or partial acceptance from recipient results.
+ * Copies and freezes the result, preserving input order. Throws `invalid_command` for an empty,
+ * all-rejected or malformed list, or a malformed optional `<${attemptId}@email.invalid>` message ID.
+ * The worker still checks coverage, queue bounds, any required order, and the actual attempt ID.
+ */
+export function createSmtpAcceptanceResult(
+  recipients: readonly RecipientResult[],
+  messageId?: string,
+): Extract<ProviderResult, { reason: 'smtp_accepted' | 'smtp_partial' }> {
+  const code = 'invalid_command';
+  if (
+    messageId !== undefined &&
+    (typeof messageId !== 'string' ||
+      messageId.length !== 52 ||
+      messageId !== smtpMessageId(uuidV4(messageId.slice(1, 37), code)))
+  ) {
+    invalid(code);
+  }
+  const checked = readRecipientResults(recipients, code, {
+    limit: MAX_SMTP_RECIPIENTS,
+    allowAccepted: true,
+    ordered: false,
+  });
+  const data = { retry: 'never', stage: 'data', ...(messageId === undefined ? {} : { messageId }) } as const;
+  if (allAccepted(checked)) {
+    return Object.freeze({ ...data, reason: 'smtp_accepted', outcome: 'accepted', recipients: checked });
+  }
+  if (!checked.some(({ status }) => status === 'accepted')) invalid(code);
+  // The frozen copy is neither all-accepted nor all-rejected. Only the type carries this proof.
+  return Object.freeze({
+    ...data,
+    reason: 'smtp_partial',
+    outcome: 'partially_accepted',
+    recipients: checked as MixedSmtpRecipients,
+  });
+}
+
+type UncertainResult = Extract<ProviderResult, { outcome: 'unknown' }>;
+
+/** Build uncertainty without carrying an uncorrelated union of reason literals. */
+export function uncertainProviderResult(
+  stage: UncertainResult['stage'],
+  reason: UncertainResult['reason'],
+): UncertainResult {
+  const base = { outcome: 'unknown', retry: 'never', stage } as const;
+  if (reason === 'provider_timeout') return { ...base, reason };
+  if (reason === 'provider_aborted') return { ...base, reason };
+  return { ...base, reason };
 }
 
 function readHint(input: unknown, reason: AttemptReason, code: EmailErrorCode): RetryHint {
@@ -131,25 +241,10 @@ export function readAttemptResult(
   let recipients: readonly RecipientResult[] | undefined;
   if (hasRecipients) {
     if ((origin !== 'smtp' && origin !== 'provider') || (stage !== 'envelope' && stage !== 'data')) invalid(code);
-    const seen = new Set<string>();
-    const limit = recipientLimit(capacity);
-    let previous = -1;
-    recipients = readArray(raw.recipients, limit, code, (value) => {
-      const { group, index: rawIndex, status } = readRecord(value, ['group', 'index', 'status'], [], code);
-      if (group !== 'to' && group !== 'cc' && group !== 'bcc') invalid(code);
-      if (status !== 'rejected' && (status !== 'accepted' || !smtpSuccess)) invalid(code);
-      const index = integer(rawIndex, 0, limit - 1, code);
-      if (capacity) {
-        // Enforce the transport's original To/Cc/Bcc order, including for rejected subsets.
-        const position = recipientGroups.indexOf(group) * limit + index;
-        if (position <= previous) invalid(code);
-        previous = position;
-      } else {
-        const key = `${group}:${index}`;
-        if (seen.has(key)) invalid(code);
-        seen.add(key);
-      }
-      return Object.freeze({ group, index, status });
+    recipients = readRecipientResults(raw.recipients, code, {
+      limit: recipientLimit(capacity),
+      allowAccepted: smtpSuccess,
+      ordered: Boolean(capacity),
     });
     const accepted = recipients.filter(({ status }) => status === 'accepted').length;
     if (

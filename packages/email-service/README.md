@@ -4,24 +4,151 @@ Typed email preparation, queue admission and bounded submission for Node.js 24 o
 content for SMTP or validate SendGrid dynamic-template data. Preparation alone does not enqueue, and admission never
 sends mail.
 
-## Imports
+## Quickstart: enqueue and inspect a synthetic submission
 
 Install with `pnpm add @web-ts-toolkit/email-service`. Use named imports (or destructure `require()` in CommonJS).
-There is no default export. Preparation, admission, and the memory store need neither optional peer.
+There is no default export. This standalone example uses no optional peers, credentials, or network. Save it as
+`receipt.mts` and run `node receipt.mts`, or compile it as an ES module with TypeScript's `NodeNext` settings.
+The provider is a test double for this one-recipient template: it **fabricates acceptance** and never sends mail.
+
+<!-- example: quickstart -->
+
+```typescript
+import {
+  createEmailAdmin,
+  createEmailService,
+  createEmailTemplateRegistry,
+  createEmailWorker,
+  createMemoryEmailStore,
+  defineLocalTemplate,
+  type EmailProvider,
+  type SmtpSnapshot,
+} from '@web-ts-toolkit/email-service';
+
+const receipt = defineLocalTemplate({
+  kind: 'handlebars',
+  revision: 'v1',
+  defaults: { from: { address: 'sender@example.invalid' } },
+  subject: { kind: 'inline', content: 'Payment received' },
+  text: { kind: 'inline', content: 'Thank you for your payment.' },
+  parseInput(value) {
+    if (value !== null) throw new Error('Expected null');
+    return value;
+  },
+  parseData: () => ({}),
+  prepare: () => ({ to: [{ address: 'buyer@example.invalid' }], values: {} }),
+});
+const registry = createEmailTemplateRegistry({ receipt });
+const store = createMemoryEmailStore();
+await store.ready();
+
+const queue = { scope: 'example-app', store };
+const service = createEmailService({ ...queue, registry });
+const ref = { kind: 'smtp', key: 'receipt-test', mode: 'live' } as const;
+const eventId = 'order-paid-6042'; // A stable, opaque ID from the host's business event, not a new ID on retry.
+const admission = await service.enqueue({
+  templateKey: 'receipt',
+  input: null,
+  key: { kind: 'single', idempotencyKey: `receipt-${eventId}` },
+  intent: { purpose: 'receipt', eventId },
+  provider: ref,
+});
+
+const syntheticSmtp: EmailProvider<SmtpSnapshot> = {
+  ref, // Match the frozen kind, key and mode exactly.
+  prepare() {
+    return {
+      async submit({ signal }) {
+        signal.throwIfAborted();
+        return {
+          outcome: 'accepted',
+          retry: 'never',
+          stage: 'data',
+          reason: 'smtp_accepted',
+          recipients: [{ group: 'to', index: 0, status: 'accepted' }],
+        };
+      },
+    };
+  },
+};
+const worker = createEmailWorker({ ...queue, providers: [syntheticSmtp] });
+try {
+  const report = await worker.run({ limit: 1 });
+  const job = await createEmailAdmin(queue).getJob(admission.job.jobId);
+  console.log(JSON.stringify({ admission: admission.status, submitted: report.counts.submitted, job }));
+} finally {
+  const shutdown = await worker.shutdown();
+  if (shutdown.status !== 'stopped') throw new Error('Worker shutdown deadline elapsed');
+}
+```
+
+Expect `enqueued`, one synthetic submission and a redacted job with `latestAttempt.outcome: 'accepted'`.
+With a real provider, acceptance confirms submission to that provider, not inbox delivery. SendGrid sandbox
+validation is not submission.
+
+The host owns business rules, scheduling and authorization. Use `createEmailService` or
+[`createEmailBatchAdmission`](#enqueue-and-resume-a-batch) in producers, [`createEmailRelay`](#stage-a-host-owned-outbox)
+for prepared outboxes, `createEmailWorker` for delivery, and `createEmailAdmin` for operations. They can run in
+separate processes using the same backing queue and authorized scope, with the same binding when
+[opting into SMTP capacity](#opt-in-to-larger-smtp-envelopes).
+
+## Support and limits
+
+<!-- prettier-ignore -->
+| Choose | Entrypoint / optional peer | Support and limits |
+| --- | --- | --- |
+| Local Handlebars → SMTP | Root `defineLocalTemplate`; `/smtp` `createSmtpProvider` needs Nodemailer `>=10.6.0 <11` at runtime | Verified TLS, live only. 50 total To/Cc/Bcc by default; [opt in](#opt-in-to-larger-smtp-envelopes) for 51–1,000. |
+| Hosted SendGrid → HTTPS | Root `defineSendGridTemplate`; `/sendgrid` `createSendGridProvider`, no SDK or peer | Mail Send live or sandbox, V1 queue only. Freezes the template ID and data, not the active remote template version. |
+| Memory queue | Root `createMemoryEmailStore`, no optional peer | Single instance, one process, non-durable. V1 defaults to 256 total jobs across scopes; no eviction to make room. |
+| Durable MongoDB queue | `/mongoose` `createMongooseEmailStore`, caller-owned Mongoose `>=9.12.2 <10` connection | Writable MongoDB 8.x WiredTiger replica set with journaled majority; [topology and catalog privileges](#durable-store-with-mongoose) and private collection read/write access. |
+| Custom provider | Root `EmailProvider` | Supported protocols only. No I/O in `prepare`; one-shot, deadline- and abort-aware `submit` with [normalized evidence](#implement-a-custom-provider), not raw replies. |
+| Custom store | Root `EmailStore` | Scoped, bounded, atomic operations on store time. Enforce durable handoff and lease fencing, write confirmation, projection and retention; see [V1 transaction primitives][store-v1]. |
+
+Always `await store.ready()` before use. Default V1 memory still allows legacy callers to skip it; SMTP-capacity
+memory and MongoDB require it. Do not substitute memory when a durable store is unavailable.
+
+The [V1 Store contract][store-v1] and [SMTP opt-in compatibility contract][store-smtp] are pinned historical
+baselines. Use the installed declarations and this README for the current contract: the
+[`StoreClaimNext` expiry signal](#run-a-worker) and [new-only SMTP attachment check](#configure-an-smtp-profile)
+override the historical claim and insert rules. For opt-in stores also enforce the
+[exact `StoreCall.smtpCapacity` binding and smaller bounds](#storage-rollout-and-rollback). For the public API,
+the current peer ranges above and the template and provider typing, producer-only APIs and nonempty worker
+requirements below supersede the corresponding historical examples.
+
+[store-v1]: https://github.com/egose/web-ts-toolkit/blob/39848121d8b5746960078cac83949caaf26a9d9c/docs/task-artifacts/email-service/20261118-223259-email-service-package/v1-contract.md#store-adapter-transaction-primitives
+[store-smtp]: https://github.com/egose/web-ts-toolkit/blob/39848121d8b5746960078cac83949caaf26a9d9c/docs/task-artifacts/email-service/20261120-214514-email-service-smtp-capacity/implementation-contract.md#factory-and-request-boundary
+
+## Handle errors by code
+
+Check a known `.code` on a caught `unknown`, not `instanceof EmailError`. A subpath can throw a different
+class than the root even within the same module format (all ESM or all CommonJS).
 
 <!-- example: errors -->
 
 ```typescript
-import { EmailError, type EmailErrorCode } from '@web-ts-toolkit/email-service';
+import type { EmailErrorCode } from '@web-ts-toolkit/email-service';
+import { createSendGridProvider, type SendGridProviderOptions } from '@web-ts-toolkit/email-service/sendgrid';
 
-const error = new EmailError('write_unconfirmed');
-const code: EmailErrorCode = error.code;
-// An unconfirmed write may have committed. Do not treat it as a definite failure.
-console.log(code);
+function hasEmailCode(error: unknown, code: EmailErrorCode): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  try {
+    return Object.getOwnPropertyDescriptor(error, 'code')?.value === code; // Read only an own data property.
+  } catch {
+    return false; // A thrown proxy can reject property inspection.
+  }
+}
+
+function configureSendGrid(options: SendGridProviderOptions) {
+  try {
+    return createSendGridProvider(options);
+  } catch (error: unknown) {
+    if (hasEmailCode(error, 'invalid_config')) {
+      return null; // Report a configuration failure without logging the options or the exception.
+    }
+    throw error; // Unexpected failure; do not assume it is a retryable package error.
+  }
+}
 ```
-
-Compare `.code`, not class identity, if your application loads both builds.
-`PreparedEmailCommand` describes the sensitive, versioned outbox payload. Treat it like queue data, not a log record.
 
 ## Prepare a local template
 
@@ -30,7 +157,7 @@ Render an SMTP snapshot without Nodemailer, a store, or a network connection:
 <!-- example: local -->
 
 ```typescript
-import { createEmailTemplateRegistry, defineLocalTemplate } from '@web-ts-toolkit/email-service';
+import { createEmailTemplateRegistry, defineLocalTemplate, type TemplateMap } from '@web-ts-toolkit/email-service';
 
 const welcome = defineLocalTemplate({
   kind: 'handlebars',
@@ -43,7 +170,7 @@ const welcome = defineLocalTemplate({
     return input;
   },
   prepare(name) {
-    return { to: [{ address: 'recipient@example.invalid' }], values: { name } };
+    return { to: [{ address: 'recipient@example.invalid' }], values: { name: name.trim() } };
   },
   parseData(data) {
     if (!data || typeof data !== 'object' || !('name' in data) || typeof data.name !== 'string') {
@@ -53,10 +180,11 @@ const welcome = defineLocalTemplate({
   },
 });
 
-const registry = createEmailTemplateRegistry({ welcome });
+const templates = { welcome } satisfies TemplateMap;
+const registry = createEmailTemplateRegistry(templates);
 const welcomeCommand = {
   templateKey: 'welcome',
-  input: '<Example>',
+  input: '  <Example>  ',
   intent: { name: '<Example>' },
   key: { kind: 'single', idempotencyKey: 'welcome-1' },
   provider: { kind: 'smtp', key: 'standard-smtp', mode: 'live' },
@@ -66,7 +194,15 @@ const prepared = await registry.prepare('example-app', welcomeCommand);
 
 The snapshot has a plain-text subject and escaped HTML. `prepare` does not admit a job.
 
-Keep `parseInput` and `parseData` synchronous. Preparation can be async and may run again after a crash; keep
+Use `satisfies TemplateMap` instead of annotating the definitions as `TemplateMap`. This keeps literal keys and their
+input and provider types for the registry, service and batch. A widened `TemplateCommand<TemplateMap>` accepts either
+provider, but cannot check keys or inputs against a specific registry.
+
+`parseInput` synchronously validates the command's declared input shape at runtime. Its return type is the type callers
+must supply as `command.input`. Normalize prepared values in `prepare` (here, `name.trim()`), rather than using
+`parseInput` to convert from a different raw input shape.
+
+Keep `parseData` synchronous too. Preparation can be async and may run again after a crash; keep
 side effects idempotent. `intent` is explicit, stable business meaning, not the generated message. Configure only
 trusted sources and helpers. HTML values escape by default; this is not sanitization. To update advertised local
 content, change its revision and create a new registry; `registry.invalidate(key?)` only refreshes the local cache.
@@ -142,21 +278,64 @@ console.log(first.job.jobId === again.job.jobId); // true
   insert and any confirmation share that budget. `retry` and `retention` are optional policy overrides frozen on the
   first insert; replay does not change them. Never put personal data or secrets into IDs or correlation tokens.
 
-### Stage a host-owned outbox
+### Schedule a seven-day reminder
 
-Prepare before the business write. Pass `stagedReminder` from the SendGrid example as `email`. Your `commit`
-implementation saves the business change and the versioned, sensitive `email` value in **one host transaction**.
-Only after commit does your relay read that value and enqueue it on the caller-ready queue store:
+`scheduleAt` is the earliest eligible time, not a timer. Both it and `expiresAt` are Unix milliseconds.
+Expiry defaults to **24 hours from preparation**, so a seven-day schedule needs an explicit later expiry.
+Set `expiresAt` in `prepare`: it must be strictly after preparation and `scheduleAt`, and at most **30 days
+from preparation**. This example reuses `reminder` from the SendGrid template example and a caller-ready V1
+store. It admits a sandbox reminder when the booking is recorded, without starting a worker:
 
-<!-- example: outbox -->
+<!-- example: scheduled-reminder -->
 
 ```typescript
 import {
   createEmailService,
   createEmailTemplateRegistry,
+  defineSendGridTemplate,
   type EmailStore,
-  type PreparedEmailCommand,
 } from '@web-ts-toolkit/email-service';
+
+const dayMs = 86_400_000;
+const sevenDayReminder = defineSendGridTemplate({
+  ...reminder,
+  async prepare(hours, context) {
+    return { ...(await reminder.prepare(hours, context)), expiresAt: context.now + 8 * dayMs };
+  },
+});
+const scheduledRegistry = createEmailTemplateRegistry({ reminder: sevenDayReminder });
+
+function enqueueSevenDayReminder(store: EmailStore, booking: { eventId: string; recordedAt: number }) {
+  const service = createEmailService({ scope: 'example-app', store, registry: scheduledRegistry });
+  return service.enqueue({
+    templateKey: 'reminder',
+    input: 7 * 24,
+    key: { kind: 'single', idempotencyKey: `seven-day-reminder-${booking.eventId}` },
+    intent: { purpose: 'booking-reminder', eventId: booking.eventId, daysAfterBooking: 7 },
+    scheduleAt: booking.recordedAt + 7 * dayMs,
+    provider: { kind: 'sendgrid', key: 'validation', mode: 'sandbox' },
+  });
+}
+```
+
+Pass the original event ID and timestamp on replay, not a fresh `Date.now()`; the schedule is part of the
+fingerprint. `PrepareContext` provides `now`, not `scheduleAt`; if your expiry depends on a variable schedule,
+pass the needed timestamp in your validated input. The expiry is frozen in the prepared snapshot: relay,
+same-key replay, worker retries, and redrive do not extend it. Expiry prevents a new launch; it cannot recall
+one already in progress.
+
+### Stage a host-owned outbox
+
+Prepare before the business write. Pass `stagedReminder` from the SendGrid example as `email`. Your `commit`
+implementation saves the business change and the versioned, sensitive `email` value in **one host transaction**.
+Only after commit does your relay read that value and enqueue it on the caller-ready queue store. The relay process
+does not need a template registry, worker, or delivery credentials. Treat `PreparedEmailCommand` like queue data,
+not a log record:
+
+<!-- example: outbox -->
+
+```typescript
+import { createEmailRelay, type EmailRelayOptions, type PreparedEmailCommand } from '@web-ts-toolkit/email-service';
 
 type CommitReminder = (row: { reminderId: string; email: PreparedEmailCommand }) => Promise<void>;
 
@@ -164,23 +343,33 @@ async function writeReminder(reminderId: string, email: PreparedEmailCommand, co
   await commit({ reminderId, email });
 }
 
-function relayReminder(store: EmailStore, email: PreparedEmailCommand) {
-  const relay = createEmailService({ scope: 'example-app', store, registry: createEmailTemplateRegistry({}) });
-  return relay.enqueuePrepared(email);
+function makeReminderRelay(store: EmailRelayOptions['store']) {
+  const relay = createEmailRelay({ scope: 'example-app', store });
+  return (row: { email: PreparedEmailCommand }) => relay.enqueuePrepared(row.email);
 }
 ```
 
-Relay validates the staged DTO, its hashes, and its scope. It does not join your transaction, rerender, refresh expiry,
-or send. Mark your outbox row relayed only after `enqueued` or `replayed`. If an acknowledgement is lost, relay the
-same persisted snapshot under the same scoped key and queue configuration; do not prepare a replacement. Keep the
-relay within the idempotency window. Restrict access to the staged payload; the returned job summary contains
-neither bodies nor addresses.
+Create the relay once and call the returned function for each committed outbox row. It validates the snapshot,
+hashes, scope and binding before looking up the key. A retained match replays even after snapshot expiry; an
+expired snapshot for a new job is rejected. Relay does not join your transaction, rerender, refresh expiry, or
+send. `createEmailService` also exposes the same `enqueuePrepared` method if your process already has a registry.
+
+Older staged SMTP snapshots with `message/*` or `multipart/*` attachments still replay a retained match, but fail
+with `invalid_snapshot` on a new admission. Treat this as an outbox validation error, not a transient send failure
+or proof that an earlier uncertain write did not commit. Resolve any uncertain admission under the original key.
+For an unadmitted entry, use your outbox recovery process to fix the attachment format and stage it again.
+Previously admitted rows stay readable but the bundled SMTP adapter still rejects those attachments. Replay
+neither changes their snapshots nor reopens terminal jobs for delivery.
+
+Mark your outbox row relayed only after `enqueued` or `replayed`. If an acknowledgement is lost, relay the same
+persisted snapshot under its original scoped key and queue binding; do not prepare a replacement. Keep the relay
+within the idempotency window. Restrict access to the staged payload; the returned job summary contains neither
+bodies nor addresses.
 
 ## Configure an SMTP profile
 
-Install `nodemailer@">=10.6.0 <11"` to import the SMTP runtime entry. Its profile `key` must match the prepared snapshot.
-The default is 50 total To/Cc/Bcc recipients; see [SMTP capacity opt-in](#opt-in-to-larger-smtp-envelopes) for a separate
-queue that can admit larger envelopes.
+Install the [optional Nodemailer peer](#support-and-limits) to import the SMTP runtime entry. Its profile `key`
+must match the prepared snapshot.
 
 <!-- example: smtp-profile -->
 
@@ -198,11 +387,16 @@ const smtp = createSmtpProvider({
   and verify the certificate against `servername` (if specified) or `host`, including IP SAN verification for literal
   IPs. `ca` accepts one PEM CA certificate per array entry and replaces Node's default trust roots. `auth: { user, pass }`
   uses advertised ESMTP PLAIN or LOGIN only over verified TLS; there is no plaintext fallback.
+- The client greeting is fixed: `EHLO email.invalid` before and after the required STARTTLS upgrade, or once over
+  implicit TLS. `servername` is for remote TLS SNI and certificate verification; it does not change EHLO.
+  Relays requiring a different EHLO name are not supported.
 - Use an ASCII DNS host or a literal IP. The adapter uses a cancellable DNS resolver (not OS hosts-file aliases) and
   dials one address. It does not pool, retry or select another server after a failure.
 - `prepare` validates and copies the snapshot and attachment bytes without network I/O. SMTP sends visible To/Cc,
-  envelope-only Bcc and no implicit path or URL inputs. Attachments are ordinary MIME leaf parts, not nested message
-  or multipart MIME structures.
+  envelope-only Bcc and no implicit path or URL inputs. Attachments are ordinary MIME leaf parts.
+  Both SMTP queue modes reject `message/*` and `multipart/*` refs with `invalid_snapshot` during new registry
+  preparation or admission, before they can be persisted or resolved by a worker. Direct SMTP preparation still
+  refuses these types. SendGrid behavior is unchanged.
 - `submit({ signal, timeoutMs })` consumes the prepared submission on a valid call. It closes its connection on abort
   or timeout and never waits indefinitely for a peer. Neither closing the connection nor an `unknown` result means
   the relay discarded the message. `accepted` and `partially_accepted` require a final DATA acknowledgement and mean
@@ -251,15 +445,20 @@ await memoryStore.ready();
 ```
 
 Share the same instance to exercise competing callers. Each instance loses its state on restart and does not share
-state across processes. The V1 job limit (default 256) is shared across scopes; a full store rejects new jobs instead of
-evicting retained ones. This is not a fallback for durable persistence. The `EmailStore` methods are private lifecycle
-primitives for adapters and tests, not application-facing routes. Claims include sensitive snapshots and ownership
-tokens; do not log or expose them. Store operations alone never contact a provider.
+state across processes. The `EmailStore` methods are private lifecycle primitives for adapters and tests, not
+application-facing routes. Claims include sensitive snapshots and ownership tokens; do not log or expose them.
+Store operations alone never contact a provider.
 
 ## Run a worker
 
-Bind a caller-ready store to the same scope as the admission service. Pass the configured provider instances, not
+Bind a caller-ready store to the same scope as the admission service. Pass at least one configured provider, not
 credentials in a queue payload. The profile's key, kind and mode must match the frozen snapshot.
+
+**Migrating an empty V1 worker:** `providers: []` now throws `invalid_config` at construction, as it already did
+with `smtpCapacity`. No queue or provider work starts. If you only enqueue batches, replace the empty worker and
+combined facade with [`createEmailBatchAdmission({ service })`](#enqueue-and-resume-a-batch) (pass `smtpCapacity`
+if configured). For already prepared commands, [`createEmailRelay`](#stage-a-host-owned-outbox) needs no worker
+or template registry.
 
 <!-- example: worker -->
 
@@ -284,37 +483,140 @@ function runDue(worker: EmailWorker, signal: AbortSignal) {
   Those are the V1 default work limits; set lower limits when appropriate. `timeoutMs` defaults to 30 seconds for the
   whole run, with a separate bounded finish grace. There is no polling or automatic connection management.
   One run per instance is allowed. Different instances can share a queue. `idle` is not a whole-queue inventory.
+- On `report.stop === 'expiry_maintenance_required'`, the entire bounded claim window was filled with expired
+  queued jobs. There may be live work behind them. Schedule another run for the **same scope** with a positive
+  `maintenanceLimit` (or omit it for the default: 10 in V1, 4 with `smtpCapacity`). Keep scheduling bounded runs
+  if the backlog takes more than one sweep. `maintenanceLimit: 0` skips both recovery and queued expiry; repeatedly
+  running with zero maintenance won't clear the expired prefix. A follow-up run can submit eligible mail as usual.
+- This stop is new for both bundled queues. Handle it in exhaustive switches on `EmailRunReport.stop` (including
+  `batch.run()`); direct `EmailStore.claimNext()` consumers can use `StoreClaimNext` and call bounded `expireNext()`
+  in the same scope before retrying. Existing custom stores can keep returning the previous `StoreNext` statuses.
+  Pair updated bundled stores with updated workers when passing store objects in-process: older workers report
+  the new result as a store error. There is no persisted-data or Mongo catalog migration.
 - The worker prepares the provider payload, validates attachment bytes through your `attachmentResolvers`, and asks
   the optional `rateLimiter` for one permit before making a durable handoff. A worker limiter should be instantiated
   per worker; a shared limiter must enforce the actual shared quota outside the worker. The worker does not wait for
   a deferred permit, refund permits, rerender snapshots, or choose an alternate profile.
-- A missing or late handoff acknowledgement never permits a send. A finish write error is not evidence of rejection.
-  `unconfirmed` means the worker could not prove the stored attempt outcome; `unknown` is a stored result that is
-  never automatically retried. `submitted` counts full and partial acceptance, not sandbox validation or inbox
-  delivery. An application that explicitly redrives unknown work must accept possible duplicates.
+- `retry.maxAttempts` defaults to **3 claims**, not three provider calls. Three rate deferrals can end in
+  `attempts_exhausted` with zero provider calls. For safe transient results with claims left, the retry time is the
+  later of jittered exponential backoff (default base 1 s, cap 60 s) and any valid limiter or provider retry floor.
+  No retry is scheduled at or after expiry. Pace worker runs for your quota; there is no separate deferral budget.
+- A missing or late handoff acknowledgement never permits a send. A finish write error is not proof of rejection.
+  `submitted` counts full and partial acceptance, not sandbox validation. Neither partial nor unknown outcomes
+  automatically resend; see [recovery](#recover-unresolved-submissions).
 - `await worker.shutdown({ timeoutMs: 15_000 })` permanently closes the worker, not the store. `stopped` means no
   run or provider I/O is active; `pendingCallbacks` counts host promises still held after cancellation. Injected
   stores and providers must honor call deadlines, abort actual I/O and wait for it to settle. A timed-out shutdown
   can be awaited again, and it does not recall bytes already sent.
 
-## Enqueue and resume a batch
+### Roll out a provider profile in a shared scope
 
-Use `createEmailBatchService` with a service and worker bound to the **same scope and underlying store**.
-Each item is a template command without a standalone `key`. Using `welcomeCommand`, `service`, `store`, `smtp`
-and `makeWorker` from the preceding examples:
+Workers on the same queue and scope compete for eligible jobs. Claims do not filter by profile, even when every
+worker has providers configured. Each worker needs an exact match for every active provider reference (kind, key
+and mode) and an `attachmentResolvers` entry for every `resolverKey` its jobs can reference. Startup checks only
+the local configuration; the host must verify that all workers on the route have what they need.
 
-<!-- example: batch -->
+For example, workers A and B share the `example-app` scope on one queue. Existing jobs use a live `smtp` profile
+with key `standard-smtp` and may reference the `files-v1` resolver. New jobs will use a live `smtp` profile with
+key `next-smtp` and the `files-v2` resolver. Use a distinct profile key so the two profiles can coexist.
+
+1. Replace worker A with one configured for **both** profiles and resolvers. B still has only the old
+   configuration, so producers must continue using `standard-smtp` and `files-v1`.
+2. Replace worker B with the same dual configuration. Confirm that no worker still claiming in `example-app`
+   lacks either profile or resolver.
+3. Only now switch producers of new work to `next-smtp` and `files-v2`. Keep both routes on both workers while the
+   old work drains, including access to its referenced attachment versions.
+4. Remove `standard-smtp` and `files-v1` only after nothing still needs them. Account for scheduled jobs, retries,
+   in-flight claims, staged outbox entries that can still be relayed, and any eligible `unknown` jobs you intend to
+   explicitly redrive. A run reporting `idle` does not prove the old work has drained.
+
+If the fleets cannot share configuration, keep one on `example-app` and route the other to `example-app-next` in
+the same store, or use separate backing queues. Bind each fleet's producers, relays and workers to the matching
+scope and queue. Leave already staged and admitted work on its original route.
+
+A missing or mismatched profile is a terminal pre-handoff failure: `failed` with reason `profile_unavailable`
+and no provider submission on that attempt. The worker does not retry the job or switch profiles. After you
+fix the configuration, replaying the same scoped command under the same key returns `replayed` with the existing
+failed job while its identity is retained; it does not reopen the job. Changing the command's provider reference
+under that key results in `idempotency_conflict`.
+
+### Implement a custom provider
+
+Use `EmailProvider<SmtpSnapshot>` or `EmailProvider<SendGridSnapshot>` to implement one of the supported
+protocols. Keep `prepare` synchronous and free of I/O. This SMTP test double matches the `standard-smtp` profile
+from the local template example. Use it only with an isolated test queue: it records synthetic acceptance and
+sends nothing.
+
+<!-- example: custom-provider -->
 
 ```typescript
-import { createEmailBatchService } from '@web-ts-toolkit/email-service';
+import {
+  createSmtpAcceptanceResult,
+  EmailError,
+  type EmailProvider,
+  type ProviderResult,
+  type SmtpSnapshot,
+} from '@web-ts-toolkit/email-service';
+
+const syntheticSmtp: EmailProvider<SmtpSnapshot> = {
+  ref: { kind: 'smtp', key: 'standard-smtp', mode: 'live' },
+  prepare({ snapshot: { envelope } }) {
+    const recipients = (['to', 'cc', 'bcc'] as const).flatMap((group) =>
+      envelope[group].map((_, index) => ({ group, index, status: 'accepted' as const })),
+    );
+    let submitted = false;
+    return {
+      async submit({ signal }): Promise<ProviderResult> {
+        if (submitted) throw new EmailError('closed');
+        submitted = true;
+        if (signal.aborted) {
+          return { outcome: 'unknown', retry: 'never', stage: 'connect', reason: 'provider_aborted' };
+        }
+        return createSmtpAcceptanceResult(recipients);
+      },
+    };
+  },
+};
+```
+
+For the test queue above, pass `[syntheticSmtp]` to `makeWorker(store, profiles)` in place of a real SMTP adapter.
+A real `submit` must be one-shot, honor `signal` and `timeoutMs`, and settle only once it cannot perform more
+send I/O. Report SMTP acceptance or partial acceptance only after the final DATA acknowledgement, with one
+entry per envelope recipient (group and zero-based index; use To/Cc/Bcc order with `smtpCapacity`). If you
+cannot establish what happened, report `unknown`, not a safe retry.
+
+**Migrating custom TypeScript providers:** `ProviderResult` now ties `outcome`, `retry`, `stage`, and metadata to
+`reason`. Return a complete result in each branch rather than assembling those fields independently or casting
+from `AttemptResult`. Annotate `submit` with `Promise<ProviderResult>` as above or use `satisfies ProviderResult`
+on a result literal. A literal `smtp_accepted` result needs a nonempty tuple of accepted recipients. For a dynamic
+list or any `smtp_partial` result, call `createSmtpAcceptanceResult(recipients, messageId?)` from the root
+(no optional peer). It copies and freezes the evidence without reordering it, and returns `smtp_partial` only
+when both statuses are present. Empty, all-rejected, or malformed evidence throws `invalid_command`; an
+all-rejected list is not acceptance. Omit `messageId` unless it is `<${attemptId}@email.invalid>` for this attempt.
+Only live `sendgrid_accepted` can include `providerMessageId`, and only `sendgrid_throttled` can include a
+provider `retryHint` (`delayMs`, `notBefore`, or both). Sandbox success is `sendgrid_validated`, not
+`sendgrid_accepted`.
+
+This tightens the TypeScript contract without changing stored formats or submission semantics. The worker still
+checks evidence against the actual envelope and profile mode. Invalid evidence after handoff becomes `unknown` with reason
+`transport_uncertain`; it never authorizes an automatic resend.
+
+## Enqueue and resume a batch
+
+Use `createEmailBatchAdmission` in a producer process. It takes the bound admission `service` from the enqueue
+example and only exposes `enqueueBatch`. No worker, delivery credentials, or optional peer is needed for the memory
+example. Each item is a template command without a standalone `key`. Using `welcomeCommand` from above:
+
+<!-- example: batch-admission -->
+
+```typescript
+import { createEmailBatchAdmission } from '@web-ts-toolkit/email-service';
 
 const { key: _singleKey, ...command } = welcomeCommand;
-const worker = makeWorker(store, [smtp]);
-const batch = createEmailBatchService({ service, worker });
+const batch = createEmailBatchAdmission({ service });
 const request = { batchId: 'welcome-run-1', items: [{ itemId: 'notice-1', command }] };
 const admission = await batch.enqueueBatch(request);
 const resumed = await batch.enqueueBatch(request); // Same item identity; replays without preparing again.
-// When the host is ready to process due jobs, call batch.run({ limit: 10, concurrency: 2 }).
 ```
 
 - An enqueue call validates all 1–100 item envelopes and unique IDs before any lookup or preparation. It admits in
@@ -329,6 +631,37 @@ const resumed = await batch.enqueueBatch(request); // Same item identity; replay
   `enqueue`. It passes the remaining time within that API's 50–60,000 ms range and a signal that can stop work
   sooner. The batch waits for a started item to settle rather than assuming a write was cancelled. A custom
   service must honor these limits and settle its I/O; one that does not cooperate can keep the batch pending.
+
+### Combine batch admission and delivery
+
+If the same process also runs delivery, `createEmailBatchService` adds the configured worker's `run` to the same
+`enqueueBatch` operation. Build both components from the same backing configuration, using a single store instance
+for memory or matching durable queue settings. Matching scope and capacity do not prove two stores share a backing.
+This is an alternative to the producer example, using `registry`, `welcomeCommand` and `smtp` from above:
+
+<!-- example: batch -->
+
+```typescript
+import {
+  createEmailBatchService,
+  createEmailService,
+  createEmailWorker,
+  createMemoryEmailStore,
+} from '@web-ts-toolkit/email-service';
+
+const store = createMemoryEmailStore();
+await store.ready();
+const queue = { scope: 'example-app', store };
+const service = createEmailService({ ...queue, registry });
+const worker = createEmailWorker({ ...queue, providers: [smtp] });
+const batch = createEmailBatchService({ service, worker });
+const { key: _singleKey, ...command } = welcomeCommand;
+const request = { batchId: 'welcome-run-1', items: [{ itemId: 'notice-1', command }] };
+const admission = await batch.enqueueBatch(request);
+const resumed = await batch.enqueueBatch(request);
+// When the host is ready to process due jobs, call batch.run({ limit: 10, concurrency: 2 }).
+```
+
 - `batch.run` is the configured worker's **scope-wide** run, with the same bounds, limiter and report. It can
   process unrelated due jobs in that scope. It neither filters by batch ID nor rewrites envelopes; the local
   grouping ID is not SendGrid's `batch_id`.
@@ -356,30 +689,80 @@ async function inspectResults(store: EmailStore, jobId: string) {
 }
 ```
 
-- Authorize requests in your application; a scope or cursor is not authentication. Results contain only redacted
-  metadata, fixed diagnostic codes, and reliably known recipient indexes, never queue snapshots, addresses, provider
-  responses or ownership tokens. Activities are submission history, not inbox delivery receipts or inputs to a resend.
+- Results contain redacted metadata, fixed diagnostic codes and reliably known recipient indexes, never queue
+  snapshots, addresses, raw responses or ownership tokens. Activities describe past attempts, not current holds.
 - Lists contain complete committed projections, including those pending acknowledgement on the job. They order
   newest finish first, then by job and attempt ID. `from` is inclusive; `before` is exclusive. Keep the same scope
-  and filters when passing `nextCursor`; page size can change (V1 default 25, range 1–100). Pages are not snapshots.
+  and filters when passing `nextCursor` as `cursor`; page size can change (V1 default 25, range 1–100).
 - `reconcile` and `cleanup` do sequential work (V1 default 20 steps, range 1–100); their counts describe only
   confirmed progress in that call. All admin methods accept `signal` and one whole-call `timeoutMs` (default 10 seconds,
-  override 50–60,000 ms). A persistence failure can leave work committed; a later maintenance call safely resumes it.
-  An optional `onActivity` runs after a new confirmed projection ACK, without waiting for its returned promise.
-  If one callback is already pending, later notifications are skipped, not queued or retried.
-- `cancel(jobId)` cannot recall mail after handoff. `resolveUnknown({ jobId, attemptId, action: 'dismiss' })` closes
-  the hold without changing the outcome. Explicit `'redrive'` with `acknowledgeDuplicateRisk: true` can requeue an
-  eligible unknown job once for a future worker run. Quiesce suspected old workers and review provider evidence
-  first: redrive can duplicate an accepted submission, and the admin never submits the message itself. After
-  `write_unconfirmed`, read the current job or repeat the exact same action; do not assume it rolled back.
-- Retention is frozen at admission (default 7 days for payloads and 30 days each for history and idempotency).
-  Cleanup holds unresolved unknowns and unacknowledged history, prunes settled payloads when eligible, and only
-  removes the replay guard after all retention windows and the projection drain, once activities have been deleted.
+  override 50–60,000 ms). A persistence failure can leave work committed; later bounded maintenance can resume it.
+  `onActivity` is best effort after a newly confirmed projection ACK: if one callback is pending, later
+  notifications are skipped, not queued or retried.
+
+### Recover unresolved submissions
+
+Use the original caller-ready store, authorized scope and `smtpCapacity` binding (if enabled). The host
+authorizes reads and actions; IDs and cursors are not credentials. There is no API that lists all current holds.
+
+1. **Record IDs.** Persist the original queue/scope, opaque host reference and `job.jobId` from `enqueued` or
+   `replayed` before acknowledging the host item or marking an outbox row relayed. For batches, save successful
+   jobs alongside their batch/item IDs. Resume uncertain admissions only within the replay window and on the
+   original route with the same key and intent (same staged command for a relay; same batch/item IDs and intents
+   for a batch). Don't replay completed commands to find an ID: after purge they can enqueue anew. Record scoped
+   job/attempt IDs (when present), operation, status and reason from worker `items`, including recovery and uncertainty. Keep `stop` and
+   `counts.persistenceFailures`: a lost claim ACK may have no item. Restrict access and omit private payloads.
+2. **Read current state.** `unconfirmed` means the worker could not confirm the stored outcome;
+   `write_unconfirmed` means a write may have committed. Neither proves rollback or non-submission. A `handed_off`
+   lease does not prove provider invocation, and `providerInvoked: false` on recovery says nothing about the old
+   owner. Read `admin.getJob(jobId)` even before projection. Act only on a terminal `unknown` with `unknownOpen: true`
+   and `latestAttempt.outcome === 'unknown'`. Take the ID from `latestAttempt` and match it to any candidate attempt
+   from a report or activity. On a changed attempt, failed read or `null`, do not act on stale evidence. A missing
+   job does not prove non-submission.
+3. **If IDs are missing, look for candidates, not a complete worklist.** Check host records first. Run bounded
+   `admin.reconcile({ limit: 4, timeoutMs: 10_000 })` passes before paging. They project attempts without recovering
+   leases or sending; back off on contention and surface failures. Set a fixed `finishedAt` window in Unix ms
+   (`from` inclusive, `before` exclusive), then page `admin.listActivities({ from, before, limit: 8 })`.
+   Use a shared deadline signal and cap passes, pages and reads (e.g. three pages and 24 `getJob` calls).
+   Filter for `activity.result.outcome === 'unknown'`, deduplicate by scoped job/attempt and recheck the exact
+   open attempt with `getJob`.
+   Save the route, filters and opaque cursor after accounting for a whole page; resume an interrupted page from
+   its start. Cursors mark positions, not snapshots or watermarks. Later projections can appear before your
+   bookmark and older holds outside the window; history can also be purged. Revisit overlapping or older
+   windows from the first page within budget. Idle reconciliation or an empty/final page cannot rule out holds
+   (e.g. unprojected attempts or leases); report gaps and escalate if you need a complete inventory.
+4. **Let a healthy worker recover an expired lease only if delivery is authorized.** If still leased, wait for
+   the owner or quiesce suspected old workers: stop scheduling and verify no runs or provider I/O remain
+   (`shutdown()` returns `stopped`, not `deadline`, or equivalent host confirmation). After store-time lease
+   expiry, run a bounded worker in the original scope with positive `maintenanceLimit`. Pre-handoff recovery
+   can safely retry within policy; post-handoff recovery records `unknown`. Even `limit: 1` can send unrelated
+   mail; there is no recovery-only admin run. Re-read the job and check authorized provider evidence for that
+   attempt. Missing provider logs do not prove rejection.
+5. **Resolve the exact open attempt, or leave it open.** Re-read immediately before acting.
+   `admin.resolveUnknown({ jobId, attemptId, action: 'dismiss' })` closes the hold without sending or changing
+   the outcome, even after expiry. Dismissal does not assert acceptance or rejection; cancellation cannot recall mail.
+   Do not redrive confirmed acceptance. Only after quiescing suspected old workers, reviewing evidence and
+   accepting the risk of duplicate submission should an authorized operator call
+   `admin.resolveUnknown({ jobId, attemptId, action: 'redrive', acknowledgeDuplicateRisk: true })`.
+   Redrive requires a retained snapshot, store time before the original `expiresAt`, and no previous redrive.
+   It requeues the same snapshot with **one extra claim**, not a send guarantee, automatic retry or expiry
+   extension. A future worker needs the matching profile and resolvers. A second unknown can only be dismissed;
+   never bypass the guards with a fresh key. Audit the actor and exact scoped decision. On `write_unconfirmed`,
+   read `job.resolutions` for the same attempt/action; if absent and still eligible, retry only that exact
+   authorized command within budget. `resolved` confirms a new decision; `replayed` confirms the prior decision
+   and returns the current job, which may have advanced. On `not_found`, `resolution_conflict` or `expired`,
+   stop and re-read.
+6. **Schedule projection and cleanup separately from delivery.** Open unknowns retain payload, history and
+   identity even after expiry. Frozen retention minimums (defaults: payload 7 days, history and idempotency
+   30 days each) start at dismissal or a settled terminal result after redrive. All attempts need projection
+   ACKs before payload pruning. Schedule bounded `admin.cleanup({ limit: 4 })` calls: after the retention windows
+   and projection drain, cleanup deletes activities before purging the job and replay guard. It never clears an
+   open hold.
 
 ## Durable store with Mongoose
 
-Install `mongoose@">=9.12.2 <10"` alongside the package. Supply an open connection (not the global default)
-to a writable MongoDB 8.x WiredTiger replica set with journaled majority enabled.
+Install the [optional Mongoose peer](#support-and-limits) and open a caller-owned connection
+(not the global default) to the supported replica set:
 
 <!-- example: mongoose -->
 
@@ -403,10 +786,10 @@ async function openStore(replicaSetUri: string) {
 ```
 
 - `ready()` must succeed before any store call. It checks server status, replica-set config and startup
-  options, reads the collection/index catalog, and installs only missing V1 definitions. The principal needs
-  `serverStatus`, `replSetGetConfig`, `getCmdLineOpts`, collection/index inspection and creation as applicable,
-  and read/write access to the two private collections. Unsupported topology, validators, collations, model
-  aliases and conflicting or extra indexes are not adopted or repaired.
+  options, reads the collection/index catalog, and installs only missing definitions for the selected format.
+  The principal needs `serverStatus`, `replSetGetConfig`, `getCmdLineOpts`, collection/index inspection and
+  creation as applicable, and read/write access to the two private collections. Unsupported topology, validators,
+  collations, model aliases and conflicting or extra indexes are not adopted or repaired.
 - `jobsCollection` and `activitiesCollection` default to `email_jobs` and `email_activities`.
   `jobsModelName` and `activitiesModelName` reserve connection-local names (defaults `EmailJobV1` and
   `EmailActivityV1`); no models are registered. Keep both collections private to this adapter: no manual
@@ -432,14 +815,15 @@ per message; it never splits or truncates the envelope. To/Cc stay visible; Bcc 
 
 Choose one **canonical lowercase UUIDv4** for the logical store and an integer `maxRecipients` from **51 to 1,000**.
 Keep that binding in trusted host configuration and pass it as `smtpCapacity` to every factory in that queue:
-registry, store, admission service, each SMTP profile, worker, batch facade and admin. They compare the tuple by
-value and take frozen copies. Do not read it from request data or infer it from a snapshot or a worker setting.
-Factory mismatches fail with `invalid_config`. There is no new environment setting; the host still supplies relay
-credentials separately.
+registry, store, admission service, prepared relay, batch admission or combined batch service, each SMTP profile,
+worker and admin. They compare the tuple by value and take frozen copies. Do not read it from request data or infer
+it from a snapshot or a worker setting. Factory mismatches fail with `invalid_config`. There is no new environment
+setting; the host still supplies SMTP credentials separately where delivery runs.
 
 This example uses both optional peers and an already open [Mongoose connection](#durable-store-with-mongoose).
-It queues 51 synthetic addresses and does not run the worker. Replace the example UUID with one assigned to your
-store; do not generate a new UUID on startup.
+It prepares and relays a snapshot for 51 synthetic addresses without running the worker. In production,
+[stage and commit the snapshot in the host outbox](#stage-a-host-owned-outbox) before relaying. Replace the
+example UUID with one assigned to your store; do not generate a new UUID on startup.
 
 <!-- example: smtp-capacity -->
 
@@ -447,7 +831,9 @@ store; do not generate a new UUID on startup.
 import type { Connection } from 'mongoose';
 import {
   createEmailAdmin,
+  createEmailBatchAdmission,
   createEmailBatchService,
+  createEmailRelay,
   createEmailService,
   createEmailTemplateRegistry,
   createEmailWorker,
@@ -463,10 +849,10 @@ const smtpCapacity: SmtpCapacity = {
   maxRecipients: 51,
 };
 
-async function configureCapacityLane(connection: Connection, relay: Omit<SmtpProviderOptions, 'smtpCapacity'>) {
-  const scope = 'example-app';
+async function configureCapacityLane(connection: Connection, transport: Omit<SmtpProviderOptions, 'smtpCapacity'>) {
   const store = createMongooseEmailStore(connection, { smtpCapacity });
   await store.ready();
+  const queue = { scope: 'example-app', store, smtpCapacity };
   const notice = defineLocalTemplate({
     kind: 'handlebars',
     revision: 'v1',
@@ -481,19 +867,22 @@ async function configureCapacityLane(connection: Connection, relay: Omit<SmtpPro
     }),
   });
   const registry = createEmailTemplateRegistry({ notice }, { smtpCapacity });
-  const service = createEmailService({ scope, store, registry, smtpCapacity });
-  const smtp = createSmtpProvider({ ...relay, smtpCapacity });
-  const worker = createEmailWorker({ scope, store, providers: [smtp], smtpCapacity });
+  const service = createEmailService({ ...queue, registry });
+  const relay = createEmailRelay(queue);
+  const batchAdmission = createEmailBatchAdmission({ service, smtpCapacity });
+  const smtp = createSmtpProvider({ ...transport, smtpCapacity });
+  const worker = createEmailWorker({ ...queue, providers: [smtp] });
   const batch = createEmailBatchService({ service, worker, smtpCapacity });
-  const admin = createEmailAdmin({ scope, store, smtpCapacity });
-  const admission = await service.enqueue({
+  const admin = createEmailAdmin(queue);
+  const staged = await registry.prepare(queue.scope, {
     templateKey: 'notice',
     input: null,
     intent: 'synthetic-notice',
     key: { kind: 'single', idempotencyKey: 'notice-1' },
     provider: smtp.ref,
   });
-  return { admission, admin, batch, worker };
+  const admission = await relay.enqueuePrepared(staged);
+  return { admission, admin, batchAdmission, batch, worker };
 }
 ```
 
@@ -559,7 +948,7 @@ outcomes, not recipient addresses, message content, attachment references, crede
   copy or replay jobs across queues or automatically redrive uncertain work. The original lane's idempotency and
   retention still apply.
 
-## Integration entrypoints
+## Integration entrypoint types
 
 The integration types have their own entrypoints:
 
@@ -570,14 +959,6 @@ import type { SmtpProviderOptions } from '@web-ts-toolkit/email-service/smtp';
 import type { SendGridProviderOptions } from '@web-ts-toolkit/email-service/sendgrid';
 import type { MongooseEmailStoreOptions } from '@web-ts-toolkit/email-service/mongoose';
 ```
-
-<!-- prettier-ignore -->
-| Entry | Current surface | Optional peer |
-| --- | --- | --- |
-| `@web-ts-toolkit/email-service` | `EmailError`, `createEmailTemplateRegistry`, `defineLocalTemplate`, `defineSendGridTemplate`, `createEmailService`, `createEmailWorker`, `createEmailBatchService`, `createEmailAdmin`, `createMemoryEmailStore`, and shared contracts including `SmtpCapacity` | None |
-| `@web-ts-toolkit/email-service/smtp` | `createSmtpProvider`, `SmtpProviderOptions` | Nodemailer `>=10.6.0 <11` (runtime only) |
-| `@web-ts-toolkit/email-service/sendgrid` | `createSendGridProvider`, `SendGridProviderOptions` | None (Node HTTPS) |
-| `@web-ts-toolkit/email-service/mongoose` | `createMongooseEmailStore`, `MongooseEmailStoreOptions` | Mongoose `>=9.12.2 <10` (declarations and caller connection) |
 
 The root has no runtime or declaration dependency on the optional peers. A type-only SMTP import does not require
 Nodemailer. The Mongoose runtime module can load without Mongoose, but its declarations reference the peer and

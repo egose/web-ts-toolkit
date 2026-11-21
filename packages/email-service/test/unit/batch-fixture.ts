@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
-import { createEmailTemplateRegistry, createEmailWorker, createMemoryEmailStore, type EmailStore } from '../../src';
-import { createEmailBatchServiceWithClock } from '../../src/batch';
+import { createEmailTemplateRegistry, createMemoryEmailStore, type EmailStore } from '../../src';
+import { createEmailBatchAdmissionWithClock } from '../../src/batch';
 import { createEmailServiceWithClock } from '../../src/service';
 import { command, local, ManualClock, SCOPE, SMTP } from './template-fixtures';
 
@@ -42,7 +42,6 @@ export async function batchFixture(options: { maxJobs?: number; maxPending?: num
   const insert = vi.fn(store.insert);
   const port: EmailStore = { ...store, findAdmission, insert };
   const service = createEmailServiceWithClock({ scope: SCOPE, store: port, registry }, clock);
-  const worker = createEmailWorker({ scope: SCOPE, store, providers: [], clock });
-  const batch = createEmailBatchServiceWithClock({ service, worker }, clock);
-  return { clock, store, service, batch, worker, parseInput, prepare, parseData, load, findAdmission, insert };
+  const batch = createEmailBatchAdmissionWithClock({ service }, clock);
+  return { clock, store, service, batch, parseInput, prepare, parseData, load, findAdmission, insert };
 }

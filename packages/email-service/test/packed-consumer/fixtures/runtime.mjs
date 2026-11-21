@@ -12,11 +12,14 @@ const expectedExports = {
   index: [
     'EmailError',
     'createEmailAdmin',
+    'createEmailBatchAdmission',
     'createEmailBatchService',
+    'createEmailRelay',
     'createEmailService',
     'createEmailTemplateRegistry',
     'createEmailWorker',
     'createMemoryEmailStore',
+    'createSmtpAcceptanceResult',
     'defineLocalTemplate',
     'defineSendGridTemplate',
   ],
@@ -75,7 +78,15 @@ assert.equal(esmError.code, 'invalid_input');
 assert.equal(esmError.code, cjsError.code);
 assert.equal(esmError.message, cjsError.message);
 
-for (const entry of modules.sendgrid) {
+for (const [index, entry] of modules.sendgrid.entries()) {
+  assert.throws(
+    () => entry.createSendGridProvider({ key: 'test', apiKey: '' }),
+    (error) => {
+      assert.equal(error.code, 'invalid_config');
+      assert.equal(error instanceof modules.index[index].EmailError, false, 'same-format subpath error identity');
+      return true;
+    },
+  );
   const provider = entry.createSendGridProvider({ key: 'test', apiKey: 'synthetic-key', mode: 'sandbox' });
   assert.deepEqual(provider.ref, { kind: 'sendgrid', key: 'test', mode: 'sandbox' });
   const prepared = provider.prepare({

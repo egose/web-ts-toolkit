@@ -18,7 +18,10 @@ export type SmtpProviderOptions = {
   /** Defaults to 465 for implicit TLS or 587 for required STARTTLS. */
   port?: number;
   tls: 'implicit' | 'starttls';
-  /** Optional DNS name for SNI and certificate verification. Otherwise verify `host`, including IP SANs. */
+  /**
+   * Optional DNS name for TLS SNI and server certificate verification. Otherwise verify `host`,
+   * including IP SANs. This does not change the fixed `EHLO email.invalid` client greeting.
+   */
   servername?: string;
   /** PEM CA certificates (one per entry). Replaces the default Node trust roots when provided. */
   ca?: readonly string[];

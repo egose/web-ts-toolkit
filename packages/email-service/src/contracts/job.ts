@@ -11,7 +11,11 @@ import type {
   UnixMs,
 } from './message';
 
-/** Ordinary attempt budget and capped exponential backoff, frozen at admission. */
+/**
+ * Frozen at admission. `maxAttempts` defaults to 3 claims, including quota deferrals with no provider call.
+ * Safe transient retries use jittered exponential backoff (default 1 s base, 60 s cap) and any later retry
+ * floor from the limiter or provider. No retry is scheduled at or after expiry.
+ */
 export type RetryPolicy = { maxAttempts: number; baseDelayMs: number; maxDelayMs: number };
 /** Minimum windows from a settled terminal transition, not promised deletion times. */
 export type RetentionPolicy = { payloadMs: number; historyMs: number; idempotencyMs: number };
@@ -72,7 +76,11 @@ export type CancelResult =
   | { readonly status: 'cancelled' | 'too_late'; readonly job: EmailJobSummary }
   | { readonly status: 'not_found' };
 
-/** Redrive permits one extra claim on the same snapshot and can duplicate an already accepted message. */
+/**
+ * Resolve only the current open unknown attempt. Dismiss leaves the outcome unchanged, even after expiry.
+ * Redrive requires a retained unexpired snapshot and no previous redrive; it adds one claim on that same
+ * snapshot and can duplicate an already accepted message. Quiesce suspected old workers and review evidence first.
+ */
 export type ResolveUnknownCommand = { jobId: EmailJobId; attemptId: EmailAttemptId } & (
   | { action: 'dismiss' }
   | { action: 'redrive'; acknowledgeDuplicateRisk: true }

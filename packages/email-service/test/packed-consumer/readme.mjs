@@ -6,25 +6,36 @@ import { join } from 'node:path';
 // prior setup. The fenced source comes from the installed tarball, never a copy
 // maintained next to this test; the glue only supplies context/exports for calls.
 const snippets = {
-  errors: {},
+  quickstart: {}, // No surrounding code: paste and run this module on its own.
+  errors: { exports: 'configureSendGrid, hasEmailCode' },
   local: { exports: 'registry, welcomeCommand, prepared' },
-  'sendgrid-template': { exports: 'stagedReminder' },
+  'sendgrid-template': { exports: 'reminder, stagedReminder' },
   admission: {
     imports: "import { registry, welcomeCommand } from './readme-local.mjs';",
     exports: 'store, service, first, again',
   },
-  outbox: { exports: 'writeReminder, relayReminder' },
+  'scheduled-reminder': {
+    imports: "import { reminder } from './readme-sendgrid-template.mjs';",
+    exports: 'enqueueSevenDayReminder',
+  },
+  outbox: { exports: 'writeReminder, makeReminderRelay' },
   'smtp-profile': { needsBoth: true, exports: 'smtp' },
   'sendgrid-profile': { exports: 'validationProfile' },
   memory: { exports: 'memoryStore' },
   worker: { exports: 'makeWorker, runDue' },
+  'custom-provider': { exports: 'syntheticSmtp' },
+  'batch-admission': {
+    imports: [
+      "import { welcomeCommand } from './readme-local.mjs';",
+      "import { service } from './readme-admission.mjs';",
+    ].join('\n'),
+    exports: 'admission, resumed',
+  },
   batch: {
     needsBoth: true,
     imports: [
-      "import { welcomeCommand } from './readme-local.mjs';",
-      "import { store, service } from './readme-admission.mjs';",
+      "import { registry, welcomeCommand } from './readme-local.mjs';",
       "import { smtp } from './readme-smtp-profile.mjs';",
-      "import { makeWorker } from './readme-worker.mjs';",
     ].join('\n'),
     exports: 'admission, resumed, batch, worker',
   },
@@ -38,6 +49,7 @@ export function writeReadmeExamples(readme, consumer, both) {
   const blocks = [
     ...readme.matchAll(/^<!-- example: ([a-z-]+) -->\r?\n\r?\n```typescript\r?\n([\s\S]*?)^```[ \t]*$/gm),
   ];
+  assert.equal(blocks[0]?.[1], 'quickstart', 'the standalone walkthrough should be the first README example');
   assert.equal(
     blocks.length,
     [...readme.matchAll(/^```(?:ts|typescript)[ \t]*\r?$/gm)].length,

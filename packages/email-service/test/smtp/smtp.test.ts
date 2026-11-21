@@ -12,6 +12,7 @@ import { prepareSmtpMessage } from '../../src/providers/smtp/mime';
 import { readSmtpConfig } from '../../src/providers/smtp/options';
 import { submitSmtp } from '../../src/providers/smtp/submit';
 import { createSmtpProvider, type SmtpProviderOptions } from '../../src/smtp';
+import { COMPOSITE_TYPES } from '../conformance/smtp-attachment-fixture';
 import { latch, LOOPBACK, openLoopbackSmtp } from './loopback';
 import { base64Body, decodeMimeWords, parseMime } from './mime-fixture';
 import { createSmtpTlsFixture, TLS_NAME } from './tls-fixture';
@@ -206,7 +207,7 @@ describe('SMTP preflight and ownership', () => {
       },
       { ...input, attachments: [{ ...testAttachment, ref: { ...testAttachment.ref, filename: 'wrong.bin' } }] },
       { ...input, attachments: [] },
-      submission({}, [attachment(Uint8Array.of(0), 'part.mime', 'multipart/mixed')]),
+      ...COMPOSITE_TYPES.map((contentType) => submission({}, [attachment(Uint8Array.of(0), 'part.mime', contentType)])),
     ];
     for (const candidate of noNetworkInputs) {
       expect(() => provider.prepare(candidate as ProviderSubmission<SmtpSnapshot>)).toThrow(

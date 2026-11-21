@@ -4,6 +4,7 @@ import { encodeWord } from 'nodemailer/lib/mime-funcs';
 import type { Mailbox } from '../../contracts/message';
 import type { ProviderSubmission, RecipientResult, SmtpSnapshot } from '../../contracts/provider';
 import { recipientGroups, smtpMessageId } from '../../internal/attempt-codecs';
+import { assertSmtpAttachmentTypes } from '../../internal/smtp-attachments';
 import { invalid } from '../../internal/validation';
 
 export type SmtpMessage = Readonly<{
@@ -27,6 +28,7 @@ export function prepareSmtpMessage({
   attemptId,
   attachments,
 }: ProviderSubmission<SmtpSnapshot>): SmtpMessage {
+  assertSmtpAttachmentTypes(attachments.map(({ ref }) => ref));
   const { from, to, cc, replyTo } = snapshot.envelope;
   const destinations = recipientGroups.flatMap((group) =>
     snapshot.envelope[group].map(({ address }, index) => Object.freeze({ address, group, index })),
@@ -44,17 +46,13 @@ export function prepareSmtpMessage({
       html: body(snapshot.html),
       date: new Date(snapshot.preparedAt),
       messageId,
-      attachments: attachments.map(({ ref, bytes }) => {
-        // Composite MIME types carry structure of their own, not arbitrary Base64-encoded bytes.
-        if (/^(?:multipart|message)\//.test(ref.contentType)) invalid('invalid_snapshot');
-        return {
-          filename: ref.filename,
-          contentType: ref.contentType,
-          content: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength),
-          contentDisposition: 'attachment',
-          contentTransferEncoding: 'base64',
-        };
-      }),
+      attachments: attachments.map(({ ref, bytes }) => ({
+        filename: ref.filename,
+        contentType: ref.contentType,
+        content: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+        contentDisposition: 'attachment',
+        contentTransferEncoding: 'base64',
+      })),
       disableFileAccess: true,
       disableUrlAccess: true,
       newline: 'win',

@@ -10,6 +10,8 @@ import type {
   LeaseGrant,
   OwnerFence,
   ProjectionPermit,
+  StoreClaimNext,
+  StoreNext,
 } from '../contracts/store';
 import { activityDigest, activityFor, type StoredActivity } from './activity-codecs';
 import {
@@ -33,6 +35,7 @@ import {
   type JobRecord,
   type LedgerAttempt,
 } from './job-record';
+import { assertSmtpAttachmentTypes } from './smtp-attachments';
 import { capacityTag, type CapacityContext } from './smtp-capacity';
 import { timeAfter, type ClaimRequest, type FinishRequest, type ValidatedAdmission } from './store-codecs';
 import { invalid, unixMs } from './validation';
@@ -99,6 +102,7 @@ export function newJob(admission: ValidatedAdmission, time: DecisionTime, capaci
   if (snapshot.preparedAt - now > MAX_PREPARED_AT_SKEW_MS) invalid('invalid_snapshot');
   const nextAt = Math.max(now, scheduleAt ?? now);
   if (nextAt >= snapshot.expiresAt) invalid('expired');
+  if (snapshot.kind === 'smtp') assertSmtpAttachmentTypes(snapshot.attachments);
   return Object.freeze({
     version: EMAIL_FORMAT_VERSION,
     ...capacityTag(capacity),
@@ -150,6 +154,11 @@ function liveLease(job: JobRecord, fence: OwnerFence, phase: ReturnType<typeof l
   return lease;
 }
 
+function claimEligibility(job: JobRecord, now: UnixMs): 'not_due' | 'expired' | 'eligible' {
+  if (job.state.state !== 'queued' || job.state.nextAt > now) return 'not_due';
+  return now >= job.expiresAt ? 'expired' : 'eligible';
+}
+
 export function claimJob(
   job: JobRecord,
   claim: ClaimRequest,
@@ -157,7 +166,7 @@ export function claimJob(
   capacity?: CapacityContext,
 ): JobDecision<ClaimedEmail> | null {
   const { now } = time;
-  if (job.state.state !== 'queued' || job.state.nextAt > now || now >= job.expiresAt) return null;
+  if (claimEligibility(job, now) !== 'eligible') return null;
   const manual = hasRedrive(job);
   const ordinal = job.attempts.length + 1;
   if (ordinal > MAX_ATTEMPT_LEDGER || (!manual && ordinal > job.retry.maxAttempts)) invalid('store_incompatible');
@@ -185,6 +194,26 @@ export function claimJob(
       }),
     Math.min(job.expiresAt, lease.leaseEndsAt),
   );
+}
+
+const EXPIRY_MAINTENANCE_REQUIRED = Object.freeze({ status: 'expiry_maintenance_required' } as const);
+
+/** Observe just the candidates a claim already reads, using the same store time as its decision. */
+export function claimWindow(claim: ClaimRequest, candidateLimit: number, capacity?: CapacityContext) {
+  let expired = 0;
+  return {
+    decide(job: JobRecord, time: DecisionTime) {
+      const decision = claimJob(job, claim, time, capacity);
+      // A null decision ends work on this candidate, so retries cannot count it more than once.
+      if (decision === null && claimEligibility(job, time.now) === 'expired') expired++;
+      return decision;
+    },
+    result(next: StoreNext<ClaimedEmail>): StoreClaimNext {
+      // No inference from a short scan, missing/moved candidates, or CAS misses. An entirely
+      // expired window can keep masking later due jobs; diagnosing it must not read beyond it.
+      return next.status !== 'applied' && expired === candidateLimit ? EXPIRY_MAINTENANCE_REQUIRED : next;
+    },
+  };
 }
 
 export function renewJob(

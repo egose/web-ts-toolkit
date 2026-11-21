@@ -17,6 +17,19 @@ const configError = { code: 'invalid_config' };
 const snapshotError = { code: 'invalid_snapshot' };
 const profile = { key: 'packed-smtp', host: 'smtp.example.invalid', tls: 'starttls' } satisfies SmtpProviderOptions;
 
+// The proof is from the declaration contract, not a per-build runtime symbol or class.
+function acceptanceAcrossBuilds(recipients: readonly cjs.RecipientResult[]): cjs.ProviderResult {
+  const result: esm.ProviderResult = cjs.createSmtpAcceptanceResult(recipients);
+  return result;
+}
+assert.equal(
+  acceptanceAcrossBuilds([
+    { group: 'to', index: 0, status: 'rejected' },
+    { group: 'cc', index: 0, status: 'accepted' },
+  ]).reason,
+  'smtp_partial',
+);
+
 const notice = esm.defineLocalTemplate({
   kind: 'handlebars',
   revision: 'v1',

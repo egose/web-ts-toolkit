@@ -5,13 +5,19 @@ import {
   MAX_STORE_CANDIDATES,
   MAX_STORE_CAS_SUBMISSIONS,
 } from '../../constants';
-import type { ProjectionPermit, StoreNext } from '../../contracts/store';
+import type { ProjectionPermit, StoreClaimNext, StoreNext } from '../../contracts/store';
 import { activityPage, type ActivityCriteria, type StoredActivity } from '../../internal/activity-codecs';
 import type { OperationBudget } from '../../internal/budget';
 import type { JobRecord } from '../../internal/job-record';
-import type { DecisionTime, JobDecision, JobGuard, JobWrite } from '../../internal/job-transitions';
+import {
+  claimWindow,
+  type DecisionTime,
+  type JobDecision,
+  type JobGuard,
+  type JobWrite,
+} from '../../internal/job-transitions';
 import { capacityTag, type CapacityContext } from '../../internal/smtp-capacity';
-import { readStoreId } from '../../internal/store-codecs';
+import { readStoreId, type ClaimRequest } from '../../internal/store-codecs';
 import { invalid } from '../../internal/validation';
 import {
   batch,
@@ -313,6 +319,15 @@ export class MongoOperations {
     return invalid('busy');
   }
 
+  private get dueCandidateLimit(): number {
+    return this.capacity?.limits.dueCandidates ?? MAX_STORE_CANDIDATES;
+  }
+
+  async claimNext(scope: string, claim: ClaimRequest): Promise<StoreClaimNext> {
+    const window = claimWindow(claim, this.dueCandidateLimit, this.capacity);
+    return window.result(await this.next(scope, 'nextAt', window.decide));
+  }
+
   async next<T>(
     scope: string,
     due: DueKey,
@@ -320,6 +335,8 @@ export class MongoOperations {
   ): Promise<StoreNext<T>> {
     const selectionAt = await this.now();
     const { name, state, sort } = dueIndexes[due];
+    // Do not add an expiry predicate to the claim range: the ordered claim index does not key
+    // expiry, so a result limit would not bound the number of examined keys.
     const candidates = await this.find(
       this.names.jobsCollection,
       {
@@ -328,7 +345,7 @@ export class MongoOperations {
         [due]: { $exists: true, $lte: selectionAt },
       },
       name,
-      this.capacity?.limits.dueCandidates ?? MAX_STORE_CANDIDATES,
+      this.dueCandidateLimit,
       'majority',
       sort,
       { _id: 0, jobId: 1 },

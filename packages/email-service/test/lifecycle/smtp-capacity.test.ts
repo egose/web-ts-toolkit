@@ -7,6 +7,7 @@ import {
   createEmailTemplateRegistry,
   createEmailWorker,
   createMemoryEmailStore,
+  createSmtpAcceptanceResult,
   defineSendGridTemplate,
   type EmailProvider,
   type SmtpSnapshot,
@@ -27,8 +28,9 @@ import {
   expectRedacted,
   fillCapacityPage,
   laneCall,
-  outcomes,
+  partialEvidence,
   PRIVATE_BODY,
+  refusalEvidence,
   SNAPSHOT_BYTES,
   stageMaximum,
 } from '../conformance/smtp-capacity-fixture';
@@ -265,10 +267,10 @@ it('rejects unordered, incomplete, foreign-group and over-cap evidence; invalid 
   const staged = await registry.prepare(A, capacityCommand());
   const { envelope } = staged.snapshot;
   const attemptId = randomUUID();
-  const complete = outcomes(attemptId, true);
+  const complete = partialEvidence(attemptId);
   const context = readCapacityOption({ smtpCapacity })!;
-  const recipients = complete.recipients!;
-  const first = recipients[0]!;
+  const recipients = complete.recipients;
+  const first = recipients[0];
   const second = recipients[1]!;
   const badEvidence = [
     [...recipients, first],
@@ -287,20 +289,18 @@ it('rejects unordered, incomplete, foreign-group and over-cap evidence; invalid 
       expect.objectContaining({ code: 'invalid_command' }),
     );
   }
-  const refused = outcomes(attemptId, false);
+  const refused = refusalEvidence();
   expect(readProviderResult(refused, SMTP, attemptId, envelope, context)).toEqual(refused);
-  const negativeData = { ...refused, stage: 'data', recipients: refused.recipients!.slice(1, 3) } as const;
+  const negativeData = { ...refused, stage: 'data', recipients: refused.recipients.slice(1, 3) } as const;
   expect(readProviderResult(negativeData, SMTP, attemptId, envelope, context)).toEqual(negativeData);
   expect(() =>
     assertEvidenceContext(refused, SMTP, attemptId, { ...recipientCounts(envelope), bcc: 332 }, 'store_incompatible'),
   ).toThrow(expect.objectContaining({ code: 'store_incompatible' }));
   const onlyBcc = { ...envelope, to: [], cc: [], bcc: [...envelope.to, ...envelope.cc, ...envelope.bcc] };
-  const accepted = {
-    ...complete,
-    outcome: 'accepted',
-    reason: 'smtp_accepted',
-    recipients: onlyBcc.bcc.map((_, index) => ({ group: 'bcc', index, status: 'accepted' })),
-  } as const;
+  const accepted = createSmtpAcceptanceResult(
+    onlyBcc.bcc.map((_, index) => ({ group: 'bcc', index, status: 'accepted' })),
+    complete.messageId,
+  );
   expect(readProviderResult(accepted, SMTP, attemptId, onlyBcc, context).recipients?.at(-1)).toEqual({
     group: 'bcc',
     index: 999,
@@ -311,7 +311,7 @@ it('rejects unordered, incomplete, foreign-group and over-cap evidence; invalid 
   await store.ready();
   const service = createEmailService({ smtpCapacity, scope: A, registry, store });
   const queued = await service.enqueuePrepared(staged);
-  const submit = vi.fn(async () => ({ ...refused, recipients: refused.recipients!.slice(0, -1) }));
+  const submit = vi.fn(async () => ({ ...refused, recipients: refused.recipients.slice(0, -1) }));
   const provider: EmailProvider<SmtpSnapshot> = { ref: SMTP, smtpCapacity, prepare: () => ({ submit }) };
   const worker = createEmailWorker({ smtpCapacity, scope: A, store, providers: [provider] });
   try {

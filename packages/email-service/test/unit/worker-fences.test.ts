@@ -1,14 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
-import type {
-  ClaimedEmail,
-  EmailRateLimiter,
-  EmailStore,
-  HandoffGrant,
-  LeaseGrant,
-  ProviderResult,
-  StoreCall,
+import {
+  createSmtpAcceptanceResult,
+  type ClaimedEmail,
+  type EmailProvider,
+  type EmailRateLimiter,
+  type EmailStore,
+  type HandoffGrant,
+  type LeaseGrant,
+  type ProviderResult,
+  type SendGridSnapshot,
+  type StoreCall,
 } from '../../src';
-import { A, AMBIGUOUS, CALL, TRANSIENT, fixtureId, lostAck } from '../conformance/store-fixtures';
+import { A, AMBIGUOUS, CALL, GRID, SANDBOX, TRANSIENT, fixtureId, lostAck } from '../conformance/store-fixtures';
 import { ATTACHMENT, deferred } from './template-fixtures';
 import { smtpEvidence, smtpFixture, workerFixture } from './worker-fixtures';
 
@@ -258,6 +261,10 @@ describe('only exact, timely owner acknowledgements authorize work', () => {
 describe('post-handoff evidence and finish recovery', () => {
   it.each([
     'throw',
+    'missing recipients',
+    'empty acceptance',
+    'same-status partial acceptance',
+    'incompatible retry',
     'short partition',
     'partial RCPT-only refusal',
     'wrong index',
@@ -270,7 +277,15 @@ describe('post-handoff evidence and finish recovery', () => {
     const smtp = smtpFixture((input) => {
       const result = smtpEvidence(input);
       const cases: Record<Exclude<typeof kind, 'throw'>, ProviderResult> = {
-        'short partition': { ...result, recipients: result.recipients!.slice(1) },
+        // @ts-expect-error simulate a JS provider that returns acceptance without recipient evidence
+        'missing recipients': { outcome: 'accepted', retry: 'never', stage: 'data', reason: 'smtp_accepted' },
+        // @ts-expect-error malformed JS can still return explicit empty evidence
+        'empty acceptance': { ...result, recipients: [] },
+        // @ts-expect-error a full envelope of accepted recipients does not prove partial acceptance
+        'same-status partial acceptance': { ...result, reason: 'smtp_partial', outcome: 'partially_accepted' },
+        // @ts-expect-error simulate a JS provider that contradicts its acceptance with a safe retry
+        'incompatible retry': { ...result, retry: 'safe_transient' },
+        'short partition': createSmtpAcceptanceResult(result.recipients.slice(1), result.messageId),
         'partial RCPT-only refusal': {
           ...TRANSIENT,
           stage: 'envelope',
@@ -278,11 +293,11 @@ describe('post-handoff evidence and finish recovery', () => {
         },
         'wrong index': {
           ...result,
-          recipients: [{ group: 'cc', index: 1, status: 'accepted' }, ...result.recipients!.slice(1)],
+          recipients: [{ group: 'cc', index: 1, status: 'accepted' }, ...result.recipients.slice(1)],
         },
         'wrong message id': { ...result, messageId: `<${fixtureId(1)}@email.invalid>` },
         'wrong provider': { outcome: 'accepted', retry: 'never', stage: 'http', reason: 'sendgrid_accepted' },
-        'hidden fields': Object.defineProperty(result, 'raw', { value: 'synthetic private' }),
+        'hidden fields': Object.defineProperty({ ...result }, 'raw', { value: 'synthetic private' }),
       };
       if (kind === 'throw') throw new Error('synthetic private provider failure');
       return Promise.resolve(cases[kind]);
@@ -291,16 +306,41 @@ describe('post-handoff evidence and finish recovery', () => {
     const report = await worker.run();
     expect(report).toMatchObject({
       items: [{ status: 'unknown', reason: 'transport_uncertain', providerInvoked: true }],
-      counts: { unknown: 1, persistenceFailures: 0, providerCalls: 1 },
+      counts: { unknown: 1, retryScheduled: 0, persistenceFailures: 0, providerCalls: 1 },
     });
     const commit = await f.commit(job.jobId, report.items[0]!.attemptId!);
     expect(commit).toMatchObject({ result: { outcome: 'unknown', retry: 'never', reason: 'transport_uncertain' } });
     expect(commit).toHaveProperty('handedOffAt');
     expect(await f.job(job.jobId)).toMatchObject({ state: 'terminal', unknownOpen: true });
     expect(JSON.stringify(report)).not.toContain('synthetic private');
+    f.elapse(5_000); // Past any transient retry floor in this fixture.
     expect((await worker.run()).items).toEqual([]);
     expect(smtp.transmit).toHaveBeenCalledOnce();
   });
+
+  it.each([
+    { ref: GRID, evidence: { outcome: 'validated', retry: 'never', stage: 'http', reason: 'sendgrid_validated' } },
+    { ref: SANDBOX, evidence: { outcome: 'accepted', retry: 'never', stage: 'http', reason: 'sendgrid_accepted' } },
+  ] as const)(
+    'records unknown for well-shaped SendGrid evidence in the wrong mode ($ref.mode)',
+    async ({ ref, evidence }) => {
+      const f = await workerFixture();
+      const job = await f.add({ provider: ref });
+      const submit = vi.fn(async () => evidence);
+      const provider: EmailProvider<SendGridSnapshot> = { ref, prepare: () => ({ submit }) };
+      const worker = f.worker({ providers: [provider] });
+      const report = await worker.run();
+      expect(report).toMatchObject({
+        items: [{ status: 'unknown', reason: 'transport_uncertain', providerInvoked: true }],
+        counts: { unknown: 1, retryScheduled: 0, persistenceFailures: 0 },
+      });
+      expect(await f.commit(job.jobId, report.items[0]!.attemptId!)).toMatchObject({
+        result: { outcome: 'unknown', retry: 'never', stage: 'http', reason: 'transport_uncertain' },
+      });
+      expect((await worker.run()).items).toEqual([]);
+      expect(submit).toHaveBeenCalledOnce();
+    },
+  );
 
   it('never automatically retries an unknown; explicit redrive is one non-retrying claim of the same snapshot', async () => {
     const f = await workerFixture();

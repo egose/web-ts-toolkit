@@ -10,7 +10,6 @@ import { copyCommit, jobSummary } from './internal/job-record';
 import {
   acknowledgeJobProjection,
   cancelJob,
-  claimJob,
   cleanupJob,
   decideActivityPut,
   expireJob,
@@ -212,7 +211,7 @@ export function createMongooseEmailStore(connection: Connection, options: Mongoo
     claimNext(scope, input, call) {
       return run(call, true, (ops) => {
         const safe = readClaim(input);
-        return ops.next(scopeToken(scope), 'nextAt', (job, time) => claimJob(job, safe, time, capacity));
+        return ops.claimNext(scopeToken(scope), safe);
       });
     },
     renew(scope, fence, leaseMs, call) {

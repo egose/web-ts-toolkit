@@ -32,20 +32,7 @@ export type RecipientResult = {
 export type RetryHint = { readonly delayMs?: number; readonly notBefore?: UnixMs };
 
 /** Normalized, bounded evidence; never a raw SDK code or response message. */
-export type ProviderReason =
-  | 'smtp_accepted'
-  | 'smtp_partial'
-  | 'smtp_transient_reply'
-  | 'smtp_permanent_reply'
-  | 'sendgrid_accepted'
-  | 'sendgrid_validated'
-  | 'sendgrid_throttled'
-  | 'sendgrid_rejected'
-  | 'not_transmitted'
-  | 'provider_configuration'
-  | 'transport_uncertain'
-  | 'provider_timeout'
-  | 'provider_aborted';
+export type ProviderReason = ProviderResult['reason'];
 
 export type AttemptReason =
   | ProviderReason
@@ -77,10 +64,65 @@ export type AttemptResult = {
   readonly providerMessageId?: string;
 };
 
-export type ProviderResult = Omit<AttemptResult, 'stage' | 'reason'> & {
-  readonly stage: Exclude<SubmissionStage, 'pre_handoff' | 'attachment' | 'rate_limit'>;
-  readonly reason: ProviderReason;
+type ProviderStage = Exclude<SubmissionStage, 'pre_handoff' | 'attachment' | 'rate_limit'>;
+type SmtpStage = Exclude<ProviderStage, 'http'>;
+type EvidenceField = 'recipients' | 'messageId' | 'providerMessageId' | 'retryHint';
+
+type ProviderEvidence<
+  Reason extends string,
+  Outcome extends SubmissionOutcome,
+  Retry extends RetryClass,
+  Stage extends ProviderStage,
+  Details = Record<never, never>,
+> = Readonly<{ reason: Reason; outcome: Outcome; retry: Retry; stage: Stage }> &
+  Readonly<Details> & { readonly [Field in Exclude<EvidenceField, keyof Details>]?: never };
+
+export type RecipientWithStatus<Status extends RecipientResult['status']> = RecipientResult & {
+  readonly status: Status;
 };
+
+export type AcceptedSmtpRecipients = readonly [RecipientWithStatus<'accepted'>, ...RecipientWithStatus<'accepted'>[]];
+
+export type MixedSmtpRecipients = readonly [RecipientResult, RecipientResult, ...RecipientResult[]] & {
+  // Phantom only. A structural, uninhabitable marker preserves compatibility across ESM and CJS declarations.
+  readonly __checkedSmtpMixedRecipients: never;
+};
+
+type SmtpAcceptance<Recipients extends readonly RecipientResult[]> = {
+  recipients: Recipients;
+  messageId?: string;
+};
+
+export type RejectedRecipients =
+  | { readonly recipients?: never }
+  | { readonly stage: 'envelope' | 'data'; readonly recipients: readonly RecipientWithStatus<'rejected'>[] };
+
+export type ThrottleHint = RetryHint & (Readonly<{ delayMs: number }> | Readonly<{ notBefore: UnixMs }>);
+
+type TransportEvidence<
+  Reason extends string,
+  Outcome extends SubmissionOutcome,
+  Retry extends RetryClass,
+> = Reason extends string ? ProviderEvidence<Reason, Outcome, Retry, ProviderStage, RejectedRecipients> : never;
+
+/**
+ * Submission evidence discriminated by `reason`. Full SMTP acceptance requires a nonempty
+ * all-accepted tuple. Use `createSmtpAcceptanceResult` to check a dynamic list or produce
+ * partial acceptance. The worker still checks the actual envelope and profile kind/mode.
+ * Invalid evidence after handoff is unknown, not permission to retry.
+ */
+export type ProviderResult =
+  | ProviderEvidence<'smtp_accepted', 'accepted', 'never', 'data', SmtpAcceptance<AcceptedSmtpRecipients>>
+  | ProviderEvidence<'smtp_partial', 'partially_accepted', 'never', 'data', SmtpAcceptance<MixedSmtpRecipients>>
+  | ProviderEvidence<'smtp_transient_reply', 'rejected', 'safe_transient', SmtpStage, RejectedRecipients>
+  | ProviderEvidence<'smtp_permanent_reply', 'rejected', 'never', SmtpStage, RejectedRecipients>
+  | ProviderEvidence<'sendgrid_accepted', 'accepted', 'never', 'http', { providerMessageId?: string }>
+  | ProviderEvidence<'sendgrid_validated', 'validated', 'never', 'http'>
+  | ProviderEvidence<'sendgrid_throttled', 'rejected', 'safe_transient', 'http', { retryHint?: ThrottleHint }>
+  | ProviderEvidence<'sendgrid_rejected', 'rejected', 'never', 'http'>
+  | TransportEvidence<'not_transmitted', 'unsubmitted', 'safe_transient'>
+  | TransportEvidence<'provider_configuration', 'unsubmitted', 'never'>
+  | TransportEvidence<'transport_uncertain' | 'provider_timeout' | 'provider_aborted', 'unknown', 'never'>;
 
 export type ProviderSubmission<M extends EmailSnapshot> = {
   readonly jobId: EmailJobId;

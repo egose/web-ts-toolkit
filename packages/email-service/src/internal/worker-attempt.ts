@@ -3,7 +3,7 @@ import { CLOCK_MARGIN_MS } from '../constants';
 import type { AttemptResult, PreparedEmailSubmission, ProviderResult } from '../contracts/provider';
 import type { ClaimedEmail, EmailStore, HandoffGrant, LeaseGrant } from '../contracts/store';
 import type { EmailRunEntry } from '../contracts/worker';
-import { readProviderResult } from './attempt-codecs';
+import { readProviderResult, uncertainProviderResult } from './attempt-codecs';
 import { createChildBudgetUntil, monotonicNow, waitForAbort, type OperationBudget } from './budget';
 import { pendingCallback, type CallbackSlot } from './callbacks';
 import { allowedErrorCode, invalid } from './validation';
@@ -136,7 +136,7 @@ async function launch(
   );
   const stage = provider.kind === 'smtp' ? 'data' : 'http';
   const unknown = (reason: 'transport_uncertain' | 'provider_aborted' | 'provider_timeout'): ProviderResult =>
-    Object.freeze({ outcome: 'unknown', retry: 'never', stage, reason });
+    Object.freeze(uncertainProviderResult(stage, reason));
   let io: OperationBudget | undefined;
   try {
     run.checkLaunch();

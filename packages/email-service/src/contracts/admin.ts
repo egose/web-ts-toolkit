@@ -69,15 +69,21 @@ export type CleanupReport = {
 
 export interface EmailAdmin {
   readonly scope: EmailScope;
-  /** Read the job and its latest authoritative outcome, even before an activity is projected. */
+  /** Read the job and its latest authoritative outcome, even before projection. Use this to verify a current hold. */
   getJob(jobId: EmailJobId, options?: CallOptions): Promise<EmailJobSummary | null>;
   /** Cancel only before irreversible handoff and expiry; no remote recall. */
   cancel(jobId: EmailJobId, options?: CallOptions): Promise<CancelResult>;
-  /** Dismiss or requeue an exact unknown attempt. Redrive can duplicate a previously accepted submission. */
+  /**
+   * Dismiss or requeue the exact open unknown attempt. Redrive can duplicate a previously accepted submission.
+   * After `write_unconfirmed`, check the current job's `resolutions` for the exact attempt and action.
+   */
   resolveUnknown(command: ResolveUnknownCommand, options?: CallOptions): Promise<ResolveUnknownResult>;
-  /** Read committed activities even before source ACK. V1 default/max: 25/100; SMTP opt-in: 8/16. */
+  /**
+   * Read committed activities even before source ACK. History is not an inventory of open holds.
+   * V1 default/max: 25/100; SMTP opt-in: 8/16.
+   */
   listActivities(query?: EmailActivityQuery, options?: CallOptions): Promise<EmailActivityPage>;
-  /** Project from the authoritative ledger; no send can result from this operation. */
+  /** Project from the authoritative ledger. Does not recover leases or send mail. */
   reconcile(options?: MaintenanceOptions): Promise<ReconcileReport>;
   /** Prune or retire settled, fully projected jobs after their retention windows. */
   cleanup(options?: MaintenanceOptions): Promise<CleanupReport>;
