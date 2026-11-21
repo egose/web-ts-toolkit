@@ -6,6 +6,7 @@ import * as esm from '@web-ts-toolkit/email-service';
 const cjs = createRequire(import.meta.url)('@web-ts-toolkit/email-service');
 const scope = 'packed-fixture';
 assert.notEqual(esm.EmailError, cjs.EmailError);
+assert.notEqual(esm.createEmailBatchAdmission, cjs.createEmailBatchAdmission);
 assert.notEqual(esm.createEmailBatchService, cjs.createEmailBatchService);
 for (const [facadeRoot, serviceRoot] of [
   [esm, cjs],
@@ -33,8 +34,7 @@ for (const [facadeRoot, serviceRoot] of [
     }),
   });
   const service = serviceRoot.createEmailService({ scope, store, registry });
-  const worker = facadeRoot.createEmailWorker({ scope, store, providers: [] });
-  const batch = facadeRoot.createEmailBatchService({ service, worker });
+  const batch = facadeRoot.createEmailBatchAdmission({ service });
   const command = {
     templateKey: 'notice',
     input: 'example',
@@ -54,13 +54,43 @@ for (const [facadeRoot, serviceRoot] of [
   assert.equal(prepared, 1);
   const admin = facadeRoot.createEmailAdmin({ scope, store });
   const { jobId } = admitted.items[0].job;
+  assert.throws(() => facadeRoot.createEmailWorker({ scope, store, providers: [] }), { code: 'invalid_config' });
   assert.deepEqual(await admin.getJob(jobId), admitted.items[0].job);
   await assert.rejects(admin.getJob(jobId, { signal: AbortSignal.abort() }), { code: 'aborted' });
   assert.deepEqual(await admin.listActivities({ jobId }), { items: [] });
   assert.equal((await admin.cancel(jobId)).status, 'cancelled');
   assert.equal((await admin.reconcile()).acknowledged, 0);
-  assert.equal((await batch.run({ signal: AbortSignal.abort() })).stop, 'aborted');
-  await worker.shutdown();
+
+  let submissions = 0;
+  const provider = {
+    ref: command.provider,
+    prepare({ snapshot: { envelope } }) {
+      const recipients = ['to', 'cc', 'bcc'].flatMap((group) =>
+        envelope[group].map((_, index) => ({ group, index, status: 'accepted' })),
+      );
+      return {
+        async submit() {
+          submissions++;
+          return serviceRoot.createSmtpAcceptanceResult(recipients);
+        },
+      };
+    },
+  };
+  const worker = facadeRoot.createEmailWorker({ scope, store, providers: [provider] });
+  try {
+    const combined = facadeRoot.createEmailBatchService({ service, worker });
+    const delivery = await combined.enqueueBatch({ batchId: 'delivery', items: [first] });
+    assert.equal(delivery.items[0].status, 'enqueued');
+    assert.equal((await combined.run({ signal: AbortSignal.abort() })).stop, 'aborted');
+    const run = await combined.run({ limit: 1 });
+    assert.equal(run.items[0].jobId, delivery.items[0].job.jobId);
+    assert.equal(run.counts.accepted, 1);
+    assert.equal(run.counts.providerCalls, 1);
+    assert.equal((await combined.run()).stop, 'idle');
+    assert.equal(submissions, 1);
+  } finally {
+    await worker.shutdown();
+  }
 }
 
 // Even the opted-in core can use a bound store without loading either adapter peer.

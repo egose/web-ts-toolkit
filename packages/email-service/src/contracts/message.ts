@@ -46,6 +46,7 @@ export type AttachmentRef = {
   readonly id: string;
   readonly version: string;
   readonly filename: string;
+  /** Lower-case MIME `type/subtype` without parameters. New SMTP messages reject `message/*` and `multipart/*`. */
   readonly contentType: string;
   readonly byteLength: number;
   readonly sha256: string;

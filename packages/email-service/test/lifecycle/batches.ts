@@ -1,5 +1,11 @@
 import { expect, it, vi } from 'vitest';
-import { createEmailBatchService, createEmailWorker, type EmailRateLimiter, type EmailStore } from '../../src';
+import {
+  createEmailBatchAdmission,
+  createEmailBatchService,
+  createEmailWorker,
+  type EmailRateLimiter,
+  type EmailStore,
+} from '../../src';
 import { A, B, CALL, lostAck } from '../conformance/store-fixtures';
 import type { commandFor, Lifecycle } from './fixture';
 
@@ -36,7 +42,6 @@ export function lifecycleBatches(fixture: () => Lifecycle) {
       rateLimiter,
       attachmentResolvers: smtp.attachmentResolvers,
     });
-    const foreignWorker = createEmailWorker({ store: peer, scope: B, providers });
     const insert = vi.fn<EmailStore['insert']>((...args) => {
       const { key } = args[1].command;
       return key.kind === 'batch' && key.itemId === 'resume'
@@ -49,7 +54,7 @@ export function lifecycleBatches(fixture: () => Lifecycle) {
       service: smtp.service({ ...peer, findAdmission }),
       worker: peerWorker,
     });
-    const otherScope = createEmailBatchService({ service: smtp.service(peer, B), worker: foreignWorker });
+    const otherScope = createEmailBatchAdmission({ service: smtp.service(peer, B) });
     const z = item('z-smtp', { ...smtp.command, intent: identity });
     const a = item('a-grid', { ...grid.command, intent: identity });
     const missing = item('resume', grid.command);
@@ -163,7 +168,7 @@ export function lifecycleBatches(fixture: () => Lifecycle) {
         [A, 'smtp'],
       ]);
     } finally {
-      await Promise.all([worker.shutdown(), peerWorker.shutdown(), foreignWorker.shutdown()]);
+      await Promise.all([worker.shutdown(), peerWorker.shutdown()]);
     }
   });
 }

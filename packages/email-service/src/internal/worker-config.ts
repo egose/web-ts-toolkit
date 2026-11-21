@@ -66,7 +66,7 @@ function readProfiles(input: unknown, capacity?: CapacityContext): ReadonlyMap<s
     if (profiles.has(ref.key)) invalid(CONFIG);
     profiles.set(ref.key, Object.freeze({ ref, prepare: bindMethod<Profile['prepare']>(provider, 'prepare') }));
   });
-  if (capacity && profiles.size === 0) invalid(CONFIG);
+  if (profiles.size === 0) invalid(CONFIG);
   return profiles;
 }
 

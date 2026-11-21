@@ -60,6 +60,9 @@ export type ClaimedEmail = {
   readonly manual: boolean;
 };
 
+/** A full claim window of due, expired jobs may hide eligible work. The signal itself makes no write. */
+export type StoreClaimNext<T = ClaimedEmail> = StoreNext<T> | { readonly status: 'expiry_maintenance_required' };
+
 export type AttemptCommit = {
   readonly jobId: EmailJobId;
   readonly attemptId: EmailAttemptId;
@@ -84,16 +87,21 @@ export type CleanupStep = 'payload_pruned' | 'retirement_started' | 'purged';
 /**
  * Scoped atomic lifecycle operations, not generic CRUD. Enforce scope in every row operation and use store
  * time for durable guards. Do not report an unconfirmed write as a definite miss or fall back to memory.
+ * See the installed README for the versioned adapter contracts and current follow-ups.
  */
 export interface EmailStore {
   readonly smtpCapacity?: SmtpCapacity;
+  /** Call before use. Of the bundled stores, only V1 memory allows skipping readiness for legacy callers. */
   ready(options?: CallOptions): Promise<void>;
   findAdmission(
     scope: EmailScope,
     key: EmailAdmissionKey,
     call: StoreCall,
   ): Promise<{ readonly job: EmailJobSummary; readonly fingerprint: string } | null>;
-  /** `duplicate` confirms a scoped admission-key collision; read the current winner and compare fingerprints. */
+  /**
+   * `duplicate` confirms a scoped admission-key collision; read the current winner and compare fingerprints.
+   * On a miss, new SMTP inserts require leaf attachments (no `message/*` or `multipart/*`).
+   */
   insert(
     scope: EmailScope,
     admission: StoreAdmission,
@@ -106,11 +114,16 @@ export interface EmailStore {
     attemptId: EmailAttemptId,
     call: StoreCall,
   ): Promise<AttemptCommit | null>;
+  /**
+   * Claim within a bounded window. `expiry_maintenance_required` means every candidate slot was filled
+   * by a confirmed expired queued job, not that more jobs necessarily exist. Run bounded `expireNext`
+   * calls in the same scope (or run a worker with a positive `maintenanceLimit`), then retry.
+   */
   claimNext(
     scope: EmailScope,
     claim: { attemptId: EmailAttemptId; token: LeaseToken; leaseMs: number },
     call: StoreCall,
-  ): Promise<StoreNext<ClaimedEmail>>;
+  ): Promise<StoreClaimNext>;
   /** Null on a fenced operation is a definite miss, never a lost ACK. */
   renew(scope: EmailScope, fence: OwnerFence, leaseMs: number, call: StoreCall): Promise<LeaseGrant | null>;
   /** A timely positive ACK of this exact mutation is required to authorize submission. */

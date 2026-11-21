@@ -1,13 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type {
-  EmailStore,
-  HandoffGrant,
-  LeaseGrant,
-  ProviderCall,
-  ProviderResult,
-  StoreNext,
-  ClaimedEmail,
-} from '../../src';
+import type { EmailStore, HandoffGrant, LeaseGrant, ProviderCall, ProviderResult, StoreClaimNext } from '../../src';
 import { lostAck } from '../conformance/store-fixtures';
 import { ATTACHMENT, deferred } from './template-fixtures';
 import { smtpEvidence, smtpFixture, workerFixture } from './worker-fixtures';
@@ -47,8 +39,8 @@ describe('worker absolute budgets and serialized ownership', () => {
   it('rejects a claim ACK at its bound without inventing a claim item', async () => {
     const f = await workerFixture();
     const job = await f.add();
-    const entered = deferred<StoreNext<ClaimedEmail>>();
-    const release = deferred<StoreNext<ClaimedEmail>>();
+    const entered = deferred<StoreClaimNext>();
+    const release = deferred<StoreClaimNext>();
     const claimNext = vi.fn<EmailStore['claimNext']>(async (...args) => {
       entered.resolve(await f.store.claimNext(...args));
       return release.promise;
@@ -388,8 +380,8 @@ describe('stop, provider settlement and permanent shutdown', () => {
     const f = await workerFixture();
     const job = await f.add();
     const abort = new AbortController();
-    const committed = deferred<StoreNext<ClaimedEmail>>();
-    const ack = deferred<StoreNext<ClaimedEmail>>();
+    const committed = deferred<StoreClaimNext>();
+    const ack = deferred<StoreClaimNext>();
     const claimNext: EmailStore['claimNext'] = (...args) => {
       void f.store.claimNext(...args).then(committed.resolve, committed.reject);
       return ack.promise;

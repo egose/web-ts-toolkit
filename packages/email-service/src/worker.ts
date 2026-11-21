@@ -11,7 +11,7 @@ import { readRunOptions, readShutdownOptions, readWorkerConfig, type RunOptions 
 import { readClaimed, readQueuedExpiry, readRecovery } from './internal/worker-evidence';
 import { runReport, WorkerRun } from './internal/worker-run';
 
-type QueueStop = 'idle' | 'limit' | 'contended' | 'callback_capacity';
+type QueueStop = 'idle' | 'limit' | 'contended' | 'expiry_maintenance_required' | 'callback_capacity';
 
 async function sweep<T>(
   run: WorkerRun,
@@ -55,10 +55,14 @@ function claimNext(run: WorkerRun) {
       return store.claimNext(scope, request, call);
     },
     accept: (value) =>
-      readStoreNext(value, (raw) => {
-        const claim = readClaimed(raw, scope, request, capacity);
-        return { claim, dispatchedAt, confirmedAt: monotonicNow(clock) };
-      }),
+      readStoreNext(
+        value,
+        (raw) => {
+          const claim = readClaimed(raw, scope, request, capacity);
+          return { claim, dispatchedAt, confirmedAt: monotonicNow(clock) };
+        },
+        'claim',
+      ),
   });
 }
 
@@ -101,7 +105,7 @@ async function drainClaims(
       }
       if (next.status !== 'applied') {
         slot.close();
-        stop = next.status === 'contended' ? 'contended' : 'idle';
+        stop = next.status === 'none' ? 'idle' : next.status;
         break;
       }
       const { claim } = next.value;
@@ -184,7 +188,8 @@ async function runQueue(run: WorkerRun, options: RunOptions, slots: Set<Callback
   else if (allowedErrorCode(run.budget.signal.reason, ['deadline'])) stop = 'deadline';
   else if (run.persistenceFailures) stop = 'store_error';
   else if (run.budget.signal.aborted) return invalid('invalid_config');
-  else if (queueStop !== 'contended' && slots.size === run.config.limits.maxConcurrency) stop = 'callback_capacity';
+  else if (queueStop === 'contended' || queueStop === 'expiry_maintenance_required') stop = queueStop;
+  else if (slots.size === run.config.limits.maxConcurrency) stop = 'callback_capacity';
   else if (queueStop === 'idle' && timeLeft < 1)
     stop = 'deadline'; // No positive integer RPC budget remains.
   else stop = queueStop;
@@ -195,6 +200,8 @@ async function runQueue(run: WorkerRun, options: RunOptions, slots: Set<Callback
  * Create a scope-bound worker for a caller-ready store and exact provider profiles. The host schedules
  * bounded `run` calls; nothing polls on construction. `shutdown` is permanent and never closes the store.
  * A one-shot provider call requires a timely durable handoff acknowledgement, not a later read of a marker.
+ * An empty provider array throws `invalid_config` before any work. For enqueue-only batches,
+ * use `createEmailBatchAdmission({ service })` instead of constructing a worker.
  */
 export function createEmailWorker(options: EmailWorkerOptions): EmailWorker {
   const config = readWorkerConfig(options);

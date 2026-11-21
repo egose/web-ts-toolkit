@@ -74,7 +74,7 @@ describe('memory-specific V1 limits and simulated boundaries', () => {
     expect(await store.listActivities(A, {}, CALL)).toEqual({ items: [] });
   });
 
-  it('inspects only a bounded prefix of due candidates; expired work never hides across scopes', async () => {
+  it('signals a full due prefix at exact expiry without blocking another scope', async () => {
     const { primary, advanceTo } = fixture();
     for (let i = MAX_STORE_CANDIDATES; i >= 1; i--) {
       await insert(primary, admission(A, NOW, { jobId: fixtureId(i), expiresAt: NOW + 1 }));
@@ -82,7 +82,7 @@ describe('memory-specific V1 limits and simulated boundaries', () => {
     const stillLive = await insert(primary, admission(A, NOW, { scheduleAt: NOW + 1 }));
     const otherScope = await insert(primary, admission(B, NOW));
     advanceTo(NOW + 1);
-    expect(await primary.claimNext(A, claimData(), CALL)).toEqual({ status: 'none' });
+    expect(await primary.claimNext(A, claimData(), CALL)).toEqual({ status: 'expiry_maintenance_required' });
     expect((await claim(primary, B)).job.jobId).toBe(otherScope.jobId);
     expect(applied(await primary.expireNext(A, CALL)).jobId).toBe(fixtureId(1));
     expect((await claim(primary, A)).job.jobId).toBe(stillLive.jobId);

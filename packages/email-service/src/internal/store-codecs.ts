@@ -8,7 +8,7 @@ import {
 } from '../constants';
 import type { ResolveUnknownCommand, RetentionPolicy, RetryPolicy } from '../contracts/job';
 import type { UnixMs } from '../contracts/message';
-import type { OwnerFence, StoreAdmission, StoreCall, StoreNext } from '../contracts/store';
+import type { OwnerFence, StoreAdmission, StoreCall, StoreClaimNext, StoreNext } from '../contracts/store';
 import type { EmailErrorCode } from '../errors';
 import { assertEvidencePhase, readAttemptResult } from './attempt-codecs';
 import { readCallOptions } from './budget';
@@ -62,13 +62,18 @@ export function readStoreCall(input: unknown, worker = false, capacity?: Capacit
   };
 }
 
-export function readStoreNext<T>(value: unknown, read: (input: unknown) => T): StoreNext<T> {
+export function readStoreNext<T>(value: unknown, read: (input: unknown) => T): StoreNext<T>;
+export function readStoreNext<T>(value: unknown, read: (input: unknown) => T, kind: 'claim'): StoreClaimNext<T>;
+export function readStoreNext<T>(value: unknown, read: (input: unknown) => T, kind?: 'claim'): StoreClaimNext<T> {
   const code = 'store_incompatible';
   const raw = readRecord(value, ['status'], ['value'], code);
   if (raw.status === 'applied' && Object.hasOwn(raw, 'value')) {
     return Object.freeze({ status: raw.status, value: read(raw.value) });
   }
   if ((raw.status === 'none' || raw.status === 'contended') && !Object.hasOwn(raw, 'value')) {
+    return Object.freeze({ status: raw.status });
+  }
+  if (kind === 'claim' && raw.status === 'expiry_maintenance_required' && !Object.hasOwn(raw, 'value')) {
     return Object.freeze({ status: raw.status });
   }
   return invalid(code);

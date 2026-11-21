@@ -5,7 +5,7 @@ import { readPortMember } from './callbacks';
 import { integer, invalid, readRecord, uuidV4 } from './validation';
 
 const MIN_RECIPIENTS = MESSAGE_LIMITS.recipients + 1;
-const MAX_RECIPIENTS = 1_000;
+export const MAX_SMTP_RECIPIENTS = 1_000;
 const KIB = 1_024;
 
 const limits = Object.freeze({
@@ -38,7 +38,7 @@ function readBinding(input: unknown, code: EmailErrorCode): SmtpCapacity {
   return Object.freeze({
     format,
     namespace: uuidV4(namespace, code),
-    maxRecipients: integer(maxRecipients, MIN_RECIPIENTS, MAX_RECIPIENTS, code),
+    maxRecipients: integer(maxRecipients, MIN_RECIPIENTS, MAX_SMTP_RECIPIENTS, code),
   });
 }
 

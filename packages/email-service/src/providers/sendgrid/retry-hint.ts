@@ -1,5 +1,5 @@
 import { MAX_UNIX_MS } from '../../constants';
-import type { RetryHint } from '../../contracts/provider';
+import type { ThrottleHint } from '../../contracts/provider';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -58,13 +58,11 @@ function httpDate(value: string, now: number): number | undefined {
 }
 
 /** Keep both relative and absolute floors so the store can apply the later one at finalization. */
-export function retryHint(after: string | undefined, reset: string | undefined, now: number): RetryHint | undefined {
+export function retryHint(after: string | undefined, reset: string | undefined, now: number): ThrottleHint | undefined {
   const delayMs = after !== undefined && SECONDS.test(after) ? secondsMs(after) : undefined;
   const date = after !== undefined && delayMs === undefined ? httpDate(after, now) : undefined;
   const resetMs = reset !== undefined && SECONDS.test(reset) ? secondsMs(reset) : undefined;
-  if (delayMs === undefined && date === undefined && resetMs === undefined) return;
-  return {
-    ...(delayMs === undefined ? {} : { delayMs }),
-    ...(date === undefined && resetMs === undefined ? {} : { notBefore: Math.max(date ?? 0, resetMs ?? 0) }),
-  };
+  const notBefore = date === undefined && resetMs === undefined ? undefined : Math.max(date ?? 0, resetMs ?? 0);
+  if (delayMs !== undefined) return notBefore === undefined ? { delayMs } : { delayMs, notBefore };
+  if (notBefore !== undefined) return { notBefore };
 }

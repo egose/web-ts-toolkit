@@ -6,6 +6,7 @@ import type { EmailClock, ProviderResult } from '../../src';
 import { MESSAGE_LIMITS, SENDGRID_REQUEST_MAX_BYTES, SENDGRID_RESPONSE_MAX_BYTES } from '../../src/constants';
 import { createSendGridProfile } from '../../src/providers/sendgrid/profile';
 import type { SendGridResolver } from '../../src/providers/sendgrid/submit';
+import { COMPOSITE_TYPES } from '../conformance/smtp-attachment-fixture';
 import { latch, LOOPBACK } from '../smtp/loopback';
 import { createSmtpTlsFixture } from '../smtp/tls-fixture';
 import {
@@ -129,7 +130,12 @@ describe('SendGrid fixed HTTPS POST', () => {
     const backing = Buffer.from([9, 7, 0x00, 0xff, 0x0d, 0x0a, 0xc0, 3]);
     const packet = attachment(backing.subarray(2, 7));
     const note = attachment(Uint8Array.of(0x61), 'café.txt', 'text/plain');
-    const liveInput = submission({ envelope: { from, to, cc, bcc, replyTo }, data: { details } }, [packet, note]);
+    const opaque = COMPOSITE_TYPES.map((type, index) => attachment(Uint8Array.of(index), `opaque-${index}.bin`, type));
+    const liveInput = submission({ envelope: { from, to, cc, bcc, replyTo }, data: { details } }, [
+      packet,
+      note,
+      ...opaque,
+    ]);
     const livePrepared = live.prepare(liveInput);
     const sandboxPrepared = sandbox.prepare(submission({ provider: sandbox.ref }));
     const expectedLive = {
@@ -147,6 +153,8 @@ describe('SendGrid fixed HTTPS POST', () => {
       attachments: [
         { content: 'AP8NCsA=', filename: 'packet.bin', type: 'application/octet-stream', disposition: 'attachment' },
         { content: 'YQ==', filename: 'café.txt', type: 'text/plain', disposition: 'attachment' },
+        { content: 'AA==', filename: 'opaque-0.bin', type: 'message/rfc822', disposition: 'attachment' },
+        { content: 'AQ==', filename: 'opaque-1.bin', type: 'multipart/mixed', disposition: 'attachment' },
       ],
     };
     const expectedSandbox = {

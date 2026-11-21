@@ -10,7 +10,13 @@ import {
 } from './constants';
 import type { EmailJobSummary } from './contracts/job';
 import type { CallOptions, EmailClock, PreparedEmailCommand } from './contracts/message';
-import type { AdmissionResult, EmailService, EmailServiceOptions } from './contracts/service';
+import type {
+  AdmissionResult,
+  EmailRelay,
+  EmailRelayOptions,
+  EmailService,
+  EmailServiceOptions,
+} from './contracts/service';
 import type { EmailStore, StoreAdmission } from './contracts/store';
 import type { EmailCommand, EmailTemplateRegistry, TemplateMap } from './contracts/template';
 import {
@@ -30,6 +36,7 @@ import {
   type ParsedEmailCommand,
 } from './internal/command-codecs';
 import { matchesAdmissionJob, readJobSummary } from './internal/job-summary';
+import { assertSmtpAttachmentTypes } from './internal/smtp-attachments';
 import { assertPortCapacity, capacityTag, readCapacityOption } from './internal/smtp-capacity';
 import { runStoreCall } from './internal/store-call';
 import { readRetentionPolicy, readRetryPolicy } from './internal/store-codecs';
@@ -70,6 +77,16 @@ export function findServiceAdmission(service: object): ServiceAdmission | undefi
 }
 
 /**
+ * Admit a staged outbox snapshot without a registry. Ready the underlying queue store first.
+ * After `write_unconfirmed`, relay the same staged command under its original scope and binding.
+ */
+export function createEmailRelay(options: EmailRelayOptions): EmailRelay {
+  const raw = readRecord(options, ['scope', 'store'], ['retry', 'retention', 'smtpCapacity'], CONFIG);
+  const { enqueuePrepared } = createAdmissionCore(raw, systemEmailClock);
+  return Object.freeze({ enqueuePrepared });
+}
+
+/**
  * Scope-bound admission only. Call `store.ready()` yourself; neither method contacts a mail provider.
  * After `write_unconfirmed`, retry the same scoped key and intent: the original insert may have committed.
  */
@@ -83,19 +100,12 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
   clock: EmailClock,
 ): EmailService<T> {
   const raw = readRecord(options, ['scope', 'store', 'registry'], ['retry', 'retention', 'smtpCapacity'], CONFIG);
-  const capacity = readCapacityOption(raw);
-  assertPortCapacity(raw.store, capacity);
+  const { scope, capacity, enqueuePrepared, admitParsed, inOperation, withAdmission } = createAdmissionCore(raw, clock);
   assertPortCapacity(raw.registry, capacity);
-  const scope = scopeToken(raw.scope, CONFIG);
-  const retry = readRetryPolicy(readPolicy(raw.retry, DEFAULT_RETRY_POLICY), CONFIG);
-  const retention = readRetentionPolicy(readPolicy(raw.retention, DEFAULT_RETENTION_POLICY), CONFIG);
-  const find = bindMethod<EmailStore['findAdmission']>(raw.store, 'findAdmission');
-  const insert = bindMethod<EmailStore['insert']>(raw.store, 'insert');
   if (typeof raw.registry !== 'object' || raw.registry === null || types.isProxy(raw.registry)) invalid(CONFIG);
   const registry = raw.registry;
   const prepare = bindMethod<EmailTemplateRegistry<T>['prepare']>(registry, 'prepare');
   const internalPrepare = findRegistryPreparation(registry);
-  let admissions = 0;
 
   async function prepareMiss(parsed: ParsedEmailCommand, parent: OperationBudget): Promise<PreparedEmailCommand> {
     const { identity, command } = parsed;
@@ -162,6 +172,33 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
     }
   }
 
+  const enqueueParsed: ServiceAdmission = (parsed, budget) => admitParsed(parsed, budget, prepareMiss);
+  const service: EmailService<T> = Object.freeze({
+    scope,
+    ...capacityTag(capacity),
+    enqueue(command: EmailCommand<T>, call: CallOptions = {}) {
+      return inOperation(call, (budget) => enqueueParsed(parseCommandIdentity(scope, command, capacity), budget));
+    },
+    enqueuePrepared,
+  });
+  serviceAdmissions.set(service, (parsed, budget) => withAdmission(() => enqueueParsed(parsed, budget)));
+  return service;
+}
+
+/** The same scoped replay, insertion, confirmation and elapsed budgets for all admission routes. */
+function createAdmissionCore(
+  raw: { scope: unknown; store: unknown; retry?: unknown; retention?: unknown; smtpCapacity?: unknown },
+  clock: EmailClock,
+) {
+  const capacity = readCapacityOption(raw);
+  assertPortCapacity(raw.store, capacity);
+  const scope = scopeToken(raw.scope, CONFIG);
+  const retry = readRetryPolicy(readPolicy(raw.retry, DEFAULT_RETRY_POLICY), CONFIG);
+  const retention = readRetentionPolicy(readPolicy(raw.retention, DEFAULT_RETENTION_POLICY), CONFIG);
+  const find = bindMethod<EmailStore['findAdmission']>(raw.store, 'findAdmission');
+  const insert = bindMethod<EmailStore['insert']>(raw.store, 'insert');
+  let admissions = 0;
+
   function findWinner(key: CommandIdentity['key'], budget: OperationBudget) {
     return runStoreCall(clock, budget, {
       maxMs: STORE_PRIMITIVE_TIMEOUT_MS,
@@ -193,6 +230,8 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
     budget: OperationBudget,
   ): Promise<AdmissionResult> {
     budget.check();
+    // A retained match already returned; only new admission requires SMTP sendability.
+    if (command.snapshot.kind === 'smtp') assertSmtpAttachmentTypes(command.snapshot.attachments);
     const admission: StoreAdmission = Object.freeze({ command, jobId: randomUUID(), retry, retention });
     try {
       const job = await runStoreCall(clock, budget, {
@@ -236,7 +275,11 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
     return invalid('write_unconfirmed');
   }
 
-  async function enqueueParsed(parsed: ParsedEmailCommand, budget: OperationBudget): Promise<AdmissionResult> {
+  async function admitParsed(
+    parsed: ParsedEmailCommand,
+    budget: OperationBudget,
+    prepareMiss: (parsed: ParsedEmailCommand, parent: OperationBudget) => Promise<PreparedEmailCommand>,
+  ): Promise<AdmissionResult> {
     if (parsed.identity.scope !== scope) invalid('invalid_command');
     const winner = await findWinner(parsed.identity.key, budget);
     if (winner) return replay(winner, parsed.identity);
@@ -267,31 +310,24 @@ export function createEmailServiceWithClock<T extends TemplateMap>(
     });
   }
 
-  const service: EmailService<T> = Object.freeze({
-    scope,
-    ...capacityTag(capacity),
-    enqueue(command: EmailCommand<T>, call: CallOptions = {}) {
-      return inOperation(call, (budget) => enqueueParsed(parseCommandIdentity(scope, command, capacity), budget));
-    },
-    enqueuePrepared(input: PreparedEmailCommand, call: CallOptions = {}) {
-      return inOperation(call, async (budget) => {
-        const command = validatePreparedCommand(scope, input, capacity);
-        const identity = {
-          scope,
-          key: command.key,
-          templateKey: command.snapshot.template.key,
-          provider: command.snapshot.provider,
-          scheduleAt: command.scheduleAt,
-          intentHash: command.intentHash,
-          fingerprint: command.fingerprint,
-        };
-        const winner = await findWinner(identity.key, budget);
-        return winner ? replay(winner, identity) : insertOrConfirm(command, identity, budget);
-      });
-    },
-  });
-  serviceAdmissions.set(service, (parsed, budget) => withAdmission(() => enqueueParsed(parsed, budget)));
-  return service;
+  function enqueuePrepared(input: PreparedEmailCommand, call: CallOptions = {}) {
+    return inOperation(call, async (budget) => {
+      const command = validatePreparedCommand(scope, input, capacity);
+      const identity = {
+        scope,
+        key: command.key,
+        templateKey: command.snapshot.template.key,
+        provider: command.snapshot.provider,
+        scheduleAt: command.scheduleAt,
+        intentHash: command.intentHash,
+        fingerprint: command.fingerprint,
+      };
+      const winner = await findWinner(identity.key, budget);
+      return winner ? replay(winner, identity) : insertOrConfirm(command, identity, budget);
+    });
+  }
+
+  return { scope, capacity, enqueuePrepared, admitParsed, inOperation, withAdmission };
 }
 
 function readPolicy(input: unknown, defaults: Readonly<Record<string, number>>): Record<string, unknown> {

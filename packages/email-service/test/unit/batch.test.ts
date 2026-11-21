@@ -1,8 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createEmailBatchService, type AdmissionResult, type EmailService, type EmailWorker } from '../../src';
+import {
+  createEmailBatchAdmission,
+  createEmailBatchService,
+  createEmailWorker,
+  type AdmissionResult,
+  type EmailService,
+  type EmailWorker,
+} from '../../src';
 import { CALL, lostAck } from '../conformance/store-fixtures';
 import { BATCH, batchFixture, batchItem, batchKey, request } from './batch-fixture';
 import { command, deferred, local, NOW, SCOPE, TO } from './template-fixtures';
+import { smtpFixture } from './worker-fixtures';
 
 type Service = EmailService<{ local: typeof local }>;
 type Batch = Awaited<ReturnType<typeof batchFixture>>['batch'];
@@ -11,7 +19,8 @@ const PRIVATE = 'synthetic private diagnostic';
 
 describe('batch boundary', () => {
   it('requires equal valid bound scopes and data methods without invoking configuration accessors', async () => {
-    const { service, worker } = await batchFixture();
+    const { service, store, clock } = await batchFixture();
+    const worker = createEmailWorker({ scope: SCOPE, store, clock, providers: [smtpFixture().provider] });
     const access = vi.fn(() => SCOPE);
     const run = vi.fn(worker.run);
     const trap = vi.fn();
@@ -53,7 +62,8 @@ describe('batch boundary', () => {
   });
 
   it('binds structural data methods and fails safely if a host changes either bound scope', async () => {
-    const { service: core, worker: original } = await batchFixture();
+    const { service: core, store, clock } = await batchFixture();
+    const original = createEmailWorker({ scope: SCOPE, store, clock, providers: [smtpFixture().provider] });
     const beforeEnqueue = vi.fn();
     class StructuralService implements Service {
       scope = SCOPE;
@@ -192,7 +202,7 @@ describe('batch boundary', () => {
       },
     );
     const fallback = vi.fn<Service['enqueue']>().mockRejectedValueOnce({ code: 'invalid_input' });
-    const structural = createEmailBatchService({ service: { ...f.service, enqueue: fallback }, worker: f.worker });
+    const structural = createEmailBatchAdmission({ service: { ...f.service, enqueue: fallback } });
     const next = batchItem('opaque');
     await expect(
       structural.enqueueBatch({
@@ -305,13 +315,13 @@ describe('batch boundary', () => {
 
 describe('structural service replies', () => {
   it('decodes a detached redacted result and permits later-state replays', async () => {
-    const { service, worker, store } = await batchFixture();
+    const { service, store } = await batchFixture();
     const { command } = batchItem('existing');
     const { job } = await service.enqueue({ ...command, key: batchKey('existing') });
     await store.cancel(SCOPE, job.jobId, CALL);
     const saved = structuredClone(await service.enqueue({ ...command, key: batchKey('existing') }));
     const enqueue = vi.fn<Service['enqueue']>().mockResolvedValue(saved);
-    const batch = createEmailBatchService({ service: { ...service, enqueue }, worker });
+    const batch = createEmailBatchAdmission({ service: { ...service, enqueue } });
 
     const result = await batch.enqueueBatch(request('existing'));
     const item = result.items[0]!;
@@ -330,7 +340,7 @@ describe('structural service replies', () => {
   });
 
   it('rejects unrelated, malformed or private replies without treating them as proof of noncommit', async () => {
-    const { service, worker, store } = await batchFixture();
+    const { service, store } = await batchFixture();
     const { command } = batchItem('existing');
     const ok = await service.enqueue({ ...command, key: batchKey('existing') });
     await store.cancel(SCOPE, ok.job.jobId, CALL);
@@ -339,7 +349,7 @@ describe('structural service replies', () => {
       throw new Error(PRIVATE);
     });
     const enqueue = vi.fn<Service['enqueue']>();
-    const batch = createEmailBatchService({ service: { ...service, enqueue }, worker });
+    const batch = createEmailBatchAdmission({ service: { ...service, enqueue } });
     for (const output of [
       null,
       { ...ok, status: 'sent' },
@@ -382,12 +392,12 @@ describe('structural service replies', () => {
   });
 
   it('allowlists own error codes across builds; arbitrary messages, getters and inherited codes do not escape', async () => {
-    const { service, worker } = await batchFixture();
+    const { service } = await batchFixture();
     const enqueue = vi.fn<Service['enqueue']>();
     const privateField = vi.fn(() => {
       throw new Error(PRIVATE);
     });
-    const batch = createEmailBatchService({ service: { ...service, enqueue }, worker });
+    const batch = createEmailBatchAdmission({ service: { ...service, enqueue } });
     enqueue
       .mockRejectedValueOnce(Object.assign(new Error(PRIVATE), { code: 'invalid_input', cause: PRIVATE }))
       .mockRejectedValueOnce({ code: 'store_capacity', message: PRIVATE })

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createEmailAdmin,
   createEmailWorker,
+  createSmtpAcceptanceResult,
   type AttemptResult,
   type EmailActivity,
   type EmailProvider,
@@ -53,14 +54,12 @@ export function registerAdminConformance(name: string, setup: SetupStore<StoreFi
     afterEach(async () => f?.close?.());
 
     it('recovers a failed and an unacknowledged upsert without resending partial SMTP acceptance', async () => {
-      const smtp = syntheticSmtp(({ attemptId }) => ({
-        outcome: 'partially_accepted',
-        retry: 'never',
-        stage: 'data',
-        reason: 'smtp_partial',
-        messageId: `<${attemptId}@email.invalid>`,
-        recipients: [RECIPIENTS[0], { ...RECIPIENTS[1], status: 'rejected' }, RECIPIENTS[2]],
-      }));
+      const smtp = syntheticSmtp(({ attemptId }) =>
+        createSmtpAcceptanceResult(
+          [RECIPIENTS[0], { ...RECIPIENTS[1], status: 'rejected' }, RECIPIENTS[2]],
+          `<${attemptId}@email.invalid>`,
+        ),
+      );
       const { primary, peer } = f;
       const value = admission(A, await f.now(), { retention: { payloadMs: 0, historyMs: DAY, idempotencyMs: DAY } });
       const { jobId } = await insert(primary, value);

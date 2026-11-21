@@ -50,7 +50,10 @@ const messages = Object.freeze({
   closed: 'Email service is closed.',
 } satisfies Record<EmailErrorCode, string>);
 
-/** Compare `.code`, not class identity, across separately loaded ESM and CommonJS builds. */
+/**
+ * Narrow a caught `unknown` to a known `.code`, not class identity. Independently bundled
+ * entrypoints can throw different classes even within one format (all ESM or all CommonJS).
+ */
 export class EmailError extends Error {
   /** `write_unconfirmed` does not mean that a dispatched mutation failed to commit. */
   readonly code: EmailErrorCode;

@@ -1,7 +1,7 @@
 import { getEventListeners, once } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdmissionResult, CallOptions, EmailStore, PreparedFields } from '../../src';
-import { createEmailBatchServiceWithClock } from '../../src/batch';
+import { createEmailBatchAdmissionWithClock } from '../../src/batch';
 import { CALL } from '../conformance/store-fixtures';
 import { batchFixture, batchKey, request } from './batch-fixture';
 import { deferred, SCOPE, TO } from './template-fixtures';
@@ -156,7 +156,7 @@ describe('batch timing and partial progress', () => {
       counts: { failed: 1, notStarted: 1, persistenceFailures: 0 },
     });
     expect(signal.aborted).toBe(true);
-    const second = createEmailBatchServiceWithClock({ service: f.service, worker: f.worker }, f.clock);
+    const second = createEmailBatchAdmissionWithClock({ service: f.service }, f.clock);
     await expect(second.enqueueBatch(request('other'))).resolves.toMatchObject({
       items: [{ status: 'failed', code: 'busy' }],
     });
@@ -180,7 +180,7 @@ describe('separately composed service budgets', () => {
       f.clock.advance(49.5);
       throw { code: 'deadline' };
     });
-    const batch = createEmailBatchServiceWithClock({ service: { ...f.service, enqueue }, worker: f.worker }, f.clock);
+    const batch = createEmailBatchAdmissionWithClock({ service: { ...f.service, enqueue } }, f.clock);
     expect(await batch.enqueueBatch(request('one', 'two'), { timeoutMs: 220 })).toMatchObject({
       items: [
         { itemId: 'one', status: 'failed', code: 'deadline' },
@@ -209,7 +209,7 @@ describe('separately composed service budgets', () => {
         // A foreign service sees the enclosing deadline as external cancellation before any write.
         throw { code: 'aborted', cause: 'private caller reason' };
       });
-    const batch = createEmailBatchServiceWithClock({ service: { ...f.service, enqueue }, worker: f.worker }, f.clock);
+    const batch = createEmailBatchAdmissionWithClock({ service: { ...f.service, enqueue } }, f.clock);
     const pending = batch.enqueueBatch(request('one', 'two', 'three'), { timeoutMs: 120_000 });
     const { signal, timeoutMs } = await second.promise;
     expect(enqueue.mock.calls[0]?.[1]).toEqual({ signal, timeoutMs: 60_000 });
@@ -245,7 +245,7 @@ describe('separately composed service budgets', () => {
         if (outcome === 'write_unconfirmed') throw { code: outcome, cause: 'private' };
         return evidence;
       });
-      const batch = createEmailBatchServiceWithClock({ service: { ...f.service, enqueue }, worker: f.worker }, f.clock);
+      const batch = createEmailBatchAdmissionWithClock({ service: { ...f.service, enqueue } }, f.clock);
       const controller = new AbortController();
       const pending = batch.enqueueBatch(request('one', 'two'), { signal: controller.signal });
       const settled = vi.fn();

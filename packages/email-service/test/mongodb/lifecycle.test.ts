@@ -2,6 +2,9 @@ import type { MongoMemoryReplSet } from 'mongodb-memory-server';
 import type { mongo } from 'mongoose';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { createEmailService, type EmailStore, type OwnerFence } from '../../src';
+import { createMongooseEmailStore } from '../../src/mongoose';
+import { driveClaimExpiry, V1_EXPIRY_PLAN } from '../conformance/claim-expiry';
+import { capacity } from '../conformance/smtp-capacity-fixture';
 import { A, CALL } from '../conformance/store-fixtures';
 import { lifecycleBatches } from '../lifecycle/batches';
 import { lifecycleFences } from '../lifecycle/fences';
@@ -59,6 +62,90 @@ lifecycleOutcomes(fixture);
 lifecycleFences(fixture);
 lifecycleBatches(fixture);
 lifecycleScopes(fixture);
+
+it.each(['V1', 'smtp-v2'] as const)(
+  '%s signals a full expired Mongo claim window with bounded server work and reaches live mail once',
+  async (lane) => {
+    const { queue } = fixture();
+    const smtpCapacity = lane === 'smtp-v2' ? capacity(51) : undefined;
+    let { primary, peer } = queue;
+    if (smtpCapacity) {
+      primary = createMongooseEmailStore(queue.first, { smtpCapacity });
+      peer = createMongooseEmailStore(queue.second, { smtpCapacity });
+      await primary.ready();
+      await peer.ready();
+    }
+    const jobs = smtpCapacity ? `email_smtp_v2.${smtpCapacity.namespace}.jobs` : JOBS;
+    const limit = smtpCapacity ? 4 : 16;
+    const hint = smtpCapacity ? 'v2_due_claim' : 'v1_due_claim';
+    const identity = smtpCapacity ? 'v2_job_identity' : 'v1_job_identity';
+    await driveClaimExpiry(
+      { ...queue, primary, peer, waitFor: (target) => waitForTime(queue.second, target, 10_000) },
+      smtpCapacity
+        ? {
+            backlog: 5,
+            withoutMaintenance: [
+              ['expiry_maintenance_required', 0, 0],
+              ['expiry_maintenance_required', 0, 0],
+            ],
+            withDefaultMaintenance: [
+              ['limit', 4, 1],
+              ['idle', 1, 0],
+            ],
+          }
+        : V1_EXPIRY_PLAN,
+      smtpCapacity,
+      async (run) => {
+        const trace = commandTrace(queue.first);
+        try {
+          await run();
+          // Each blocked call performs one ordered range scan and at most one exact read per candidate;
+          // there are no CAS submissions, writes, getMores, or additional range scans.
+          expect(trace.commands.map(({ commandName }) => commandName)).toEqual(
+            Array<string>(2 * (limit + 1)).fill('find'),
+          );
+          const scans = trace.commands.filter(({ command }) => command.hint === hint);
+          expect(scans).toHaveLength(2);
+          for (const { command } of trace.commands.filter(({ command }) => command.hint !== hint)) {
+            expect(command).toMatchObject({
+              find: jobs,
+              hint: identity,
+              readConcern: { level: 'linearizable' },
+              limit: 1,
+              filter: { scope: A, jobId: expect.any(String) },
+            });
+          }
+          for (const { command } of scans) {
+            const { find, filter, sort, collation, projection } = command;
+            expect(command).toMatchObject({
+              find: jobs,
+              hint,
+              sort: { nextAt: 1, priority: -1, jobId: 1 },
+              limit,
+              batchSize: limit,
+              singleBatch: true,
+              readConcern: { level: 'majority' },
+            });
+            expect(filter).toEqual({ scope: A, state: 'queued', nextAt: { $exists: true, $lte: expect.any(Number) } });
+            const { executionStats, queryPlanner } = await dbOf(queue.second).command({
+              explain: { find, filter, sort, collation, hint, limit, projection },
+              verbosity: 'executionStats',
+              maxTimeMS: 2_000,
+            });
+            const plan = JSON.stringify(queryPlanner.winningPlan);
+            expect(plan).toContain(`"indexName":"${hint}"`);
+            expect(plan).not.toMatch(/"stage":"(?:COLLSCAN|SORT)"/);
+            expect(executionStats.nReturned).toBe(limit);
+            expect(executionStats.totalDocsExamined).toBeLessThanOrEqual(limit);
+            expect(executionStats.totalKeysExamined).toBeLessThanOrEqual(limit + 1);
+          }
+        } finally {
+          trace.close();
+        }
+      },
+    );
+  },
+);
 
 it.each([
   { outcome: 'replayed', conflicting: false, readFailures: 1 },

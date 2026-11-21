@@ -1,11 +1,12 @@
 export { EmailError } from './errors';
 export type { EmailErrorCode } from './errors';
 export { createEmailTemplateRegistry, defineLocalTemplate, defineSendGridTemplate } from './templates/registry';
-export { createEmailService } from './service';
+export { createEmailRelay, createEmailService } from './service';
 export { createEmailWorker } from './worker';
-export { createEmailBatchService } from './batch';
+export { createEmailBatchAdmission, createEmailBatchService } from './batch';
 export { createEmailAdmin } from './admin';
 export { createMemoryEmailStore } from './stores/memory';
+export { createSmtpAcceptanceResult } from './internal/attempt-codecs';
 
 export type {
   AttachmentRef,
@@ -78,10 +79,14 @@ export type {
 } from './contracts/job';
 export type {
   AdmissionResult,
+  EmailBatchAdmission,
+  EmailBatchAdmissionOptions,
   EmailBatchItem,
   EmailBatchResult,
   EmailBatchService,
   EmailBatchServiceOptions,
+  EmailRelay,
+  EmailRelayOptions,
   EmailService,
   EmailServiceOptions,
 } from './contracts/service';
@@ -119,5 +124,6 @@ export type {
   ProjectionPermit,
   StoreAdmission,
   StoreCall,
+  StoreClaimNext,
   StoreNext,
 } from './contracts/store';

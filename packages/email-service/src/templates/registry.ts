@@ -39,6 +39,7 @@ import {
   validateExpiry,
   validateMailbox,
 } from '../internal/message-codecs';
+import { assertSmtpAttachmentTypes } from '../internal/smtp-attachments';
 import {
   assertCapacityProvider,
   capacityTag,
@@ -143,6 +144,7 @@ function captureFields(
   );
   const priority = boundedOption(fields.priority, PRIORITY, code);
   const attachments = validateAttachmentRefs(fields.attachments === undefined ? [] : fields.attachments);
+  if (context.provider.kind === 'smtp') assertSmtpAttachmentTypes(attachments);
   const correlation = validateCorrelation(fields.correlation === undefined ? {} : fields.correlation);
   const values = copyJsonObject(fields.values, MESSAGE_LIMITS.dataBytes, 'invalid_data');
   const { parseData } = definition;

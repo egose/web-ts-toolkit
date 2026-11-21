@@ -27,6 +27,10 @@ export type PrepareContext = {
 /** Host-generated fields. Only From and Reply-To can come from template defaults. */
 export type PreparedFields<D extends JsonObject> = Partial<EmailEnvelope> & {
   values: D;
+  /**
+   * Unix ms; defaults to 24 hours from preparation. Must be strictly after preparation and
+   * `scheduleAt` (if given), and at most 30 days from preparation. Frozen in the snapshot.
+   */
   expiresAt?: UnixMs;
   priority?: number;
   attachments?: readonly AttachmentRef[];
@@ -42,7 +46,10 @@ export type LocalSource =
 export type TemplateDefinition<I, D extends JsonObject> = {
   revision: string;
   defaults?: Pick<Partial<EmailEnvelope>, 'from' | 'replyTo'>;
-  /** Synchronously validate the host's opaque business input. */
+  /**
+   * Validate the command's declared input shape synchronously at runtime.
+   * The return type defines what callers supply as `command.input`; normalize message values in `prepare`.
+   */
   parseInput: (input: unknown) => I;
   /** Synchronously validate or normalize a detached JSON object. Return a new object to change it. */
   parseData: (data: unknown) => D;
@@ -73,13 +80,23 @@ export type TemplateDefinitions<T extends TemplateMap> = T & {
   [K in keyof T]: TemplateDefinition<ReturnType<T[K]['parseInput']>, ReturnType<T[K]['parseData']>>;
 };
 
-/** The key determines the input and provider kind. `intent` describes stable business meaning, not rendered data. */
+type ProviderByTemplateKind = {
+  handlebars: Extract<ProviderRef, { kind: 'smtp' }>;
+  sendgrid: Extract<ProviderRef, { kind: 'sendgrid' }>;
+};
+
+/**
+ * The template key determines input and provider kind. A widened `TemplateMap` allows either provider.
+ * `intent` describes stable business meaning, not rendered data.
+ * Keep `scheduleAt` stable on replay; schedules past the default 24-hour expiry need explicit `expiresAt` in `prepare`.
+ */
 export type TemplateCommand<T extends TemplateMap> = {
   [K in keyof T & string]: {
     templateKey: K;
     input: ReturnType<T[K]['parseInput']>;
-    provider: Extract<ProviderRef, { kind: T[K]['kind'] extends 'handlebars' ? 'smtp' : 'sendgrid' }>;
+    provider: ProviderByTemplateKind[T[K]['kind']];
     intent: JsonValue;
+    /** Earliest eligible time (Unix ms), not a timer. Must precede the snapshot expiry. */
     scheduleAt?: UnixMs;
   };
 }[keyof T & string];
@@ -99,7 +116,10 @@ export type TemplateRegistryOptions = {
 
 export interface EmailTemplateRegistry<T extends TemplateMap> {
   readonly smtpCapacity?: SmtpCapacity;
-  /** Prepare a detached snapshot without using a queue or contacting a provider. */
+  /**
+   * Prepare a detached snapshot without using a queue or contacting a provider.
+   * SMTP `message/*` and `multipart/*` attachment refs fail with `invalid_snapshot`.
+   */
   prepare(scope: EmailScope, command: EmailCommand<T>, options?: CallOptions): Promise<PreparedEmailCommand>;
   /** Evict one or all compilation cache entries and fence their prior in-flight loads. */
   invalidate(templateKey?: keyof T & string): void;
