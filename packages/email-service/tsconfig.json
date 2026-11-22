@@ -21,6 +21,9 @@
     "test/smtp/**/*.ts",
     "test/sendgrid/**/*.ts",
     "test/mongodb/**/*.ts",
+    "test/s3/**/*.ts",
+    "test/azure/**/*.ts",
+    "test/managed-delivery/**/*.ts",
     "tsup.config.ts",
     "vitest*.config.mts"
   ]

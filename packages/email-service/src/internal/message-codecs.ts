@@ -156,17 +156,33 @@ export function validateAttachmentRefs(input: unknown, code: EmailErrorCode = SN
   });
 }
 
-/** For a validated ref. Check the actual view, not user-overridable byteLength/buffer properties. */
-export function copyAttachmentBytes(ref: AttachmentRef, input: unknown, code: EmailErrorCode = SNAPSHOT): Uint8Array {
+const typedArrayPrototype: object = Object.getPrototypeOf(Uint8Array.prototype);
+
+/** Borrow the actual view for immediate synchronous use, never across an async boundary. */
+export function attachmentByteView(
+  input: unknown,
+  min: number,
+  max: number,
+  code: EmailErrorCode,
+): Uint8Array<ArrayBuffer> {
   if (!types.isUint8Array(input)) invalid(code);
-  const typedArrayPrototype: object = Object.getPrototypeOf(Uint8Array.prototype);
   const buffer: ArrayBufferLike = Reflect.get(typedArrayPrototype, 'buffer', input);
   const offset: number = Reflect.get(typedArrayPrototype, 'byteOffset', input);
   const length: number = Reflect.get(typedArrayPrototype, 'byteLength', input);
-  if (types.isSharedArrayBuffer(buffer) || length !== ref.byteLength || length < 1 || length > L.attachmentBytes) {
+  if (types.isSharedArrayBuffer(buffer) || length < min || length > max || length > L.attachmentBytes) {
     invalid(code);
   }
-  const bytes = new Uint8Array(new Uint8Array(buffer, offset, length));
+  try {
+    // Also rejects a detached buffer when the allowed minimum is zero (stream chunks).
+    return new Uint8Array(buffer, offset, length);
+  } catch {
+    return invalid(code);
+  }
+}
+
+/** For a validated ref. Keep the worker's integrity check independent of any resolver. */
+export function copyAttachmentBytes(ref: AttachmentRef, input: unknown, code: EmailErrorCode = SNAPSHOT): Uint8Array {
+  const bytes = new Uint8Array(attachmentByteView(input, Math.max(1, ref.byteLength), ref.byteLength, code));
   if (sha256(bytes) !== ref.sha256) invalid(code);
   return bytes;
 }
