@@ -101,11 +101,16 @@ separate processes using the same backing queue and authorized scope, with the s
 | Hosted SendGrid → HTTPS | Root `defineSendGridTemplate`; `/sendgrid` `createSendGridProvider`, no SDK or peer | Mail Send live or sandbox, V1 queue only. Freezes the template ID and data, not the active remote template version. |
 | Memory queue | Root `createMemoryEmailStore`, no optional peer | Single instance, one process, non-durable. V1 defaults to 256 total jobs across scopes; no eviction to make room. |
 | Durable MongoDB queue | `/mongoose` `createMongooseEmailStore`, caller-owned Mongoose `>=9.12.2 <10` connection | Writable MongoDB 8.x WiredTiger replica set with journaled majority; [topology and catalog privileges](#durable-store-with-mongoose) and private collection read/write access. |
+| Project-owned attachments (default) | Root `AttachmentRef` and `AttachmentResolver`, no optional peer | Supply immutable, versioned refs; your project owns the bytes and their retention. |
+| [Managed attachment staging](#manage-delivery-attachments) | `/attachments` `checkManagedAttachmentRetention`, no optional peer | Producer checks the actual frozen expiry plus a 24-hour file hold. Works with the existing refs, queues and providers. |
+| Managed BSON bytes | `/attachments/mongoose` `createMongooseAttachmentStore`, Mongoose `>=9.12.2 <10` | Separate collection on a journaled MongoDB 8.x WiredTiger replica set; tested with 8.2.6 and Mongoose 9.12.2. |
+| Managed S3 objects | `/attachments/s3` `createS3AttachmentClient`, `createS3AttachmentStore`; `@aws-sdk/client-s3` `>=3.1167.0 <4` | Private, never-versioned bucket. Tested at SDK 3.1167.0 with SeaweedFS 4.54 and a loopback AWS wire fixture, not live AWS. |
+| Managed Azure blobs | `/attachments/azure` `createAzureAttachmentContainerClient` and `createAzureAttachmentStore`, `@azure/storage-blob` `>=12.34.0 <13` | Private Hot block blobs, operator-audited policy. Tested at SDK 12.34.0 with Azurite Blob 3.38.0, not live Azure. |
 | Custom provider | Root `EmailProvider` | Supported protocols only. No I/O in `prepare`; one-shot, deadline- and abort-aware `submit` with [normalized evidence](#implement-a-custom-provider), not raw replies. |
 | Custom store | Root `EmailStore` | Scoped, bounded, atomic operations on store time. Enforce durable handoff and lease fencing, write confirmation, projection and retention; see [V1 transaction primitives][store-v1]. |
 
-Always `await store.ready()` before use. Default V1 memory still allows legacy callers to skip it; SMTP-capacity
-memory and MongoDB require it. Do not substitute memory when a durable store is unavailable.
+Always `await store.ready()` on the queue store before use. Default V1 memory still allows legacy callers to skip
+it; SMTP-capacity memory and MongoDB require it. Do not substitute memory when a durable store is unavailable.
 
 The [V1 Store contract][store-v1] and [SMTP opt-in compatibility contract][store-smtp] are pinned historical
 baselines. Use the installed declarations and this README for the current contract: the
@@ -948,6 +953,407 @@ outcomes, not recipient addresses, message content, attachment references, crede
   copy or replay jobs across queues or automatically redrive uncertain work. The original lane's idempotency and
   retention still apply.
 
+## Manage delivery attachments
+
+Storage is a choice **per file**, independent of the queue and the mail provider. You can keep using your own
+`AttachmentRef` and `AttachmentResolver` for every file, or mix project refs with managed MongoDB, S3 or Azure
+refs in one job. Existing consumers need no migration, new storage or SDK. Cloud attachments do not need a Mongo
+registry. All modes share the same limits: **1 byte–2 MiB per file, up to five refs and 5 MiB total**; SMTP still
+requires MIME leaf parts. The worker checks bytes before submission. This storage is for delivery, not user
+downloads or a permanent archive.
+
+### Upload, check and stage one mixed job
+
+For example, configure `writers.pdf` with the Mongo recipe below and `writers.csv` with AWS S3, SeaweedFS or
+Azure. Keep `terms` as an existing ref under `project-terms`. The host authorizes the scope, selects configured
+writers, and saves stable file revisions and deadlines as part of its business intent. Do not let callers supply
+a backing, path, credentials or unverified managed refs.
+
+<!-- example: managed-producer -->
+
+```typescript
+import {
+  createEmailTemplateRegistry,
+  defineLocalTemplate,
+  type AttachmentRef,
+  type PreparedEmailCommand,
+} from '@web-ts-toolkit/email-service';
+import {
+  checkManagedAttachmentRetention,
+  type ManagedAttachmentStore,
+} from '@web-ts-toolkit/email-service/attachments';
+
+const invoice = defineLocalTemplate({
+  kind: 'handlebars',
+  revision: 'v1',
+  defaults: { from: { address: 'billing@example.invalid' } },
+  subject: { kind: 'inline', content: 'Your invoice' },
+  text: { kind: 'inline', content: 'Your invoice and terms are attached.' },
+  parseInput(input) {
+    if (
+      !input ||
+      typeof input !== 'object' ||
+      !('refs' in input) ||
+      !Array.isArray(input.refs) ||
+      !('expiresAt' in input) ||
+      typeof input.expiresAt !== 'number'
+    )
+      throw new Error('Expected attachment refs and an expiry');
+    // This is an internal command; the registry validates each ref when freezing the snapshot.
+    return { refs: input.refs as readonly AttachmentRef[], expiresAt: input.expiresAt };
+  },
+  parseData: () => ({}),
+  prepare({ refs, expiresAt }) {
+    return { to: [{ address: 'buyer@example.invalid' }], values: {}, attachments: refs, expiresAt };
+  },
+});
+const invoiceRegistry = createEmailTemplateRegistry({ invoice });
+
+async function stageInvoice(
+  scope: string,
+  files: {
+    eventId: string;
+    revision: string;
+    deliverBy: number;
+    expiresAt?: number;
+    pdf: Uint8Array;
+    csv: Uint8Array;
+    terms: AttachmentRef;
+  },
+  writers: { pdf: ManagedAttachmentStore; csv: ManagedAttachmentStore; all: readonly ManagedAttachmentStore[] },
+  commit: (email: PreparedEmailCommand) => Promise<void>,
+) {
+  const { eventId, revision, deliverBy, terms } = files;
+  const expiresAt = files.expiresAt ?? deliverBy;
+  const identity = { scope, revision, deliverBy };
+  const pdf = await writers.pdf.put({
+    ...identity,
+    id: `invoice-${eventId}`,
+    filename: 'invoice.pdf',
+    contentType: 'application/pdf',
+    bytes: files.pdf,
+  });
+  const csv = await writers.csv.put({
+    ...identity,
+    id: `details-${eventId}`,
+    filename: 'details.csv',
+    contentType: 'text/csv',
+    bytes: files.csv,
+  });
+  const staged = await invoiceRegistry.prepare(scope, {
+    templateKey: 'invoice',
+    key: { kind: 'single', idempotencyKey: `invoice-${eventId}` },
+    intent: {
+      eventId,
+      revision,
+      deliverBy,
+      expiresAt,
+      pdfStore: writers.pdf.resolverKey,
+      csvStore: writers.csv.resolverKey,
+      terms: { ...terms },
+    },
+    provider: { kind: 'smtp', key: 'standard-smtp', mode: 'live' },
+    input: { refs: [pdf.ref, csv.ref, terms], expiresAt },
+  });
+  await commit(checkManagedAttachmentRetention(staged, { scope, stores: writers.all, receipts: [pdf, csv] }));
+}
+```
+
+- `deliverBy` is an absolute Unix-ms deadline, strictly in the future and at most 30 days from upload. A receipt
+  certifies the backing's minimum hold through `deliverBy + 24 hours` under the deployment requirements below.
+  Set `expiresAt` to the earliest deadline across managed files, or earlier. The checker verifies the **actual
+  frozen** `snapshot.expiresAt`, not the requested input or default: it must be no later than each matching
+  receipt's `deliverBy`, with **at least 24 hours of hold past expiry**. Grace does not extend eligibility to send
+  or redrive.
+- Pass every trusted managed binding for the scope in `writers.all` (once per key), even if a particular job
+  uses only some. For each managed ref supply its original local receipt from that writer instance. Do not
+  pass receipts for unused files or JSON copies of receipts. For the SMTP-capacity lane pass the same
+  `smtpCapacity` to the registry, checker, queue and worker; this example uses V1. The helper performs no I/O
+  and certifies nothing about external refs. A raw ref used with ordinary `prepare`/`enqueue` is **not** a checked hold.
+- `commit` saves the returned `PreparedEmailCommand` unchanged in your [host outbox](#stage-a-host-owned-outbox).
+  Without an outbox, give that checked value to `enqueuePrepared` directly. Persist the ordinary seven-field refs
+  in the snapshot, never bytes, Base64, receipts, locators, signed URLs, credentials or SDK objects. Job and
+  activity summaries expose no attachments. Relays need no storage SDKs just to admit the staged command.
+- If `put` gives `write_unconfirmed` or you lose an upload acknowledgement before staging, repeat the **original**
+  scope, backing, file ID, revision, deadline, bytes, filename and MIME. An identical write can issue a new local
+  receipt; changed content under that identity fails `attachment_conflict`. `attachment_retention` is not proof
+  that no bytes were written. A new deadline creates a new managed version; it does not extend the old file hold.
+  Once `deliverBy` passes, the original version cannot be put again, even after purge.
+- `put(input, { signal, timeoutMs })` accepts an optional abort signal and an elapsed budget (default 5 seconds,
+  50–30,000 ms). A create and any exact-key confirmation share that budget. Each store instance allows eight
+  in-flight operations; excess puts fail `busy` instead of waiting. Abort cannot undo a dispatched write.
+- If staging or **queue admission** may already have committed, check the host outbox or replay the **same** staged
+  DTO, scope, key, intent and queue binding. Do not re-upload, rerender, change expiry, choose another backing or
+  resend on a retained replay. Use the original staged refs for retries and eligible redrive. A queue miss after
+  expiry is rejected. A crash between upload and staging can leave an orphan; do not delete it on uncertainty.
+
+### Build resolvers in the worker process
+
+In each independent worker process, use the recipes below with its own read-only clients/connection for every
+managed binding the queue can reference. Use the same physical backing, `resolverKey`, lowercase UUIDv4 `namespace`
+and collection or prefix. The queue store must also point at the original queue; separate processes need a durable
+queue, not separate memory stores. No writer, upload receipt, or producer credentials cross into the worker.
+
+<!-- example: managed-worker -->
+
+```typescript
+import { createEmailWorker, type AttachmentResolver, type EmailWorkerOptions } from '@web-ts-toolkit/email-service';
+import type { ManagedAttachmentStore } from '@web-ts-toolkit/email-service/attachments';
+
+function makeInvoiceWorker(
+  queue: Pick<EmailWorkerOptions, 'scope' | 'store' | 'providers' | 'smtpCapacity'>,
+  readers: readonly ManagedAttachmentStore[],
+  resolveProjectTerms: AttachmentResolver,
+) {
+  const resolvers = new Map([['project-terms', resolveProjectTerms]]);
+  for (const reader of readers) {
+    if (resolvers.has(reader.resolverKey)) throw new Error('Duplicate attachment binding');
+    resolvers.set(reader.resolverKey, reader.resolve);
+  }
+  return createEmailWorker({ ...queue, attachmentResolvers: Object.fromEntries(resolvers) });
+}
+```
+
+Never repoint a resolver key to a different backing or fetch “latest.” Rotate with a new key and namespace;
+deploy readers for both before switching new writes, and keep the old binding while staged, scheduled, retried,
+in-flight or eligible redrive work can still use it. Do not delete attachments on send, cancellation, failed
+admission, queue cleanup, or for one job sharing a file with another. Backend TTL/lifecycle owns both used
+files and orphans. Missing or transiently unavailable bytes stop an attempt before provider handoff; malformed
+data or definitive resolver failures are not grounds to fetch a substitute.
+
+### MongoDB attachment backing
+
+Install `mongoose` (tested floor `9.12.2`). Supply an open, explicit caller-owned connection (e.g.
+`createConnection(uri, { maxAdaptiveRetries: 0 }).asPromise()`) in each role. Replace the example binding values
+once per backing; keep them stable. Run `createMongooseAttachmentStore(provisionerConnection, mongoAttachmentBinding)`
+and `await store.ready({ install: true })` once with provisioner credentials. Runtime readiness only validates:
+
+<!-- example: managed-mongoose -->
+
+```typescript
+import type { Connection } from 'mongoose';
+import {
+  createMongooseAttachmentStore,
+  type MongooseAttachmentStore,
+  type MongooseAttachmentStoreOptions,
+} from '@web-ts-toolkit/email-service/attachments/mongoose';
+
+const mongoAttachmentBinding: MongooseAttachmentStoreOptions = {
+  resolverKey: 'invoice-pdfs',
+  namespace: '391ce5d7-3a7a-425a-8c90-1fb1f41b4b30',
+  collection: 'email_attachments', // The default; dedicated to this binding.
+};
+
+async function bindMongoAttachments(connection: Connection): Promise<MongooseAttachmentStore> {
+  const store = createMongooseAttachmentStore(connection, mongoAttachmentBinding);
+  await store.ready();
+  return store;
+}
+```
+
+- Use a journaled, unsharded MongoDB 8.x WiredTiger replica set. No direct/load-balanced connection,
+  auto-encryption, proxy, compression or OIDC reauthentication. Set `maxAdaptiveRetries: 0` if both retry
+  flags are on. The adapter does not manage the connection or join a caller session. Re-run `ready()` after
+  a disconnect/reconnect on the same backing, once outstanding work settles.
+- Runtime roles need cluster `serverStatus`, `replSetGetConfig`, `getCmdLineOpts`, database `listCollections`,
+  and collection `listIndexes` and `find`; add `insert` for the producer. Only the provisioner adds
+  `createCollection` and `createIndex`. Do not grant attachment update or delete.
+- The collection holds BSON Binary and immutable metadata. Keep its strict binding validator, simple collation,
+  `_id_` and zero-second TTL index `ma1_purge` on `{ purgeAt: 1 }`, with no other indexes or TTL. The adapter
+  stores `purgeAt` as a BSON Date at `deliverBy + 24 h + 121 s`. TTL is asynchronous. Audit the catalog, stop
+  producers and revalidate on changes; readiness is not continuous drift detection. Neither this collection
+  nor its TTL changes any queue collection.
+
+### AWS S3 and SeaweedFS
+
+Install `@aws-sdk/client-s3` (tested floor `3.1167.0`). The host provisions a dedicated, private, **never-versioned**
+general-purpose bucket (S3 Standard on AWS) and a literal slash-delimited prefix ending in `/`.
+Import both factories from the **same** `/attachments/s3` entry instance (both ESM or both CommonJS). An ordinary
+`S3Client` is rejected: use `createS3AttachmentClient` with explicit region and credentials, or a bounded SDK
+credential provider. This dedicated client uses one attempt, no region redirects and a native Node HTTP/1.1
+transport. It verifies complete response headers under a 16 KiB byte cap and holds each operation's slot until
+its native requests and bodies have closed, including cancellation before headers. Do not modify its SDK
+configuration or middleware, or reuse it for provisioning or other SDK operations. Call `client.destroy()`
+after its stores are done.
+
+<!-- example: managed-aws -->
+
+```typescript
+import {
+  createS3AttachmentClient,
+  createS3AttachmentStore,
+  type S3AttachmentClientConfig,
+  type S3AttachmentStoreOptions,
+} from '@web-ts-toolkit/email-service/attachments/s3';
+
+function bindAwsAttachments(bucket: string, config: S3AttachmentClientConfig) {
+  const client = createS3AttachmentClient(config);
+  const binding: S3AttachmentStoreOptions = {
+    bucket,
+    prefix: 'delivery/',
+    resolverKey: 'invoice-details-aws',
+    namespace: 'b6f95fc4-6594-4382-a892-631dcc9de100',
+  };
+  return { client, store: createS3AttachmentStore(client, binding) };
+}
+```
+
+For AWS, pass `{ region, credentials }` and omit `endpoint` to use the regional SDK endpoint. Only an explicit
+`endpoint` overrides that address. Use HTTPS for deployed endpoints; for private trust roots you can supply `ca`
+without disabling certificate verification. A custom endpoint can have a service path, not URL credentials, a
+query, or a fragment.
+
+Expiration-header mode (the default) requires the confirmed object's `LastModified` and an expiration header with the
+matching rule ID and a date no earlier than `LastModified + 32 days`, with no credit for UTC day rounding.
+SeaweedFS 4.54 was tested with a custom endpoint and path-style access. It does not supply that header.
+Explicitly choose `bucket-policy`; a custom endpoint does not change the default.
+
+<!-- example: managed-seaweedfs -->
+
+```typescript
+import {
+  createS3AttachmentClient,
+  createS3AttachmentStore,
+  type S3AttachmentClientConfig,
+} from '@web-ts-toolkit/email-service/attachments/s3';
+
+function bindSeaweedAttachments(
+  endpoint: string,
+  bucket: string,
+  region: string,
+  credentials: S3AttachmentClientConfig['credentials'],
+) {
+  const client = createS3AttachmentClient({
+    endpoint,
+    region,
+    credentials,
+    forcePathStyle: true,
+  });
+  const store = createS3AttachmentStore(client, {
+    bucket,
+    prefix: 'delivery/',
+    resolverKey: 'invoice-details-weed',
+    namespace: '039d0ded-5239-45a6-9bc9-03893702c370',
+    retention: 'bucket-policy',
+  });
+  return { client, store };
+}
+```
+
+Use the actual configured prefix and namespace in `Filter.Prefix` and the same namespace with hyphens removed in
+the rule ID. The dedicated bucket needs exactly this enabled lifecycle rule, with no other actions or filters:
+
+```json
+{
+  "Rules": [
+    {
+      "ID": "emailattachmentsv1<namespace-without-hyphens>",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "delivery/ma1/<namespace>/" },
+      "Expiration": { "Days": 32 }
+    }
+  ]
+}
+```
+
+- Audit effective access and read back `GetBucketVersioning` (unset, **not** suspended) and
+  `GetBucketLifecycleConfiguration` before use. In
+  `bucket-policy` mode the producer also reads both configurations back within each `put`, including replay;
+  extra/ambiguous policy fields or rules, or a nonempty versioning configuration, cannot certify a hold.
+  A present expiration header must agree with the rule. The minimum uses `LastModified + 32 days - 121 s`.
+- Scope runtime permissions to the binding. On AWS, grant `s3:GetObject` to readers and writers and
+  `s3:PutObject` to writers only on `arn:aws:s3:::<bucket>/<prefix>ma1/<namespace>/*` in the standard
+  AWS partition. Enforce `If-None-Match: *` with [bucket policy][s3-conditional]. For
+  `bucket-policy` mode only, the producer also needs bucket-level `s3:GetLifecycleConfiguration` and
+  `s3:GetBucketVersioning` (or the equivalent operations on the compatible service). Neither runtime role
+  needs object listing, deletion, ACL changes or policy writes. Verify the equivalent restricted roles on
+  your SeaweedFS deployment; do not use the test provisioner's broad privileges in production.
+- Deploy and monitor SeaweedFS's [standard lifecycle scheduler][seaweed-lifecycle], not its volume-TTL fast
+  path. The adapter does not create buckets, configure policy or close clients. Single-gateway fixture results
+  do not qualify other compatible servers, multi-gateway consistency or live AWS behavior.
+
+### Azure Blob attachment backing
+
+Install `@azure/storage-blob` (tested floor `12.34.0`). Provision a private container in a flat-namespace GPv2
+account using the Hot tier. Use the **primary container HTTPS URL** (not an account, secondary or blob URL).
+Supply a Blob SDK credential or a SAS URL without operation selectors or response overrides. No separate identity
+SDK is required by this package. Plain HTTP is only for the `127.0.0.1:<port>/<account>/<container>` emulator.
+
+<!-- example: managed-azure -->
+
+```typescript
+import {
+  createAzureAttachmentContainerClient,
+  createAzureAttachmentStore,
+  type AzureAttachmentStoreOptions,
+} from '@web-ts-toolkit/email-service/attachments/azure';
+
+function bindAzureAttachments(
+  containerUrl: string,
+  credential?: Parameters<typeof createAzureAttachmentContainerClient>[1],
+) {
+  const client = createAzureAttachmentContainerClient(containerUrl, credential);
+  const binding: AzureAttachmentStoreOptions = {
+    resolverKey: 'invoice-details-azure',
+    namespace: 'c987ec2e-1a9b-4393-b247-32faae88802d',
+    prefix: 'delivery/',
+  };
+  return { client, store: createAzureAttachmentStore(client, binding) };
+}
+```
+
+Import both factories from the **same** Azure entry instance (both ESM or both CommonJS). An ordinary
+`ContainerClient` or one from `getContainerClient` is rejected. The helper sets up the required abortable
+transport with no transparent retries; bounded credentials are the host's responsibility. Keep this client
+dedicated to the adapter; use a different client for provisioning and other SDK calls.
+
+Read back the effective storage account (no HNS), [blob service properties][azure-properties] (no versioning
+or blob/container soft delete) and [management policy][azure-policy]. Require this enabled `Lifecycle` rule;
+substitute the actual container, configured prefix and namespace. Reject any other enabled intersecting or
+global rule.
+
+```json
+{
+  "enabled": true,
+  "name": "emailattachmentsv1<namespace-without-hyphens>",
+  "type": "Lifecycle",
+  "definition": {
+    "filters": { "blobTypes": ["blockBlob"], "prefixMatch": ["<container>/delivery/ma1/<namespace>/"] },
+    "actions": { "baseBlob": { "delete": { "daysAfterCreationGreaterThan": 32 } } }
+  }
+}
+```
+
+The adapter checks the original service creation time (`x-ms-creation-time`) and uses `createdOn + 32 days - 121 s`.
+It cannot read the account policy and cannot detect policy drift. Grant workers exact-blob read. Producers
+need read plus permission for conditional create **and same-key replay**. In Azurite `rc` SAS allowed the
+first write but denied replay before the precondition; the fixture used `rw` for producers and `r` for workers,
+neither with list or delete. This does not prove production authorization. Container SAS is not a prefix grant and
+`w` can permit overwrites outside the adapter; use a dedicated container or verified finer-scoped credentials.
+Do not give runtime roles shared account keys, delete, or lifecycle mutation to make tests pass.
+
+### Cleanup and deployment gate
+
+Keep writer, worker and storage clocks within ±60 seconds of UTC and avoid client or endpoint queues that can
+replay old requests. For cloud, gate new stages on operator readback of effective settings and policy at deployment
+and on changes. Record the bound namespace and a sanitized settings/policy digest; block new stages if unreadable or
+drifted, preserve access for outstanding reads, and never shorten a live hold. Runtime evidence is not protection
+from administrator changes, external deletion, loss of storage, or unavailable credentials.
+
+Exclude versioning, Object Lock, snapshots, soft delete, replication, independent retained copies, and outside
+overwrite, tiering or deletion jobs for these backings. Versioning suspension or deleting the current object is
+not a cleanup of previous versions, delete markers or snapshots. If discovered, stop new stages; audit and drain
+live holds before an operator inventories and retires old copies. Mongo TTL and cloud lifecycle run
+asynchronously; the cloud age rule makes an orphan _eligible_ after 32 days, not erased by day 32. Monitor lag.
+None of these policies erase independent backups. Before production, verify actual cloud settings,
+least-privilege grants, retained reads and cleanup in a separately authorized disposable deployment. Emulator
+or offline SDK tests do not qualify live AWS/Azure, their IAM or their lifecycle scheduling.
+
+[s3-conditional]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes-enforce.html
+[seaweed-lifecycle]: https://github.com/seaweedfs/seaweedfs/wiki/S3-Lifecycle
+[azure-properties]: https://learn.microsoft.com/en-us/cli/azure/storage/account/blob-service-properties#az-storage-account-blob-service-properties-show
+[azure-policy]: https://learn.microsoft.com/en-us/cli/azure/storage/account/management-policy#az-storage-account-management-policy-show
+
 ## Integration entrypoint types
 
 The integration types have their own entrypoints:
@@ -960,7 +1366,14 @@ import type { SendGridProviderOptions } from '@web-ts-toolkit/email-service/send
 import type { MongooseEmailStoreOptions } from '@web-ts-toolkit/email-service/mongoose';
 ```
 
-The root has no runtime or declaration dependency on the optional peers. A type-only SMTP import does not require
-Nodemailer. The Mongoose runtime module can load without Mongoose, but its declarations reference the peer and
-the factory needs a caller-owned Mongoose connection. No entrypoint opens a connection, registers a model, starts
-a timer, or submits mail when imported.
+Managed attachment types are named exports from `/attachments`: `PutManagedAttachmentInput`,
+`ManagedAttachmentReceipt`, `ManagedAttachmentStore`, `ManagedAttachmentBindingOptions` and
+`ManagedAttachmentPreparationOptions`. Adapter options are in their respective `/attachments/*` entries as shown
+above. `AttachmentRef` and `AttachmentResolver` stay at the root.
+
+The root, `/sendgrid` and `/attachments` have no runtime or declaration dependency on optional peers. A
+type-only `/smtp` import does not require Nodemailer. Both Mongoose runtime modules load without Mongoose,
+but their declarations and factory inputs require it. Importing `/attachments/s3` or `/attachments/azure`
+without its SDK gives a module-not-found error naming that peer. For TypeScript apps using Mongoose or a
+cloud SDK, install Node declarations (`@types/node`) for your Node version. No entrypoint opens a connection,
+registers a model, starts a timer, or submits mail when imported.

@@ -11,6 +11,8 @@ export type EmailErrorCode =
   | 'template_render'
   | 'provider_mismatch'
   | 'expired'
+  | 'attachment_conflict'
+  | 'attachment_retention'
   | 'idempotency_conflict'
   | 'not_found'
   | 'resolution_conflict'
@@ -36,6 +38,8 @@ const messages = Object.freeze({
   template_render: 'Email template could not be rendered.',
   provider_mismatch: 'Email provider does not match the template or snapshot.',
   expired: 'Email has expired.',
+  attachment_conflict: 'Managed email attachment identity is already used with different content.',
+  attachment_retention: 'Managed email attachment retention could not be certified.',
   idempotency_conflict: 'Email admission key was used with different intent.',
   not_found: 'Email job not found.',
   resolution_conflict: 'Unknown attempt cannot be resolved with this action.',

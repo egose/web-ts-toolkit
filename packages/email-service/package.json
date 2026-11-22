@@ -56,6 +56,46 @@
       "import": "./dist/mongoose.mjs",
       "require": "./dist/mongoose.js",
       "default": "./dist/mongoose.js"
+    },
+    "./attachments": {
+      "types": {
+        "import": "./dist/attachments.d.mts",
+        "require": "./dist/attachments.d.ts",
+        "default": "./dist/attachments.d.ts"
+      },
+      "import": "./dist/attachments.mjs",
+      "require": "./dist/attachments.js",
+      "default": "./dist/attachments.js"
+    },
+    "./attachments/mongoose": {
+      "types": {
+        "import": "./dist/attachments-mongoose.d.mts",
+        "require": "./dist/attachments-mongoose.d.ts",
+        "default": "./dist/attachments-mongoose.d.ts"
+      },
+      "import": "./dist/attachments-mongoose.mjs",
+      "require": "./dist/attachments-mongoose.js",
+      "default": "./dist/attachments-mongoose.js"
+    },
+    "./attachments/s3": {
+      "types": {
+        "import": "./dist/attachments-s3.d.mts",
+        "require": "./dist/attachments-s3.d.ts",
+        "default": "./dist/attachments-s3.d.ts"
+      },
+      "import": "./dist/attachments-s3.mjs",
+      "require": "./dist/attachments-s3.js",
+      "default": "./dist/attachments-s3.js"
+    },
+    "./attachments/azure": {
+      "types": {
+        "import": "./dist/attachments-azure.d.mts",
+        "require": "./dist/attachments-azure.d.ts",
+        "default": "./dist/attachments-azure.d.ts"
+      },
+      "import": "./dist/attachments-azure.mjs",
+      "require": "./dist/attachments-azure.js",
+      "default": "./dist/attachments-azure.js"
     }
   },
   "scripts": {
@@ -68,6 +108,9 @@
     "test:smtp": "vitest run --config vitest.smtp.config.mts",
     "test:sendgrid": "vitest run --config vitest.sendgrid.config.mts",
     "test:mongodb": "vitest run --config vitest.mongodb.config.mts",
+    "test:s3": "node test/s3/run.mjs",
+    "test:azure": "node test/azure/run.mjs",
+    "test:managed-delivery": "node test/managed-delivery/run.mjs",
     "test:packed-consumer": "node --test test/packed-consumer/packaging.test.mjs"
   },
   "files": [
@@ -78,10 +121,18 @@
     "node": ">=24"
   },
   "peerDependencies": {
+    "@aws-sdk/client-s3": ">=3.1167.0 <4",
+    "@azure/storage-blob": ">=12.34.0 <13",
     "mongoose": ">=9.12.2 <10",
     "nodemailer": ">=10.6.0 <11"
   },
   "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "@azure/storage-blob": {
+      "optional": true
+    },
     "mongoose": {
       "optional": true
     },
@@ -93,6 +144,9 @@
     "handlebars": "~4.7.10"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "3.1167.0",
+    "@azure/storage-blob": "12.34.0",
+    "azurite": "3.38.0",
     "mongoose": "9.12.2",
     "nodemailer": "10.6.0"
   }

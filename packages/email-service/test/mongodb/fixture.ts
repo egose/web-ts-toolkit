@@ -24,11 +24,11 @@ export function checkScratch(): void {
   execFileSync('git', ['check-ignore', '--', temp], { cwd: root, stdio: 'ignore' });
 }
 
-export async function replicaSet(count: 1 | 3) {
+export async function replicaSet(count: 1 | 3, extraArgs: readonly string[] = []) {
   checkScratch();
   return MongoMemoryReplSet.create({
     binary: { version: process.env.MONGOMS_VERSION ?? '8.2.6' },
-    replSet: { count, storageEngine: 'wiredTiger', args: TEST_PARAMETERS },
+    replSet: { count, storageEngine: 'wiredTiger', args: [...TEST_PARAMETERS, ...extraArgs] },
   });
 }
 

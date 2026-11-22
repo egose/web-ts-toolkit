@@ -192,7 +192,16 @@ test('actual pnpm-discovered output contract includes exactly 32 roots, six buil
     'packages/access-router-runtime/dist/tsconfig.json',
     'packages/express-runtime/dist/cli.js',
     'packages/mongoose-rxdb/dist/storage/index.mjs',
-    ...['index', 'smtp', 'sendgrid', 'mongoose'].flatMap((name) =>
+    ...[
+      'index',
+      'smtp',
+      'sendgrid',
+      'mongoose',
+      'attachments',
+      'attachments-mongoose',
+      'attachments-s3',
+      'attachments-azure',
+    ].flatMap((name) =>
       ['js', 'mjs', 'd.ts', 'd.mts'].map((extension) => `packages/email-service/dist/${name}.${extension}`),
     ),
     'packages/create-access-router-mongo-starter/dist/template/pnpm-lock.yaml',

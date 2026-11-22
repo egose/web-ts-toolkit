@@ -5,6 +5,7 @@ import {
   createEmailRelay,
   createSmtpAcceptanceResult,
   EmailError,
+  type AttachmentRef,
   type EmailBatchAdmission,
   type EmailBatchAdmissionOptions,
   type EmailBatchItem,
@@ -32,8 +33,21 @@ import {
   type TemplateDefinitions,
   type TemplateMap,
 } from '@web-ts-toolkit/email-service';
+import {
+  checkManagedAttachmentRetention,
+  type ManagedAttachmentBindingOptions,
+  type ManagedAttachmentPreparationOptions,
+  type ManagedAttachmentReceipt,
+  type ManagedAttachmentStore,
+  type PutManagedAttachmentInput,
+} from '@web-ts-toolkit/email-service/attachments';
 import { createSendGridProvider, type SendGridProviderOptions } from '@web-ts-toolkit/email-service/sendgrid';
 import type { SmtpProviderOptions } from '@web-ts-toolkit/email-service/smtp';
+
+// @ts-expect-error Managed types live at /attachments, not the root.
+export type { ManagedAttachmentStore as NotOnRoot } from '@web-ts-toolkit/email-service';
+// @ts-expect-error Vendor types live at the adapter boundary, not the common entry.
+export type { S3AttachmentStoreOptions as NotOnCommon } from '@web-ts-toolkit/email-service/attachments';
 
 type Templates = {
   receipt: LocalTemplate<{ invoiceId: string }, { cents: number }>;
@@ -279,4 +293,19 @@ export function rejectSendGridEndpoint() {
 export function rejectSendGridCapacity() {
   // @ts-expect-error capacity is SMTP-only
   return createSendGridProvider({ ...sendgrid, smtpCapacity: capacity });
+}
+
+export async function checkManagedContracts(
+  store: ManagedAttachmentStore,
+  prepared: PreparedEmailCommand,
+  binding: ManagedAttachmentBindingOptions,
+  input: PutManagedAttachmentInput,
+): Promise<AttachmentRef> {
+  if (binding.resolverKey !== store.resolverKey) throw new Error('Wrong binding');
+  const receipt: ManagedAttachmentReceipt = await store.put(input, { signal: new AbortController().signal });
+  const options: ManagedAttachmentPreparationOptions = { scope: input.scope, stores: [store], receipts: [receipt] };
+  checkManagedAttachmentRetention(prepared, options);
+  // @ts-expect-error A raw ref is not a producer retention receipt.
+  checkManagedAttachmentRetention(prepared, { ...options, receipts: [receipt.ref] });
+  return receipt.ref;
 }

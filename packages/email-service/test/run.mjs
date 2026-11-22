@@ -13,6 +13,9 @@ try {
     'test:smtp',
     'test:sendgrid',
     'test:mongodb',
+    'test:s3',
+    'test:azure',
+    'test:managed-delivery',
     'test:packed-consumer',
   ]) {
     const result = spawnSync('pnpm', ['run', script], { cwd: packageRoot, env, stdio: 'inherit' });
