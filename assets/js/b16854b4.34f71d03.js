@@ -93,6 +93,10 @@ const toc = [{
   "id": "keycloak-user-sync",
   "level": 3
 }, {
+  "value": "Keycloak group sync",
+  "id": "keycloak-group-sync",
+  "level": 3
+}, {
   "value": "Related Packages",
   "id": "related-packages",
   "level": 2
@@ -139,7 +143,7 @@ function _createMdxContent(props) {
           children: "isObjectId(...)"
         }), " guard for strict ObjectId checks"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "document plugins for persisted derived fields, model-bound helper functions, new-document callbacks, cascade deletes, and Keycloak user sync"
+        children: "document plugins for persisted derived fields, model-bound helper functions, new-document callbacks, cascade deletes, and Keycloak user and group sync"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
@@ -185,7 +189,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Install ", (0,jsx_runtime.jsx)(_components.code, {
         children: "@egose/keycloak-fluent"
-      }), " only when using the Keycloak user-sync subpath:"]
+      }), " only when using Keycloak user or group sync:"]
     }), "\n", (0,jsx_runtime.jsxs)(Tabs/* default */.A, {
       groupId: "npm2yarn",
       children: [(0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -193,7 +197,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @egose/keycloak-fluent\n"
+            children: "npm install @egose/keycloak-fluent@^0.14.0\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -202,7 +206,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @egose/keycloak-fluent\n"
+            children: "yarn add @egose/keycloak-fluent@^0.14.0\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -211,7 +215,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @egose/keycloak-fluent\n"
+            children: "pnpm add @egose/keycloak-fluent@^0.14.0\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -220,7 +224,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @egose/keycloak-fluent\n"
+            children: "bun add @egose/keycloak-fluent@^0.14.0\n"
           })
         })
       })]
@@ -234,7 +238,7 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@egose/keycloak-fluent >=0.12.1 <0.15.0"
-        }), " for the Keycloak user-sync subpath (tested floor ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " for the Keycloak user-sync and group-sync subpaths (tested floor ", (0,jsx_runtime.jsx)(_components.code, {
           children: "0.12.1"
         }), ", current ", (0,jsx_runtime.jsx)(_components.code, {
           children: "0.14.x"
@@ -286,7 +290,7 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@web-ts-toolkit/moo/plugins"
-        }), " for the shared plugin entrypoint"]
+        }), " for grouped non-Keycloak plugins"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@web-ts-toolkit/moo/plugins/cascade-delete"
@@ -310,14 +314,22 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@web-ts-toolkit/moo/plugins/keycloak-user-sync"
-        }), " for the Keycloak user-sync plugin"]
+        }), " for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "keycloakUserSyncPlugin"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "createManagedKeycloakClient"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/moo/plugins/keycloak-group-sync"
+        }), " for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "keycloakGroupSyncPlugin"
+        }), " and its option and role types"]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The Keycloak plugin is intentionally available only from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/moo/plugins/keycloak-user-sync"
-      }), ". The root and grouped ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Import the Keycloak plugins by name from their dedicated subpaths. The root and grouped ", (0,jsx_runtime.jsx)(_components.code, {
         children: "@web-ts-toolkit/moo/plugins"
-      }), " entrypoints do not require the optional Keycloak peer."]
+      }), " entrypoints work without the optional Keycloak peer."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Example subpath imports:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
@@ -785,6 +797,64 @@ function _createMdxContent(props) {
       }), " and rejects larger desired role arrays before role lookup or mapping requests."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Remote work is field-specific after identity resolution. A single owned profile or attribute change resolves the user and performs one update, without password reset or role reconciliation. A new user with no role-sync intent skips role mapping calls. Role reconciliation is sequential and deterministic; it performs one ensure/get pair per desired owned role plus one mapping list and optional add/remove calls. Realm metadata is fetched for each sync instead of cached, so duplicate-email policy changes are observed without an invalidation API."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "keycloak-group-sync",
+      children: "Keycloak group sync"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { keycloakGroupSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-group-sync';\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Install the ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "#installation",
+        children: "optional Keycloak peer"
+      }), " and register the plugin with an\napplication-supplied managed client. You can reuse the client created by\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createManagedKeycloakClient"
+      }), " above. See the ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/moo/README.md#keycloak-group-sync",
+        children: "shipped README example"
+      }), "\nfor the complete Mongoose schema and model setup."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Configure a stable org slug (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "paths.name"
+        }), "), a string root ID (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "paths.providerId"
+        }), "),\nand a string ID map (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "paths.roleGroupIds"
+        }), "). Saved documents expose both ID fields.\nMap keys are org-relative paths such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "engineering/admin"
+        }), ", including intermediate groups."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Choose fixed ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "roles"
+        }), " or a ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "paths.roles"
+        }), " array stored on the org. Both allow\nstrings and objects with a required ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "name"
+        }), " and optional ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "description"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "children"
+        }), ".\nTrees support up to 16 subgroup levels and 500 subgroups. Omit descriptions\nto preserve them, or supply ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "''"
+        }), " to clear them. ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "paths.description"
+        }), " maps the\noptional root description; a null root value also preserves it."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["The plugin controls the bindings and checks realm, name/path, parent, and\nownership before using a group. Stale IDs or unowned path collisions reject\nwithout relinking. The realm plus MongoDB database, collection, and BSON ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_id"
+        }), "\nmust uniquely identify the application's org across deployments sharing a realm."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Ordinary ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "save()"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Model.create()"
+        }), " reconcile after MongoDB persistence.\nBinding writes require MongoDB aggregation-pipeline updates. A sync failure\nrejects the call; the local write and any partial provisioning can already\nbe committed. Reload and save outside a session to retry, or save existing\norgs to apply a new fixed catalog. Session-backed saves (including ambient\nMongoose transactions) reject before persistence."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Query, bulk, and driver writes and saves with middleware explicitly disabled\nbypass sync. Provisioning is additive: removing roles or deleting an org does\nnot delete remote groups. Memberships and other group attributes are preserved,\nand provisioning assigns no members or permissions."
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-packages",
       children: "Related Packages"
