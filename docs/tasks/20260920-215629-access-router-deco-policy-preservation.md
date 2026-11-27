@@ -22,7 +22,7 @@ This review covers residual defects after the earlier reviews, plus an executabl
 
 ### Existing deferred decisions (not duplicated)
 
-- BDECO-09-F01 (scoped property validation/remapping) and BDECO-10-F01 (OpenAPI module mount-prefix composition) remain in their original evidence reports, awaiting the existing maintainer decisions. Residual risks: wrong-scope property writes and externally inaccurate OpenAPI paths. This plan does not claim they are fixed.
+- At the time of this review, BDECO-09-F01 (scoped property validation/remapping) and BDECO-10-F01 (OpenAPI module mount-prefix composition) awaited maintainer decisions. The later implementations are recorded in the [property-scope evidence](20260907-134500-bdeco-09-property-scope-evidence.md#review-2026-11-26) and [OpenAPI composition evidence](20260907-145022-bdeco-10-path-composition-evidence.md#review-2026-11-26).
 - Same-role class redecorations and forged valid Reflect metadata provenance remain trusted-configuration design decisions from BDECO-12. Broad dependency injection, authentication, rate limiting, and audit storage belong to the application/runtime layers; this adapter should demonstrate composition rather than implement competing systems.
 
 ## Execution and verification

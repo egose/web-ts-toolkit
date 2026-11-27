@@ -431,7 +431,7 @@ Verification: V5 recorded baseline/after evidence, V1 affected tests, V2, V3. A 
 
 ### Task JFB-09: Perform Independent Integration And Contract Review
 
-Status: in_progress
+Status: blocked
 
 Continuation (2026-09-27): rechecking the older strict repository-verification
 blocker on the current worktree. The September 26 JFC/JFP plans supply subsequent
@@ -448,6 +448,11 @@ Completion evidence:
 - Verified: V2 `pnpm --filter @web-ts-toolkit/json-frame test` PASS (8 files / 169 tests); V3 eslint PASS; V4 `test:packed-consumer` PASS (3/3); V7 pinned pandas 3.0.3 read-back PASS for JFB-01 table plus JFB-07 emission/read-back asymmetry recorded; V6a `pnpm lint` PASS; V6b `pnpm build` PASS; V6c `pnpm test` FAIL unrelated pre-existing `@web-ts-toolkit/express-runtime test/watch-supervisor.test.ts` ERT-B07 timeout (package worktree clean, flaky subprocess, not caused by this work); json-frame suite re-passed after full build
 - Deferrals: D1 shared-reference budget (proposed JFB-10 not yet created, residual P1); D2 datetime range (residual P2); website `website/docs/packages/json-frame.md` stale on new validation/diagnostic guidance; release-note disposition open
 - Blocker: strict V6 green requires unrelated `packages/express-runtime` ERT-B07 pass outside this scope; no action taken on unrelated worktree
+
+Review: 2026-11-26
+
+- [JFC-06](20260919-184842-json-frame-business-contract-review.md#task-jfc-06-independently-review-integration-and-every-acceptance-criterion) records subsequent independent acceptance of the shared-reference budget, datetime policy, and documentation, including release contract notes. [JFP-03](20260919-211200-json-frame-property-key-contracts.md#task-jfp-03-independently-verify-property-key-contract-integration) closes the later property-key integration review.
+- [OAV-07's October 5 checks](20261005-131819-access-router-operation-access-variants.md#oav-07-completion-evidence-2026-10-05) report a later passing serialized workspace run including express-runtime and JSON Frame. The September 27 JFB-09 continuation has no saved final V6 result in this record. No rerun was performed for this review, and the original failure remains part of the evidence.
 
 Kind: improvement
 

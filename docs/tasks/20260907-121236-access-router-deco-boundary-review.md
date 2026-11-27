@@ -11,6 +11,11 @@ Related plans:
 - `docs/tasks/20260813-162608-access-router-deco-review-remediation.md` (DECO IDs).
 - `docs/tasks/20260827-223556-access-router-deco-health-follow-up.md` (ARDECO IDs).
 
+Review: 2026-11-26. The F01 blockers below describe the investigation handoff.
+The follow-up records now link the delivered [property scope and remapping](20260907-134500-bdeco-09-property-scope-evidence.md#review-2026-11-26)
+and [OpenAPI mount composition](20260907-145022-bdeco-10-path-composition-evidence.md#review-2026-11-26)
+contracts and their verification evidence.
+
 Scope: decorator registration, metadata inheritance, factory lifecycle, real `access-router` integration, shipped types/docs, and focused verification quality. The authoritative authorization and option-resolution contracts live in `packages/access-router`.
 
 Non-goals: redesign runtime authorization, introduce a DI framework, migrate to standard decorators, remove the compatibility singleton, promise rollback of arbitrary user constructor effects, or broadly split the factory into new abstractions. This review creates tasks only; it does not implement fixes.

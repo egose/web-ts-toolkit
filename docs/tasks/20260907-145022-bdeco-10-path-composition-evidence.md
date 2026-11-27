@@ -2,8 +2,14 @@
 
 Created: 2026-09-07 14:50:22 PDT
 
-Parent task: `docs/tasks/20260907-121236-access-router-deco-boundary-review.md` (Task BDECO-10, investigation).
-Status of BDECO-10: investigation complete. BDECO-10-F01: in_progress (2026-09-27 continuation).
+Parent task: [BDECO-10 investigation](20260907-121236-access-router-deco-boundary-review.md#task-bdeco-10-reconcile-module-mount-paths-with-openapi-paths).
+Status of BDECO-10: investigation complete. BDECO-10-F01: completed.
+
+## Review (2026-11-26)
+
+- Commit `f4672a50` (included in `v0.46.0`) delivered the September 27 decision. The maintained [cross-path regressions](../../packages/access-router-deco/test/cross-path.integration.test.ts) cover prefixed model and root paths, unchanged Express matching, and proxy prefix handling. The current factory composes the prefix at registration and rejects repeated `parentPath` mount segments.
+- The [installed README](../../packages/access-router-deco/README.md#module-mounts-and-openapi-migration) and [website migration guide](../../website/docs/packages/access-router-deco.md#property-and-openapi-migration) document the composition, duplicate-prefix migrations, and `servers` option. This supersedes the earlier proposal to rewrite already-registered entries.
+- Verification: the [current compatibility run](20260907-134500-bdeco-09-property-scope-evidence.md#review-2026-11-26) passed all 782 tests, including the cross-path cases. The saved P1/P3 observations below show the pre-fix missing prefixes; this review did not run the final assertions against the pre-fix revision.
 
 ## Continuation decision (2026-09-27)
 

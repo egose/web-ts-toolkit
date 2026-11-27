@@ -520,32 +520,6 @@ Completion evidence:
 - Integration verdict: all SVH-01..08 acceptance evidence verified against source + fresh green V2/V3/V4/applicable-V5; investigations evidence-backed with tracked follow-ups (FU-SVH-05a/05b, FU-SVH-07a/b/c); nothing blocked (no unresolved maintainer decision gates remaining work — FU items are deferred enhancements with named owner areas and rationale). No unrelated worktree changes reverted (other modified task files and access-router/json-router follow-ups left untouched); no `dist/` manually patched (all dist output from package builds; `git status` shows no tracked `dist/` modifications).
 - Residuals/follow-ups carried forward (unchanged ownership): FU-SVH-05a (alias-lifetime README + conformance, suggest SVH-06 owner), FU-SVH-05b (non-expiring retention alignment + Mongo stale-alias-on-reuse, maintainer decision + migration notes if behavior changes), FU-SVH-07a (Mongo `$in` chunking, only near 100k IDs), FU-SVH-07b (Redis per-pass timestamp/RTT reduction), FU-SVH-07c (deferred 10k-alias/10k-population Redis bounds after 07b or production need). SVH-99 adds no new follow-ups.
 
-Kind: improvement
-
-Priority: P1; independent review is required before treating coordinated store changes as safe for authentication state.
-
-Suggested agent: reviewer who did not implement the main fixes
-
-Dependencies: SVH-01, SVH-02, SVH-03, SVH-04, SVH-05, SVH-06, SVH-07, SVH-08, plus any implementation follow-ups required by their accepted conclusions
-
-Primary ownership: integration evidence in this file, focused missing cross-provider regression cases, and final public-documentation consistency review. Do not rewrite provider implementations as part of review.
-
-Requirements:
-
-1. Verify every task's acceptance evidence, including post-commit failures, stale repair, expiry boundaries, resource cleanup, namespace/scope isolation, and selected create/alias semantics.
-2. Review source/types/README/website/release notes together. Inspect fresh root exports/declarations and packed consumers; do not infer broken MongoDB ESM types solely from its different exports map.
-3. Confirm Redis scripts remain atomic where required, MongoDB stays transaction-only, memory remains process-local with owned copies, and no diagnostics expose bearer-equivalent data.
-4. Execute V2/V3/V4 and applicable V5 serially. Report service skips, minimum-runtime gaps, or unrelated failures explicitly. Do not count prior task completion notes as fresh verification.
-
-Acceptance criteria:
-
-- Fixes have regression evidence and all required checks pass; blocked checks retain a named prerequisite and owner.
-- Investigation conclusions are evidence-backed, consequential follow-ups are tracked, and deferred work names rationale/residual risk.
-- Public contract and deployed behavior agree, with release/migration notes for intentional external changes.
-- No unrelated worktree changes are reverted and no generated output is manually patched.
-
-Verification: V2/V3/V4 and applicable V5; independent acceptance review recorded below each completed task.
-
 ## Deferred Decisions And Definition Of Done
 
 Maintainer decisions are limited to the alias lifetime/resource policy (SVH-05), portable duplicate-create semantics (SVH-06), and any source-generation/concurrent-revocation guarantees established by SVH-07/08. They do not block the independent lifecycle, housekeeping, repair, or iterator fixes. No new encryption layer, arbitrary record cap, mandatory Redis readiness API, or broad helper extraction is proposed without a concrete requirement.

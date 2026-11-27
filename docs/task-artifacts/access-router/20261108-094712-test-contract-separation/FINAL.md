@@ -1,6 +1,6 @@
 # Access-router test separation — final review index
 
-**Current outcome: blocked on ARTS06-F1 (exact public-name TypeScript alias bypass).**
+**Pre-repair outcome: blocked on ARTS06-F1 (exact public-name TypeScript alias bypass).**
 The fresh independent [ARTS-06 review](arts-06-review.md) reports all V3 commands
 passing, but does **not** accept the boundary guard. The coordinator owns the
 [task/status](../../../tasks/20261108-094712-access-router-test-contract-separation.md).
@@ -21,7 +21,7 @@ and scoped ESLint also passed. These green commands do not detect ARTS06-F1.
 Full commands ran serially, foreground, without filtered runtime selections.
 
 - [Command exits/times, tested identities, full declarations, finding and comparisons](arts-06-verification.json)
-- [All actual current case observations and original/additive joins](arts-06-cases.jsonl)
+- [All pre-repair case observations and original/additive joins][pre-repair-cases]
 - [Independent source/fixture/config/matrix review and precise blocker](arts-06-review.md)
 
 All **7,565 original cases + 59 guard cases + 93 companions** passed in standalone
@@ -47,10 +47,12 @@ later historical records remain unchanged. This new index supersedes none of the
 | ARTS-04 companions | [Report](arts-04-report.md), [coverage guide](arts-04-coverage.md), [34 gap/23 surface/93 case mapping](arts-04-coverage.json), [verification](arts-04-verification.json), [manifest](arts-04-manifest.json) | Additive public cases, actual 93/6 focused pass; no original rewrites. |
 | ARTS-04 exporter cleanup | [Report](arts-04-cleanup.md), [exact edit/case verification](arts-04-cleanup-verification.json), [manifest](arts-04-cleanup-manifest.json) | Supersedes only the exporter file hash; its two case titles/assertions/locations are unchanged. Not two extra cases. |
 | ARTS-05 contributor guidance | [Report](arts-05-report.md), [reconciliation](arts-05-reconciliation.md), [verification](arts-05-verification.json), [maintained test guide](../../../../packages/access-router/test/README.md) | Documentation/static reconciliation, not a runtime/full-run pass. |
-| ARTS-06 independent review | [Review](arts-06-review.md), [verification](arts-06-verification.json), [fresh cases](arts-06-cases.jsonl) | All full gates actually executed; acceptance blocked by the concrete guard reproducer. |
+| ARTS-06 independent review | [Review](arts-06-review.md), [verification](arts-06-verification.json), [pre-repair cases in Git][pre-repair-cases] | All full gates actually executed; acceptance blocked by the concrete guard reproducer. |
 
 ## Verifier and reproduction boundaries
 
+- The [acceptance index](ACCEPTANCE.md#reproduction-and-limits) records where to
+  retrieve the pre-repair ledger and replay the original evidence checks.
 - [Baseline verifier](verify-baseline.mjs) can inspect recorded Git-baseline inputs;
   it is not the current maintained public boundary gate.
 - [ARTS-02 verifier](arts-02-verify-preservation.mjs)'s complete `verify()` intentionally
@@ -73,3 +75,5 @@ prebuilt CLI fixture. No root/grouped/downstream suite, unrelated CLI/release bu
 new benchmark campaign, speed claim or universal compatibility proof is implied.
 Manual reflection/dataflow/generator review remains necessary; a static gate is not
 a sandbox. No jobs remain from this review.
+
+[pre-repair-cases]: https://github.com/egose/web-ts-toolkit/blob/c65f23aeb6adefb30b6d6294e90edbe8b4000fb0/docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-06-cases.jsonl

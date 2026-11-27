@@ -9,6 +9,7 @@ export default defineConfig({
     'src/plugins/index.ts',
     'src/plugins/cascade-delete.ts',
     'src/plugins/derived-fields.ts',
+    'src/plugins/keycloak-group-sync.ts',
     'src/plugins/keycloak-user-sync.ts',
     'src/plugins/model-function.ts',
     'src/plugins/new-document.ts',

@@ -11,7 +11,7 @@ This package includes:
 
 - partial-index helpers for nullable or empty string fields
 - an `isObjectId(...)` guard for strict ObjectId checks
-- document plugins for persisted derived fields, model-bound helper functions, new-document callbacks, cascade deletes, and Keycloak user sync
+- document plugins for persisted derived fields, model-bound helper functions, new-document callbacks, cascade deletes, and Keycloak user and group sync
 
 ## Installation
 
@@ -19,16 +19,16 @@ This package includes:
 npm install mongoose @web-ts-toolkit/moo
 ```
 
-Install `@egose/keycloak-fluent` only when using the Keycloak user-sync subpath:
+Install `@egose/keycloak-fluent` only when using Keycloak user or group sync:
 
 ```bash npm2yarn
-npm install @egose/keycloak-fluent
+npm install @egose/keycloak-fluent@^0.14.0
 ```
 
 Supported peer versions:
 
 - `mongoose >= 8` (tested with Mongoose 8.24.x and 9.x)
-- `@egose/keycloak-fluent >=0.12.1 <0.15.0` for the Keycloak user-sync subpath (tested floor `0.12.1`, current `0.14.x`)
+- `@egose/keycloak-fluent >=0.12.1 <0.15.0` for the Keycloak user-sync and group-sync subpaths (tested floor `0.12.1`, current `0.14.x`)
 
 ## What It Exposes
 
@@ -45,14 +45,15 @@ Published subpaths:
 - `@web-ts-toolkit/moo/schema` for schema field helpers
 - `@web-ts-toolkit/moo/is` for type guards such as `isObjectId(...)`
 - `@web-ts-toolkit/moo/utils` for schema and reference helpers such as `isSchema(...)`, `isObjectIdType(...)`, and `isReference(...)`
-- `@web-ts-toolkit/moo/plugins` for the shared plugin entrypoint
+- `@web-ts-toolkit/moo/plugins` for grouped non-Keycloak plugins
 - `@web-ts-toolkit/moo/plugins/cascade-delete` for the cascade-delete plugin
 - `@web-ts-toolkit/moo/plugins/derived-fields` for `derivedFieldsPlugin`, `defineDerivedField`, dependency errors and authoring types
 - `@web-ts-toolkit/moo/plugins/model-function` for the model-function plugin
 - `@web-ts-toolkit/moo/plugins/new-document` for the new-document plugin
-- `@web-ts-toolkit/moo/plugins/keycloak-user-sync` for the Keycloak user-sync plugin
+- `@web-ts-toolkit/moo/plugins/keycloak-user-sync` for `keycloakUserSyncPlugin` and `createManagedKeycloakClient`
+- `@web-ts-toolkit/moo/plugins/keycloak-group-sync` for `keycloakGroupSyncPlugin` and its option and role types
 
-The Keycloak plugin is intentionally available only from `@web-ts-toolkit/moo/plugins/keycloak-user-sync`. The root and grouped `@web-ts-toolkit/moo/plugins` entrypoints do not require the optional Keycloak peer.
+Import the Keycloak plugins by name from their dedicated subpaths. The root and grouped `@web-ts-toolkit/moo/plugins` entrypoints work without the optional Keycloak peer.
 
 Example subpath imports:
 
@@ -458,6 +459,40 @@ Saves and deletes share one persisted-identity boundary. New local documents per
 Role sync is additive-only by default: desired local roles are assigned, but unrelated existing Keycloak realm roles are preserved. Set `managedRoles` to the exact role names this plugin owns; only those roles may be removed when omitted from an explicit local roles array. An absent or non-array roles value is treated as no role-sync intent, while an empty array removes assigned managed roles and preserves unmanaged roles. `ensureRoles` defaults to `true`, so desired missing roles are created before assignment; set it to `false` if typos or insufficient administrative privileges should fail instead. `maxRolesPerSync` defaults to `100` and rejects larger desired role arrays before role lookup or mapping requests.
 
 Remote work is field-specific after identity resolution. A single owned profile or attribute change resolves the user and performs one update, without password reset or role reconciliation. A new user with no role-sync intent skips role mapping calls. Role reconciliation is sequential and deterministic; it performs one ensure/get pair per desired owned role plus one mapping list and optional add/remove calls. Realm metadata is fetched for each sync instead of cached, so duplicate-email policy changes are observed without an invalidation API.
+
+### Keycloak group sync
+
+```ts
+import { keycloakGroupSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-group-sync';
+```
+
+Install the [optional Keycloak peer](#installation) and register the plugin with an
+application-supplied managed client. You can reuse the client created by
+`createManagedKeycloakClient` above. See the [shipped README example](https://github.com/egose/web-ts-toolkit/blob/main/packages/moo/README.md#keycloak-group-sync)
+for the complete Mongoose schema and model setup.
+
+- Configure a stable org slug (`paths.name`), a string root ID (`paths.providerId`),
+  and a string ID map (`paths.roleGroupIds`). Saved documents expose both ID fields.
+  Map keys are org-relative paths such as `engineering/admin`, including intermediate groups.
+- Choose fixed `roles` or a `paths.roles` array stored on the org. Both allow
+  strings and objects with a required `name` and optional `description` and `children`.
+  Trees support up to 16 subgroup levels and 500 subgroups. Omit descriptions
+  to preserve them, or supply `''` to clear them. `paths.description` maps the
+  optional root description; a null root value also preserves it.
+- The plugin controls the bindings and checks realm, name/path, parent, and
+  ownership before using a group. Stale IDs or unowned path collisions reject
+  without relinking. The realm plus MongoDB database, collection, and BSON `_id`
+  must uniquely identify the application's org across deployments sharing a realm.
+- Ordinary `save()` and `Model.create()` reconcile after MongoDB persistence.
+  Binding writes require MongoDB aggregation-pipeline updates. A sync failure
+  rejects the call; the local write and any partial provisioning can already
+  be committed. Reload and save outside a session to retry, or save existing
+  orgs to apply a new fixed catalog. Session-backed saves (including ambient
+  Mongoose transactions) reject before persistence.
+- Query, bulk, and driver writes and saves with middleware explicitly disabled
+  bypass sync. Provisioning is additive: removing roles or deleting an org does
+  not delete remote groups. Memberships and other group attributes are preserved,
+  and provisioning assigns no members or permissions.
 
 ## Related Packages
 

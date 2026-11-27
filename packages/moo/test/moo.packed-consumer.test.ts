@@ -70,8 +70,10 @@ function sanitize(subpath: string): string {
 }
 
 function writeConsumerFiles(consumerDir: string, includeKeycloak: boolean): void {
-  const keycloakEsm = `import { createManagedKeycloakClient, keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';`;
-  const keycloakCjs = `const { createManagedKeycloakClient: createManagedKeycloakClientCjs, keycloakUserSyncPlugin: keycloakUserSyncPluginCjs } = require('@web-ts-toolkit/moo/plugins/keycloak-user-sync');`;
+  const keycloakEsm = `import { createManagedKeycloakClient, keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
+import { keycloakGroupSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-group-sync';`;
+  const keycloakCjs = `const { createManagedKeycloakClient, keycloakUserSyncPlugin } = require('@web-ts-toolkit/moo/plugins/keycloak-user-sync');
+const { keycloakGroupSyncPlugin } = require('@web-ts-toolkit/moo/plugins/keycloak-group-sync');`;
 
   writeFileSync(
     path.resolve(consumerDir, 'core-runtime.mjs'),
@@ -96,6 +98,10 @@ if (typeof pluginsEntry.newDocumentPlugin !== 'function') throw new Error('missi
 if (typeof newDocumentEntry.newDocumentPlugin !== 'function') throw new Error('missing newDocumentPlugin');
 if (!rootEntry.isObjectId('507f1f77bcf86cd799439011')) throw new Error('isObjectId rejected a canonical id');
 if (isEntry.isObjectId('not-an-id')) throw new Error('isObjectId accepted garbage');
+for (const entry of [rootEntry, pluginsEntry]) {
+  assert.equal('keycloakUserSyncPlugin' in entry, false);
+  assert.equal('keycloakGroupSyncPlugin' in entry, false);
+}
 
 // Exercise the shipped plugins against both supported Mongoose majors without a database.
 const ownerSchema = new Schema({ name: String });
@@ -107,13 +113,14 @@ mongoose.model('MooPackedChild', childSchema);
 mongoose.model('MooPackedOwner', ownerSchema);
 ${derivedRuntimeChecks()}
 await checkDerivedFields([rootEntry, pluginsEntry, derivedEntry]);
-${includeKeycloak ? keycloakRuntimeEsm() : ''}
+${includeKeycloak ? keycloakRuntimeChecks() : ''}
 `,
   );
   writeFileSync(
     path.resolve(consumerDir, 'core-runtime.cjs'),
     `${CORE_RUNTIME_EXPORTS.map(({ subpath }) => `const ns_${sanitize(subpath)} = require('${subpath}');`).join('\n')}
 const mongoose = require('mongoose');
+const { Schema } = mongoose;
 const assert = require('node:assert/strict');
 ${includeKeycloak ? keycloakCjs : ''}
 for (const [label, mod, name] of [
@@ -121,33 +128,42 @@ ${CORE_RUNTIME_EXPORTS.map(({ subpath, names }) => names.map((name) => `  ['${su
 ]) {
   if (typeof mod[name] !== 'function') throw new Error('missing ' + label);
 }
+for (const entry of [ns_root, ns_plugins]) {
+  assert.equal('keycloakUserSyncPlugin' in entry, false);
+  assert.equal('keycloakGroupSyncPlugin' in entry, false);
+}
 const { isObjectId, cascadeDeletePlugin, newDocumentPlugin, modelFunctionPlugin } = ns_root;
 if (!isObjectId('507f1f77bcf86cd799439011')) throw new Error('isObjectId rejected a canonical id');
-const ownerSchema = new mongoose.Schema({ name: String });
+const ownerSchema = new Schema({ name: String });
 ownerSchema.plugin(newDocumentPlugin, { fn: async () => {} });
 ownerSchema.plugin(modelFunctionPlugin, { fnName: 'greet', fn: (doc) => String(doc.get('name')) });
 ownerSchema.plugin(cascadeDeletePlugin, { model: 'MooPackedChildCjs', localField: '_id', foreignField: 'ownerId' });
-mongoose.model('MooPackedChildCjs', new mongoose.Schema({ ownerId: mongoose.Schema.Types.ObjectId }));
+mongoose.model('MooPackedChildCjs', new Schema({ ownerId: Schema.Types.ObjectId }));
 mongoose.model('MooPackedOwnerCjs', ownerSchema);
 ${derivedRuntimeChecks()}
 checkDerivedFields([ns_root, ns_plugins, ns_plugins_derived_fields]).catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
-${includeKeycloak ? keycloakRuntimeCjs() : ''}
+${includeKeycloak ? keycloakRuntimeChecks() : ''}
 `,
   );
   writeFileSync(
     path.resolve(consumerDir, 'keycloak-absent.cjs'),
-    `let threw = null;
+    `const assert = require('node:assert/strict');
+let threw = null;
 try {
   require('@web-ts-toolkit/moo/plugins/keycloak-user-sync');
 } catch (error) {
   threw = error;
 }
-if (!threw) throw new Error('expected the Keycloak subpath to require the optional peer');
+if (!threw) throw new Error('expected the Keycloak user-sync subpath to require the optional peer');
 if (threw.code !== 'MODULE_NOT_FOUND') throw new Error('expected MODULE_NOT_FOUND, got ' + (threw.code || threw.message));
 if (!String(threw.message).includes('@egose/keycloak-fluent')) throw new Error('expected the missing optional peer in: ' + threw.message);
+
+// Group sync gets its client from the application and has no runtime peer import.
+const { keycloakGroupSyncPlugin } = require('@web-ts-toolkit/moo/plugins/keycloak-group-sync');
+assert.equal(typeof keycloakGroupSyncPlugin, 'function');
 `,
   );
   writeFileSync(path.resolve(consumerDir, 'consumer-core.nodenext.mts'), coreTypesEsm());
@@ -464,7 +480,40 @@ async function checkDerivedFields(entries) {
 `;
 }
 
-function keycloakRuntimeEsm(): string {
+const keycloakGroupExample = `
+const orgSchema = new Schema({
+  slug: { type: String, required: true, unique: true, immutable: true },
+  description: String,
+  keycloak: {
+    groupId: String,
+    roleGroupIds: { type: Map, of: String },
+  },
+});
+const groupSyncOptions = {
+  client: keycloak,
+  realm: 'application',
+  paths: {
+    name: 'slug',
+    description: 'description',
+    providerId: 'keycloak.groupId',
+    roleGroupIds: 'keycloak.roleGroupIds',
+  },
+  roles: [
+    { name: 'admin', description: 'Organization administrators' },
+    'member',
+    {
+      name: 'engineering',
+      description: 'Engineering team',
+      children: [
+        { name: 'admin', description: 'Engineering administrators' },
+        { name: 'platform', children: ['maintainer'] },
+      ],
+    },
+  ],
+};
+`;
+
+function keycloakRuntimeChecks(): string {
   return `
 if (typeof keycloakUserSyncPlugin !== 'function') throw new Error('missing keycloakUserSyncPlugin');
 if (typeof createManagedKeycloakClient !== 'function') throw new Error('missing createManagedKeycloakClient');
@@ -487,30 +536,15 @@ const syncedSchema = new Schema({
   attributes: Schema.Types.Mixed,
 });
 syncedSchema.plugin(keycloakUserSyncPlugin, { client: keycloak, realm: 'application' });
-`;
-}
 
-function keycloakRuntimeCjs(): string {
-  return `
-if (typeof keycloakUserSyncPluginCjs !== 'function') throw new Error('missing keycloakUserSyncPlugin (cjs)');
-const keycloakCjs = createManagedKeycloakClientCjs({
-  baseUrl: 'http://127.0.0.1:1',
-  authRealm: 'master',
-  clientId: 'moo-packed',
-  clientSecret: 'packed-secret', // pragma: allowlist secret
-});
-const syncedSchema = new mongoose.Schema({
-  providerId: String,
-  username: String,
-  email: String,
-  emailVerified: Boolean,
-  firstName: String,
-  lastName: String,
-  archived: Boolean,
-  roles: [String],
-  attributes: mongoose.Schema.Types.Mixed,
-});
-syncedSchema.plugin(keycloakUserSyncPluginCjs, { client: keycloakCjs, realm: 'application' });
+const groups = keycloak.core.groups;
+for (const method of ['find', 'listSubGroups', 'findOne', 'create', 'createChildGroup', 'update']) {
+  assert.equal(typeof groups[method], 'function', 'managed client missing core.groups.' + method);
+}
+assert.equal(typeof keycloakGroupSyncPlugin, 'function');
+${keycloakGroupExample}
+orgSchema.plugin(keycloakGroupSyncPlugin, groupSyncOptions);
+mongoose.model('MooPackedKeycloakOrg', orgSchema);
 `;
 }
 
@@ -646,11 +680,13 @@ const options: KeycloakUserSyncPluginOptions = { client: keycloak, realm: 'appli
 syncedSchema.plugin(keycloakUserSyncPlugin, options);
 // @ts-expect-error Keycloak plugin options require a client
 syncedSchema.plugin(keycloakUserSyncPlugin, { realm: 'application' });
+${keycloakGroupTypes()}
 `;
 }
 
 function fullTypesCjs(): string {
-  return `import keycloakEntry = require('@web-ts-toolkit/moo/plugins/keycloak-user-sync');
+  return `import { Schema } from 'mongoose';
+import keycloakEntry = require('@web-ts-toolkit/moo/plugins/keycloak-user-sync');
 
 const keycloak = keycloakEntry.createManagedKeycloakClient({
   baseUrl: 'http://127.0.0.1:1',
@@ -658,7 +694,7 @@ const keycloak = keycloakEntry.createManagedKeycloakClient({
   clientId: 'moo-packed',
   clientSecret: 'packed-secret', // pragma: allowlist secret
 });
-const schema = new (require('mongoose').Schema)({
+const schema = new Schema({
   providerId: String,
   username: String,
   email: String,
@@ -672,6 +708,27 @@ schema.plugin(keycloakEntry.keycloakUserSyncPlugin, { client: keycloak, realm: '
 type PluginOptions = Parameters<typeof keycloakEntry.keycloakUserSyncPlugin>[1];
 const realmOf: PluginOptions['realm'] = 'application';
 void realmOf;
+${keycloakGroupTypes()}
+`;
+}
+
+function keycloakGroupTypes(): string {
+  return `
+import { model } from 'mongoose';
+import {
+  keycloakGroupSyncPlugin,
+  type KeycloakGroupSyncPluginOptions,
+} from '@web-ts-toolkit/moo/plugins/keycloak-group-sync';
+
+${keycloakGroupExample}
+orgSchema.plugin(keycloakGroupSyncPlugin, groupSyncOptions satisfies KeycloakGroupSyncPluginOptions);
+// @ts-expect-error Fixed roles and a document role path are mutually exclusive.
+orgSchema.plugin(keycloakGroupSyncPlugin, { ...groupSyncOptions, paths: { ...groupSyncOptions.paths, roles: 'catalog' } });
+const Org = model('MooPackedKeycloakOrg', orgSchema);
+const org = new Org({ slug: 'apple' });
+const rootId: string | null | undefined = org.keycloak?.groupId;
+const engineeringAdminId: string | undefined = org.keycloak?.roleGroupIds?.get('engineering/admin');
+void [rootId, engineeringAdminId];
 `;
 }
 
@@ -695,10 +752,17 @@ describe('Moo packed-package consumer harness (MOO-09)', () => {
     for (const subpath of mooSubpaths) {
       expect(manifest.exports?.[subpath]).toMatchObject({ types: expect.any(String), import: expect.any(String) });
     }
+    expect(manifest.exports?.['./plugins/keycloak-group-sync']).toEqual({
+      types: './plugins/keycloak-group-sync.d.ts',
+      import: './plugins/keycloak-group-sync.mjs',
+      require: './plugins/keycloak-group-sync.js',
+      default: './plugins/keycloak-group-sync.js',
+    });
     expect(manifest.peerDependencies).toMatchObject({
       '@egose/keycloak-fluent': '>=0.12.1 <0.15.0',
       mongoose: '>=8.0.0',
     });
+    expect(manifest.peerDependenciesMeta?.['@egose/keycloak-fluent']).toEqual({ optional: true });
     expect(manifest.devDependencies).toBeUndefined();
     expect(manifest.scripts).toBeUndefined();
     expect(containsDisallowedPublishedValue(manifest)).toBe(false);
@@ -738,6 +802,10 @@ describe('Moo packed-package consumer harness (MOO-09)', () => {
       'package/plugins/new-document.js',
       'package/plugins/new-document.mjs',
       'package/plugins/new-document.d.ts',
+      'package/plugins/keycloak-group-sync.js',
+      'package/plugins/keycloak-group-sync.mjs',
+      'package/plugins/keycloak-group-sync.d.ts',
+      'package/plugins/keycloak-group-sync.d.mts',
       'package/plugins/keycloak-user-sync.js',
       'package/plugins/keycloak-user-sync.mjs',
       'package/plugins/keycloak-user-sync.d.ts',
@@ -782,6 +850,7 @@ describe('Moo packed-package consumer harness (MOO-09)', () => {
       ),
     ) as string;
     expect(installedKeycloak).toMatch(/^0\.14\./);
+    console.info(`Packed ESM/CJS plugin registration and group API availability: Keycloak ${installedKeycloak}`);
   }, 180_000);
 
   it('compiles strict NodeNext declarations for every subpath with the current Keycloak peer', () => {
@@ -811,7 +880,7 @@ describe('Moo packed-package consumer harness (MOO-09)', () => {
     expect(versions.mongoose).toMatch(/^8\./);
     expect(versions.keycloak).toBe('0.12.1');
     console.info(
-      `Packed ESM/CJS core and dependency-selection checks: Mongoose ${versions.mongoose}, Keycloak ${versions.keycloak}`,
+      `Packed ESM/CJS plugin registration and group API availability: Mongoose ${versions.mongoose}, Keycloak ${versions.keycloak}`,
     );
   }, 180_000);
 
@@ -849,6 +918,7 @@ describe('Moo packed-package consumer harness (MOO-09)', () => {
       expect(keys).toContain(exportName);
     }
     expect(keys).not.toContain('keycloakUserSyncPlugin');
+    expect(keys).not.toContain('keycloakGroupSyncPlugin');
 
     // Dedicated subpaths carry the remaining public surface.
     const utilsKeys = JSON.parse(
@@ -866,14 +936,15 @@ describe('Moo packed-package consumer harness (MOO-09)', () => {
         'node',
         [
           '-e',
-          "console.log(JSON.stringify(Object.keys(require('@web-ts-toolkit/moo/plugins/keycloak-user-sync')).sort()))",
+          "console.log(JSON.stringify({ user: Object.keys(require('@web-ts-toolkit/moo/plugins/keycloak-user-sync')), group: Object.keys(require('@web-ts-toolkit/moo/plugins/keycloak-group-sync')) }))",
         ],
         consumerDir,
       ),
-    ) as string[];
+    ) as { user: string[]; group: string[] };
     for (const exportName of ['keycloakUserSyncPlugin', 'createManagedKeycloakClient']) {
-      expect(keycloakKeys).toContain(exportName);
+      expect(keycloakKeys.user).toContain(exportName);
     }
+    expect(keycloakKeys.group).toEqual(['keycloakGroupSyncPlugin']);
   }, 180_000);
 
   it('leaves package source fixtures outside the release-like tarball', () => {

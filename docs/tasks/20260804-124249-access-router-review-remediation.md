@@ -800,6 +800,11 @@ Acceptance criteria:
 - Positive and `@ts-expect-error` tests cover filters, projections, guards, runtime APIs, and subpaths.
 - Generated declarations contain no accidental private or anonymous configuration types.
 
+Review: 2026-11-26
+
+- [ARF-14](20260805-192300-access-router-remediation-follow-up.md#task-arf-14-execute-incremental-strict-type-slices) is the completion record for the first strictness slice. It records passing package typecheck, tests, and strict packed-consumer checks. The current package still enables `noImplicitAny` and maintains those checks.
+- Further package-wide strict flags remain deferred; [`tsconfig.json`](../../packages/access-router/tsconfig.json) still sets `strict: false`. The checks recorded in ARF-14 were not rerun for this review.
+
 ### Task AR-18: Optimize Data List And Filter Hot Paths
 
 Priority: P2

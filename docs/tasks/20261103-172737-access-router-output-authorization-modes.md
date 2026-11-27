@@ -686,6 +686,10 @@ Final root-gate follow-up (same independent REVIEW-05; scoped ACCEPT, overall bl
   in-scope implementation defect is known; full task completion awaits the external
   application test gate rather than treating a partially passing root run as green.
 
+Review: 2026-11-26
+
+- The later [CI-DAG-05 grouped run](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-local-evidence.md) reports a passing DPoP example app script, including 75 Chromium tests. The recorded B3 failure's cause and OAM-05's required serialized `pnpm test` result remain open. No application or workspace tests were rerun for this review.
+
 ## Shared verification and execution rules
 
 Prerequisites: dependencies installed with `pnpm install`, repository Node/pnpm
@@ -706,7 +710,7 @@ Vitest files with the package's config. Starting examples:
 
 ```sh
 pnpm --filter @web-ts-toolkit/access-router... build
-TMPDIR='<repo-root>/_tmp-<run-id>' pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/owned-authorization-modes.unit.test.ts test/owned-authorization-modes.integration.test.ts test/authorization-fast-path-options.integration.test.ts test/service-authorization-mutations.integration.test.ts test/document-permissions-dependencies.integration.test.ts
+TMPDIR='<repo-root>/_tmp-<run-id>' pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/invariants/owned-authorization-modes.unit.test.ts test/contracts/owned-authorization-modes.integration.test.ts test/invariants/authorization-fast-path-options.integration.test.ts test/invariants/service-authorization-mutations.integration.test.ts test/contracts/document-permissions-dependencies.integration.test.ts
 pnpm --filter @web-ts-toolkit/access-router-deco... build
 TMPDIR='<repo-root>/_tmp-<run-id>' pnpm --filter @web-ts-toolkit/access-router-deco exec vitest run --config vitest.config.ts test/owned-authorization-modes.test.ts
 ```
@@ -718,18 +722,18 @@ substitute for new feature tests or full package verification.
 ### V2 — affected packages and installed/tooling surface
 
 Historical compatibility benchmark cases additionally require an intact built
-historical root supplied through `WTT_BENCH_LEGACY_ROOT`; do not default that fixture
-to the current owned-engine checkout or fabricate legacy support. The integration
-handoff documents the original OAR-01 artifact and read-only inventory checks used
-in this environment. Set that variable to the verified artifact's absolute runtime
-path (and `WTT_BENCH_CANDIDATE_ROOT` to the current checkout where needed) for the
-benchmark commands. This historical dependency is not bundled with the task evidence.
+historical root supplied through `WTT_BENCH_LEGACY_ROOT`. The [integration handoff](../task-artifacts/access-router/oam-20261103-172737-integration/README.md#resolution-read-only-historical-fixture-and-complete-v2)
+records the verified OAR-01 build and its original local path. A fresh clone or
+new `TMPDIR` does not supply this fixture. Use the verified build's absolute path
+for the benchmark command and `WTT_BENCH_CANDIDATE_ROOT` for the current checkout
+where needed. The package checks can run independently; the historical comparisons
+remain unverified on a fresh checkout without that build.
 
 ```sh
 TMPDIR='<repo-root>/_tmp-<run-id>' pnpm --filter @web-ts-toolkit/access-router typecheck
 TMPDIR='<repo-root>/_tmp-<run-id>' pnpm --filter @web-ts-toolkit/access-router test
 TMPDIR='<repo-root>/_tmp-<run-id>' pnpm --filter @web-ts-toolkit/access-router-deco test
-TMPDIR='<repo-root>/_tmp-<run-id>' WTT_BENCH_TMP='<repo-root>/_tmp-<run-id>' node --test --test-concurrency=1 scripts/benchmarks/access-router-owned.test.mjs scripts/benchmarks/access-router-owned-batch.test.mjs
+TMPDIR='<repo-root>/_tmp-<run-id>' WTT_BENCH_TMP='<repo-root>/_tmp-<run-id>' WTT_BENCH_LEGACY_ROOT='<sealed-old-root>' node --test --test-concurrency=1 scripts/benchmarks/access-router-owned.test.mjs scripts/benchmarks/access-router-owned-batch.test.mjs
 ```
 
 The package suite includes `strict-consumer-types.test.ts` and

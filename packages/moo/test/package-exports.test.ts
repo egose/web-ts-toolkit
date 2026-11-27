@@ -24,26 +24,36 @@ describe('@web-ts-toolkit/moo package entrypoints', () => {
     }
   });
 
-  it('keeps Keycloak user sync on the direct subpath only for ESM imports', async () => {
+  it('keeps Keycloak plugins on their direct subpaths for ESM imports', async () => {
     const root = await import('../dist/index.mjs');
     const plugins = await import('../dist/plugins/index.mjs');
-    const keycloak = await import('../dist/plugins/keycloak-user-sync.mjs');
+    const userSync = await import('../dist/plugins/keycloak-user-sync.mjs');
+    const groupSync = await import('../dist/plugins/keycloak-group-sync.mjs');
 
-    expect(root).not.toHaveProperty('keycloakUserSyncPlugin');
-    expect(plugins).not.toHaveProperty('keycloakUserSyncPlugin');
-    expect(keycloak).toHaveProperty('keycloakUserSyncPlugin');
-    expect(keycloak).toHaveProperty('createManagedKeycloakClient');
+    for (const entry of [root, plugins]) {
+      expect(entry).not.toHaveProperty('keycloakUserSyncPlugin');
+      expect(entry).not.toHaveProperty('keycloakGroupSyncPlugin');
+    }
+    expect(userSync).toHaveProperty('keycloakUserSyncPlugin');
+    expect(userSync).toHaveProperty('createManagedKeycloakClient');
+    expect(Object.keys(groupSync)).toEqual(['keycloakGroupSyncPlugin']);
+    expect(groupSync.keycloakGroupSyncPlugin).toBeTypeOf('function');
   });
 
-  it('keeps Keycloak user sync on the direct subpath only for CJS imports', () => {
+  it('keeps Keycloak plugins on their direct subpaths for CJS imports', () => {
     const require = createRequire(import.meta.url);
     const root = require('../dist/index.js') as Record<string, unknown>;
     const plugins = require('../dist/plugins/index.js') as Record<string, unknown>;
-    const keycloak = require('../dist/plugins/keycloak-user-sync.js') as Record<string, unknown>;
+    const userSync = require('../dist/plugins/keycloak-user-sync.js') as Record<string, unknown>;
+    const groupSync = require('../dist/plugins/keycloak-group-sync.js') as Record<string, unknown>;
 
-    expect(root).not.toHaveProperty('keycloakUserSyncPlugin');
-    expect(plugins).not.toHaveProperty('keycloakUserSyncPlugin');
-    expect(keycloak).toHaveProperty('keycloakUserSyncPlugin');
-    expect(keycloak).toHaveProperty('createManagedKeycloakClient');
+    for (const entry of [root, plugins]) {
+      expect(entry).not.toHaveProperty('keycloakUserSyncPlugin');
+      expect(entry).not.toHaveProperty('keycloakGroupSyncPlugin');
+    }
+    expect(userSync).toHaveProperty('keycloakUserSyncPlugin');
+    expect(userSync).toHaveProperty('createManagedKeycloakClient');
+    expect(Object.keys(groupSync)).toEqual(['keycloakGroupSyncPlugin']);
+    expect(groupSync.keycloakGroupSyncPlugin).toBeTypeOf('function');
   });
 });

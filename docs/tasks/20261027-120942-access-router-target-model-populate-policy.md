@@ -197,7 +197,7 @@ scripts rebuild transitive shared dist outputs. No concurrent agent builds.
 
   ```sh
   TMPDIR='<repo-root>/_tmp-mpo' pnpm --filter @web-ts-toolkit/access-router test
-  TMPDIR='<repo-root>/_tmp-mpo' pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/strict-consumer-types.test.ts test/export-contract.test.ts test/documentation-examples.test.ts test/packed-consumer-compatibility.test.ts
+  TMPDIR='<repo-root>/_tmp-mpo' pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/contracts/strict-consumer-types.test.ts test/internal/export-contract.test.ts test/contracts/documentation-examples.test.ts test/contracts/packed-consumer-compatibility.test.ts
   ```
 
   A current complete server run containing all four updated consumer suites
@@ -1883,7 +1883,8 @@ Required refresh:
    actual-ref/schema requirements and independent operation/row/field/private gates
    retain their existing ownership and scope.
 
-Final handoff commands:
+Recorded final handoff commands. The `_tmp-mpo` audit script and logs are local
+to that review checkout.
 
 ```sh
 ./node_modules/.bin/prettier --write docs/tasks/20261027-120942-access-router-target-model-populate-policy.md > _tmp-mpo/mpo05-handoff-task-format.log 2>&1
@@ -1948,8 +1949,10 @@ and current C1-C4 accepted. No unresolved required finding.**
   isolation retain their positive/negative current tests. No global/old alias,
   raw unregistered passthrough or caller Model/flag capability was introduced.
 
-Fresh corrected-source **V2/V3** commands (repository root; `<repo-root>` was
-expanded at execution; all commands completed, not merely launched):
+Recorded corrected-source **V2/V3** commands (repository root; `<repo-root>` was
+expanded at execution; all commands completed). The recorder and standalone
+probe under `_tmp-mpo` are historical inputs. Use the [shared gates](#shared-gates)
+for current maintained checks from a fresh checkout.
 
 ```sh
 node _tmp-mpo/mpo04-run-gate.mjs _tmp-mpo/mpo04-resume-typecheck.log pnpm --filter @web-ts-toolkit/access-router typecheck
@@ -1980,7 +1983,7 @@ strict NodeNext/Node16/Bundler consumers and current runtime examples. Current p
 **5.0.0 / 8.0.0** retain their explicitly bounded `skipLibCheck` limit. No general
 peer/plugin compatibility claim is made.
 
-Fresh **V4**, serially after complete V3:
+Recorded **V4**, serially after complete V3, with the same local recorder:
 
 ```sh
 node _tmp-mpo/mpo04-run-gate.mjs _tmp-mpo/mpo04-resume-root-build.log pnpm build
