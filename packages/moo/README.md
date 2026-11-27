@@ -11,7 +11,13 @@ pnpm add mongoose @web-ts-toolkit/moo
 Peer dependencies:
 
 - `mongoose >= 8` (tested with Mongoose 8.24.x and 9.x)
-- `@egose/keycloak-fluent >=0.12.1 <0.15.0` only when using `@web-ts-toolkit/moo/plugins/keycloak-user-sync` (tested floor `0.12.1`, current `0.14.x`)
+- `@egose/keycloak-fluent >=0.12.1 <0.15.0` only when using Keycloak user or group sync (tested floor `0.12.1`, current `0.14.x`)
+
+For either Keycloak plugin, install the optional peer:
+
+```sh
+pnpm add @egose/keycloak-fluent@^0.14.0
+```
 
 ## Highlights
 
@@ -21,7 +27,7 @@ Peer dependencies:
 - new-document plugin
 - cascade-delete plugin
 - persisted derived fields for ordinary MongoDB queries and indexes
-- optional Keycloak user-sync plugin through a dedicated subpath
+- optional Keycloak user-sync and group-sync plugins through dedicated subpaths
 
 ## Quick Start
 
@@ -41,21 +47,22 @@ Root entrypoint (`@web-ts-toolkit/moo`):
 
 - schema helpers such as `uniqueNullableString(...)`
 - `isObjectId(...)`
-- document plugins except Keycloak user sync
+- non-Keycloak document plugins
 
 Subpath entrypoints:
 
 - `@web-ts-toolkit/moo/schema` — schema field helpers
 - `@web-ts-toolkit/moo/is` — type guards such as `isObjectId(...)`
 - `@web-ts-toolkit/moo/utils` — `isSchema`, `isObjectIdType`, `isReference`, and the `ReferenceShape` type
-- `@web-ts-toolkit/moo/plugins` — plugin entrypoint
+- `@web-ts-toolkit/moo/plugins` — grouped non-Keycloak plugins
 - `@web-ts-toolkit/moo/plugins/cascade-delete` — cascade-delete plugin
 - `@web-ts-toolkit/moo/plugins/derived-fields` — `derivedFieldsPlugin`, `defineDerivedField`, dependency error and authoring types
 - `@web-ts-toolkit/moo/plugins/model-function` — model-function plugin
 - `@web-ts-toolkit/moo/plugins/new-document` — new-document plugin
-- `@web-ts-toolkit/moo/plugins/keycloak-user-sync` — Keycloak user-sync plugin
+- `@web-ts-toolkit/moo/plugins/keycloak-user-sync` — `keycloakUserSyncPlugin` and `createManagedKeycloakClient`
+- `@web-ts-toolkit/moo/plugins/keycloak-group-sync` — `keycloakGroupSyncPlugin` and its option and role types
 
-The Keycloak plugin is intentionally not re-exported from the root or grouped `@web-ts-toolkit/moo/plugins` entrypoints. Non-Keycloak consumers only need `mongoose`; Keycloak consumers should install `@egose/keycloak-fluent` and import `keycloakUserSyncPlugin` from the direct subpath.
+Use named imports from the dedicated Keycloak subpaths. The root and grouped `@web-ts-toolkit/moo/plugins` entrypoints work with `mongoose` alone.
 
 ### Subpath import example
 
@@ -351,11 +358,7 @@ Typed filters accept MongoDB operators per field (`{ price: { $gt: 5 } }`, `{ pr
 
 ## Keycloak User Sync
 
-Install the optional Keycloak peer before using this entrypoint:
-
-```sh
-pnpm add @egose/keycloak-fluent
-```
+Install the [optional Keycloak peer](#installation) before using this entrypoint.
 
 ```ts
 import { Schema } from 'mongoose';
@@ -478,6 +481,133 @@ Only document `save()` and document `deleteOne()` are intercepted. Query operati
 For saves, a Keycloak failure after MongoDB persistence cannot roll back the local write. With `throwOnError: true`, the original error is rethrown after the post-save hook; with `throwOnError: false`, logging and `onError` make the failure observable and the application must retry by changing/saving the document or by running its own repair job. For deletes, remote deletion runs before local deletion. If the remote delete fails, the local document deletion is blocked even when `throwOnError: false`, leaving the same provider ID available for an idempotent retry.
 
 Remote work is field-specific after identity resolution. A single owned profile or attribute change resolves the user and performs one update, without password reset or role reconciliation. A new user with no role-sync intent skips role mapping calls. Role reconciliation is sequential and deterministic; it performs one ensure/get pair per desired owned role plus one mapping list and optional add/remove calls. Realm metadata is fetched for each sync instead of cached, so duplicate-email policy changes are observed without an invalidation API.
+
+## Keycloak Group Sync
+
+`keycloakGroupSyncPlugin` provisions a realm group and its desired subgroup tree
+from an organization document. Install the [optional Keycloak peer](#installation)
+and pass a managed client. You can share a client created by `createManagedKeycloakClient`
+between group and user sync. For this ES module example, set the environment
+variables below and use a service account that can read, create, and update groups
+in the `application` realm.
+
+```ts
+import mongoose, { Schema } from 'mongoose';
+import { keycloakGroupSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-group-sync';
+import { createManagedKeycloakClient } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
+
+const { MONGODB_URI, KEYCLOAK_URL, KEYCLOAK_CLIENT_ID, KEYCLOAK_CLIENT_SECRET } = process.env;
+if (!MONGODB_URI || !KEYCLOAK_URL || !KEYCLOAK_CLIENT_ID || !KEYCLOAK_CLIENT_SECRET) {
+  throw new Error('Set MONGODB_URI, KEYCLOAK_URL, KEYCLOAK_CLIENT_ID, and KEYCLOAK_CLIENT_SECRET');
+}
+const keycloak = createManagedKeycloakClient({
+  baseUrl: KEYCLOAK_URL,
+  authRealm: 'master',
+  clientId: KEYCLOAK_CLIENT_ID,
+  clientSecret: KEYCLOAK_CLIENT_SECRET,
+});
+
+const orgSchema = new Schema({
+  slug: { type: String, required: true, unique: true, immutable: true },
+  description: String,
+  keycloak: {
+    groupId: String,
+    roleGroupIds: { type: Map, of: String },
+  },
+});
+
+orgSchema.plugin(keycloakGroupSyncPlugin, {
+  client: keycloak,
+  realm: 'application',
+  paths: {
+    name: 'slug',
+    description: 'description',
+    providerId: 'keycloak.groupId',
+    roleGroupIds: 'keycloak.roleGroupIds',
+  },
+  roles: [
+    { name: 'admin', description: 'Organization administrators' },
+    'member',
+    {
+      name: 'engineering',
+      description: 'Engineering team',
+      children: [
+        { name: 'admin', description: 'Engineering administrators' },
+        { name: 'platform', children: ['maintainer'] },
+      ],
+    },
+  ],
+});
+
+const Org = mongoose.model('Org', orgSchema);
+await mongoose.connect(MONGODB_URI);
+try {
+  const org = await Org.create({ slug: 'apple', description: 'Apple' });
+  console.log({
+    orgGroupId: org.keycloak?.groupId,
+    engineeringAdminGroupId: org.keycloak?.roleGroupIds?.get('engineering/admin'),
+  });
+} finally {
+  await mongoose.disconnect();
+}
+```
+
+The root ID for `/apple` is stored as a string at `paths.providerId`. The map at
+`paths.roleGroupIds` stores string IDs under flat, org-relative keys, including
+intermediate groups: `admin`, `member`, `engineering`, `engineering/admin`,
+`engineering/platform`, and `engineering/platform/maintainer`. Both the root ID
+and map are available on the saved document and in MongoDB.
+
+### Role sources and descriptions
+
+- Configure exactly one source: a fixed `roles` array (snapshotted at plugin
+  registration), or `paths.roles` pointing to a persisted array on the org.
+  To store a mixed list per org, add `roles: { type: [Schema.Types.Mixed], default: undefined }`
+  to the schema, set `paths.roles` to `'roles'`, and omit the top-level `roles`
+  option. An empty tree or a missing/null document list reconciles only the root.
+- A string is shorthand for `{ name }`. Objects require `name` and can supply
+  `description` and `children`; strings and objects can be mixed at every level.
+  Names must be unique among siblings and map-safe: nonblank, no surrounding
+  whitespace, `/`, `.`, NUL, leading `$`, or reserved map keys (`__proto__`,
+  `prototype`, `constructor`). The tree is limited to **16 subgroup levels** below
+  the root and **500 subgroups** including intermediate groups. The whole tree is
+  validated before any Keycloak write.
+- Optional `paths.description` maps a stored string to the root group's native
+  Keycloak description. Subgroup descriptions come from their role objects.
+  Omission (or `null` for the root field) preserves the remote description;
+  `''` clears it. Changes update the owned group in place and preserve its other
+  attributes and memberships.
+
+### Ownership and saves
+
+Use a stable organization slug and `_id`. Leave ID fields to the plugin: new
+documents cannot supply bindings, and supported saves reject changes to stored
+bindings. The plugin checks realm, ownership, name/path, and direct parent before
+using a group. A stale or mismatched stored ID, or an unowned group at the desired
+path, causes an error without relinking. Ownership is derived from the realm,
+MongoDB database and collection names, and BSON `_id`; that tuple must uniquely
+identify your application's org, including across deployments sharing a realm.
+
+Ordinary `save()` and `Model.create()` automatically reconcile **after MongoDB
+persistence**, even on a save with unchanged input. Binding writes require a
+MongoDB server that supports aggregation pipelines in updates. Reconciliation
+errors reject the caller's promise after the org write has succeeded. Earlier
+bindings and remote changes can also remain; the two systems do not commit
+atomically. For a retry, reload the saved document and call `save()` outside a
+session. A retry can recover groups created before their IDs were stored by
+verifying ownership. To backfill existing orgs after enabling the plugin or
+changing a fixed catalog, explicitly load them and call ordinary `save()`.
+
+Supported saves with any session, including document-bound or ambient Mongoose
+transaction sessions, reject before persistence. Query writes, `insertMany()`,
+`bulkWrite()`, `bulkSave()`, raw driver writes, and saves with user middleware
+explicitly disabled (such as `save({ middleware: false })` where supported)
+bypass the plugin.
+
+Provisioning is additive: removing a desired role preserves its remote group,
+memberships, and stored map entry; deleting an org leaves its remote tree in
+place. The plugin does not rename or reparent groups, assign members, or grant
+realm/client roles or permissions.
 
 ## Documentation
 

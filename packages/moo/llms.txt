@@ -155,25 +155,35 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 });
 ```
 
+Keycloak group sync (see README "Keycloak Group Sync" for a complete example):
+
+- Import `keycloakGroupSyncPlugin` from `@web-ts-toolkit/moo/plugins/keycloak-group-sync`. Pass the app's managed client (for example, reuse one created by `createManagedKeycloakClient`) and the target `realm`.
+- Map `paths.name` to a stable org slug, `paths.providerId` to a string root ID, and `paths.roleGroupIds` to a `Map` of strings. Saved docs expose the root ID and flat, org-relative keys such as `engineering/admin`, including intermediate subgroup IDs.
+- Use exactly one of fixed `roles` or a `paths.roles` document array (use `[Schema.Types.Mixed]` for mixed entries). Role entries are strings or `{ name, description?, children? }`, with up to 16 subgroup levels and 500 subgroups. An empty/absent list reconciles only the root.
+- `paths.description` maps the root's native Keycloak description; role objects set subgroup descriptions. Omission (or null on the root field) preserves the remote description; an empty string clears it. Other attributes and memberships are preserved.
+- IDs are plugin-controlled. A group must match the realm, name/path, direct parent, and owner, which is derived from the realm plus MongoDB database, collection and BSON `_id`. Ensure that tuple uniquely identifies the org across apps sharing a realm.
+- Ordinary `save()` / `Model.create()` reconcile after MongoDB persistence. Binding writes require aggregation-pipeline updates. A post-save failure rejects the caller while local and partial remote writes can remain; reload and save outside a session to retry, or save existing orgs to backfill a catalog change.
+- Session-backed saves (including ambient Mongoose transactions) reject before persistence. Query/bulk/driver writes and saves with middleware explicitly disabled bypass sync. Removing roles or orgs leaves the remote groups in place. Provisioning assigns no memberships or permissions.
+
 ## Gotchas
 
 - peer dependency: `mongoose >= 8` (tested with Mongoose 8.24.x and 9.x)
-- optional peer dependency: `@egose/keycloak-fluent >=0.12.1 <0.15.0` only for `@web-ts-toolkit/moo/plugins/keycloak-user-sync` (tested floor `0.12.1`, current `0.14.x`)
+- optional peer dependency: `@egose/keycloak-fluent >=0.12.1 <0.15.0` only for Keycloak user or group sync (tested floor `0.12.1`, current `0.14.x`)
 - root entrypoint exports schema helpers, `isObjectId`, and non-Keycloak plugins; dedicated plugin subpaths are also available
-- Keycloak user sync is not re-exported from root or `@web-ts-toolkit/moo/plugins`; import it from the direct subpath
+- import Keycloak plugins from their dedicated subpaths; root and `@web-ts-toolkit/moo/plugins` work without the optional peer
 - `createManagedKeycloakClient` lazily uses `client_credentials`, renews on demand without timers, and deduplicates concurrent authentication; construct a client directly for custom grants
 - `isObjectId(...)` is a strict guard: it rejects strings that `ObjectId.isValid` accepts but that don't round-trip back to the same string
 - `uniqueNullableString`/`uniqueEmptiableString` return partial-index field definitions, not full schemas
 - new-document plugin runs its callback only after the first successful `save()` of a newly inserted document
-- Keycloak sync covers document `save()` and document `deleteOne()`, not query updates/deletes
-- Keycloak sync errors are logged and rethrown by default; MongoDB saves have already committed when post-save sync runs
+- Keycloak user sync covers document `save()` and document `deleteOne()`, not query updates/deletes
+- Keycloak user-sync errors are logged and rethrown by default; MongoDB saves have already committed when post-save sync runs
 - duplicate-email realms prioritize providerId/username; email lookup is rejected when more than one exact match exists
 - Keycloak attributes sync from the `attributes` path or `mapAttributes`; values become string arrays
 - use `managedAttributes` for keys the plugin may remove; unmanaged remote attributes are preserved
 - use `attributePaths` when `mapAttributes` reads dynamic paths outside the default `attributes` path
 - password sync is opt-in with `syncFields.password: true`; map a non-persisted pending-password virtual, not a stored hash or stored plaintext path
 - `mapPassword` runs lazily (creation or declared password intent only); declare extra inputs with `passwordPaths`, role inputs with `rolePaths`
-- Keycloak loggers receive only `{ operation, localDocumentId, error: { name, code?, status? } }`; `onError` keeps the original error
+- Keycloak user-sync loggers receive only `{ operation, localDocumentId, error: { name, code?, status? } }`; `onError` keeps the original error
 - cascade delete intercepts only document `deleteOne()`; `post` runs after the parent is removed (abort the transaction to restore); `maxConcurrency` default 8, `batchSize` default 100
 - typed filters accept per-field operators (`{ price: { $gt: 5 } }`); no-argument `findDependents()`/`findOrphans()` return `Partial` maps (unsupported entries omitted)
 - schema-helper `overrides` win over defaults in both runtime and types
@@ -190,6 +200,7 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 - `@web-ts-toolkit/moo/plugins/model-function` — `modelFunctionPlugin`
 - `@web-ts-toolkit/moo/plugins/new-document` — `newDocumentPlugin`
 - `@web-ts-toolkit/moo/plugins/keycloak-user-sync` — `createManagedKeycloakClient`, `keycloakUserSyncPlugin`
+- `@web-ts-toolkit/moo/plugins/keycloak-group-sync` — `keycloakGroupSyncPlugin`, `KeycloakGroupSyncPluginOptions`, `KeycloakGroupSyncPaths`, `KeycloakGroupSyncRole`, `KeycloakGroupSyncRoleDefinition`
 
 ## Pointers
 

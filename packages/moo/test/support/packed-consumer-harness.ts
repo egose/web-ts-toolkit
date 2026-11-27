@@ -32,6 +32,7 @@ export type PackageJson = {
   exports?: Record<string, unknown>;
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
+  peerDependenciesMeta?: Record<string, { optional?: boolean }>;
   devDependencies?: Record<string, string>;
   scripts?: Record<string, string>;
   files?: string[];
@@ -66,6 +67,7 @@ export const mooSubpaths = [
   './plugins/derived-fields',
   './plugins/model-function',
   './plugins/new-document',
+  './plugins/keycloak-group-sync',
   './plugins/keycloak-user-sync',
 ] as const;
 
