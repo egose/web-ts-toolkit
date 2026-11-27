@@ -2,8 +2,15 @@
 
 Created: 2026-09-07 13:45:00 PDT
 
-Parent task: `docs/tasks/20260907-121236-access-router-deco-boundary-review.md` (Task BDECO-09, investigation).
-Status of BDECO-09: investigation complete. BDECO-09-F01: in_progress (2026-09-27 continuation).
+Parent task: [BDECO-09 investigation](20260907-121236-access-router-deco-boundary-review.md#task-bdeco-09-define-scoped-property-enforcement-and-inherited-remapping).
+Status of BDECO-09: investigation complete. BDECO-09-F01: completed.
+
+## Review (2026-11-26)
+
+- Commit `f4672a50` (included in `v0.46.0`) delivered the September 27 decision. Current [factory validation](../../packages/access-router-deco/src/factory.ts), [metadata merging](../../packages/access-router-deco/src/metadata.ts), and [property regression tests](../../packages/access-router-deco/test/inheritance-symbol.test.ts) cover wrong-role rejection, known scalar validation, and child remapping. Unknown extension keys remain allowed under the approved policy.
+- The [installed README](../../packages/access-router-deco/README.md#property-decorators-option-injection) and [website migration guide](../../website/docs/packages/access-router-deco.md#property-and-openapi-migration) describe the delivered behavior. The old `requireRegisteredPopulateModels` option in the continuation decision was later removed under the [target-model populate policy](20261027-120942-access-router-target-model-populate-policy.md).
+- Verification from the repository root against `9c070f32`: `TMPDIR='<repo-root>/_tmp-td26b' pnpm_config_verify_deps_before_run=warn pnpm --filter @web-ts-toolkit/access-router-deco test:compat` passed the build, typecheck, and all **782 tests in 23 files**, including both F01 regression suites and the packed compatibility matrix. The initial default invocation exited before tests during pnpm's automatic install (`ERR_PNPM_IGNORED_BUILDS` for `protobufjs@7.6.6`); the passing run used the installed dependencies with the refresh warning visible.
+- The continuation and original findings below preserve the implementation decision, pre-fix observations, and then-open approval gate. This review did not rerun tests on the pre-fix revision.
 
 ## Continuation decision (2026-09-27)
 

@@ -2,7 +2,7 @@
 
 Created: 2026-11-18 11:17:23 PST (`20261118-111723`, generated with `date`).
 
-Status: in_progress. The user authorized implementation by sequential sub-agents after this plan was created on 2026-11-18. Pushes, workflow dispatches, and repository-settings changes remain unauthorized.
+Status: blocked on [CI-DAG-05 corrective and rollout acceptance](#task-ci-dag-05-verify-rollout-measure-tradeoffs-and-update-testing-guidance). The user authorized implementation by sequential sub-agents after this plan was created on 2026-11-18. Pushes, workflow dispatches, and repository-settings changes remain unauthorized.
 
 ## Objective and scope
 
@@ -342,7 +342,7 @@ Completion evidence:
 
 ### Task CI-DAG-05: Verify rollout, measure tradeoffs, and update testing guidance
 
-Status: in_progress
+Status: blocked
 
 Assigned: fresh independent CI-DAG-05 integration/review agent, started only after coordinator acceptance of CI-DAG-04 on 2026-11-18. This agent was not a primary implementer of CI-DAG-02/03/04. Coordinator owns task statuses.
 
@@ -389,11 +389,16 @@ Current corrective-review result and coordinator closeout (**2026-11-19**): the 
 
 Remaining blockers: **Q1**, fresh maintained Prettier failure on `.github/workflows/test.yml`, with no baseline establishing it as pre-existing; **runtime**, positive full native short-root execution, actual Node-20 execution and real Actions main/post/installer/action-resolution behavior; **R2**, original cause, focused abort failure, observer timing neutrality and incomplete packed-consumer verification; **R3**, authorized hosted healthy/fault/preparation/validation/cancellation/missing/skipped evidence, artifact/scheduling/required-check confirmation, comparable measurements and maintainer risk/budget/rollout decisions.
 
-Current authorization is **saved-evidence reconciliation and coordinator documentation only**. R2's complete-package allowance and the reviewer's one CI/group-validator allowances are spent. **Renewed explicit authorization is required before workflow correction, corrective delegation, any additional package/focused execution, source/native/runner probe, runtime/tool installation or hosted execution.** No commit, push, dispatch, publication or settings change is authorized. Preserve complete scripts/rebuilds, worker limits, independent lanes, precise dependent skipping, fail-closed `unit-test`, multi-instance coverage and security/business-effect assertions. CI-DAG-05 remains **in_progress, blocked before corrective/final rollout acceptance**; no coordinator acceptance has been granted.
+Current authorization is **saved-evidence reconciliation and coordinator documentation only**. R2's complete-package allowance and the reviewer's one CI/group-validator allowances are spent. **Renewed explicit authorization is required before workflow correction, corrective delegation, any additional package/focused execution, source/native/runner probe, runtime/tool installation or hosted execution.** No commit, push, dispatch, publication or settings change is authorized. Preserve complete scripts/rebuilds, worker limits, independent lanes, precise dependent skipping, fail-closed `unit-test`, multi-instance coverage and security/business-effect assertions. At corrective-review closeout, CI-DAG-05 was recorded as **in_progress, blocked before corrective/final rollout acceptance**; no coordinator acceptance was granted.
 
 Subsequent hosted evidence (**2026-11-19**, separate from local reconciliation): [read-only install failure review](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-hosted-install-failure.md) maps the supplied log to push run `44599507795`, attempt 1, `unit-test` job `135827132029` at `1977fe018e354b6c7f0e497cd31cfc57c76c78ac`. Short checkout, Node setup, the installer boundary and pnpm self-install succeeded; `pnpm install --frozen-lockfile --ignore-scripts` then failed with `Worker pnpm#2 exited with code 1`. The worker cause is unconfirmed. The push and PR runs both failed in `ci-validate` setup, skipped preparation and all 25 package jobs, and failed `unit-test` setup before the result evaluator. All four independent jobs reported success in each run. The existing push `ci-validate` log is needed to establish the upstream failing command. This is partial hosted evidence only; Q1, full runtime, R2 and controlled R3 acceptance remain open. Authorization and status are unchanged.
 
 Hosted follow-up (**2026-11-19**): the [second supplied log](../task-artifacts/access-router/20261118-111723-dependency-gated-ci-tests/ci-dag-05-hosted-install-followup.md) confirms the upstream `ci-validate` failure in newer push run `44610765835`, attempt 1, job `135866430929` at `c842f74`. The frozen install failed with the same worker exit on pnpm `11.24.0`; the earlier `1977fe0` log actually used `11.18.0`, as recorded before the version reference update. The lockfile changed between the revisions, and the underlying worker cause remains unconfirmed. The original push's `ci-validate` log is still unverified. No historical seals were reissued for the new revision, and the authorization and acceptance status are unchanged.
+
+Review: 2026-11-26
+
+- The recorded corrective verdict and partial hosted install evidence leave Q1, runtime verification, and R2/R3 outstanding. The plan and CI-DAG-05 now say `blocked` to reflect those prerequisites.
+- The 25-package counts describe the earlier graph. Commit `bc086cc6` added `test-email-service`; the current [workflow](../../.github/workflows/test.yml) and [testing guidance](../../AGENTS.md#testing-notes) specify 26 package jobs and 28 direct results for `unit-test`. This review inspected the checked-in workflow and saved reports; it ran no CI validators or live jobs.
 
 Kind: improvement
 

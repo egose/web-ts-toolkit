@@ -515,29 +515,6 @@ Completion evidence:
 - Environment blockers: none. All gates executed in this session against current sources; no historical green inherited (mongo-backed suites passed; no external services required).
 - Follow-ups: BND-07-FOLLOWUP (blocked on maintainer contract decision), BND-12-FOLLOWUP-A/B as above; BND-12 lint warnings to BND-12 owner (non-blocking).
 
-Kind: improvement
-
-Priority: P1, cross-path regressions and installed-consumer drift can survive isolated fixes.
-
-Suggested agent: independent reviewer, not the primary cache/model implementer
-
-Dependencies: BND-01, BND-02, BND-03, BND-04, BND-05, BND-06, BND-07, BND-08, BND-09, BND-10, BND-11, BND-12
-
-Primary ownership: integration evidence, coordinated README/JSDoc/release notes and affected docs fixtures, this task file; corrections assigned back to original owners.
-
-Finding and references: source, emitted types, docs, and fake-adapter tests cover different boundaries, as evidenced by BND-02/BND-03/BND-11. `packages/access-router-client/tsup.config.ts:13-15` also retains an inaccurate browser syntax-verification description and stale smoke filename despite the narrowed README claim from ARC-H08.
-
-Requirements:
-
-1. Independently verify every implemented acceptance criterion, regression-before-fix evidence, negative cases, direct/grouped parity, and no unintended credential/internal-header exposure.
-2. Reconcile runtime, public types, source JSDoc, installed README, affected website/docs fixtures, and release notes. Correct the stale build comment/test path without claiming jsdom validates real browser-engine floors.
-3. Execute V2, V3, and V4 serially. Check packed exports and declarations after a fresh build. Document exact environment blockers rather than inheriting historical green results.
-4. Record decisions/deferrals from BND-07/BND-12 and ensure unresolved correctness risk has an owned follow-up. Do not describe an investigation completion as a runtime fix.
-
-Acceptance criteria: all required implemented outcomes have independent evidence; package/artifact/repository checks pass, or this task stays blocked with exact prerequisites. No uncontrolled shared-file edits, stale acceptance claims, or undocumented breaking contract changes remain.
-
-Verification: V2, V3, V4 and evidence review of all tasks.
-
 ## Deferrals And Definition Of Done
 
 - No confirmed new package export-path failure was found in the inspected root metadata/build shape. Preserve the existing packed/declaration gates instead of adding speculative entrypoints or another export API.

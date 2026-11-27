@@ -31,6 +31,12 @@ their original repo-relative locations, and source/archive SHA-256 hashes. Other
 handoffs, intermediate reports, test catalogs and selected JSON audit summaries
 retain the chronology behind these entry points.
 
+**Manifest check (2026-11-26):** all 162 archive hashes match at `62423210`.
+The pnpm version update in `c842f740` changed 22 archived Markdown files; those
+files still differ from their manifest hashes at `9c070f32`. Use the `62423210`
+versions for the original bytes and toolchain notes. The manifest continues to
+describe the original archive.
+
 ## Historical status, not new acceptance
 
 Documents retain their original findings, failures, approvals still pending at

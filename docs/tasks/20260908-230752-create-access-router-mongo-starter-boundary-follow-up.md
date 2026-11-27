@@ -472,29 +472,6 @@ Completion evidence:
 - Acceptance proof: injected cleanup throw after a 2-mutation completed report yields exit 1 with `Deploy completed successfully` + `Local cleanup failed: simulated cleanup failure` + `do not retry` + `Exit 1` + both `completed` mutations, and `keep-on-failure` (no `Deploy finished.`); `DeployFailure` via `runNetlifyCli` still lists `Remote state may remain` + completed mutation with no success-path cleanup. CARMSF-08 evidence/follow-up (CARMSF-08F) read first; no conflicting context/scope changes made.
 - Follow-ups / blocked: Windows NATIVE execution remains blocked, not verified. Missing prerequisite: a Windows host/CI runner (or Windows process harness) capable of executing the installed `deploy-netlify` bin against a `.cmd` shim to prove shim behavior end-to-end. What is covered on Linux: value-free shim rejection unit tests with explicit `win32` platform injection, shared-runner argv-array preservation (tricky args round-trip with `shell: false`), and the narrowed support contract in `HELP`/diagnostics. No shell around arbitrary args was enabled. No `dist/` files hand-edited; CHANGELOG.md untouched.
 
-Kind: defect
-
-Priority: P2, misleading failure reporting can trigger duplicate remote operations.
-
-Suggested agent: deployment lifecycle/testability specialist
-
-Dependencies: CARMSF-08 and any implementation follow-up that owns the same orchestration code
-
-Primary ownership: `packages/create-access-router-mongo-starter/scripts/deploy-netlify.ts`, shared runner only as necessary, orchestration tests.
-
-Finding: `main` discards the successful `DeploymentReport`, then cleanup can throw outside the `DeployFailure` report path. A successful deployment is consequently reported as a generic failure. Windows handling also resolves a `.cmd` shim but sends it to a shell-free spawn; actual platform support has not been executed. Prior overlap: CARMS-01/03/08.
-
-References:
-
-- `packages/create-access-router-mongo-starter/scripts/deploy-netlify.ts:131-180,1070-1087`.
-- `packages/create-access-router-mongo-starter/scripts/deploy-shared.ts:428,455,569-582`.
-
-Requirements: retain and report remote success when local cleanup fails; keep cleanup safety checks. Ensure tool preflight exercises the same invocation mechanism used later. Validate Windows shim invocation or explicitly narrow the support contract; do not enable a shell around arbitrary arguments as a shortcut. Keep process/environment ownership at a small orchestration boundary.
-
-Acceptance criteria: injected cleanup failure after remote success yields explicit completed-deployment and local-cleanup diagnostics; retry implications and exit behavior are documented; deployment failure still reports completed mutations. A Windows process-level test establishes safe argument preservation and shim execution, or a documented platform limitation remains tracked as blocked follow-up.
-
-Verification: V1 orchestration/deploy tests, V2; Windows CI/process harness for shim behavior. Linux mocks alone do not close Windows support.
-
 ### Task CARMSF-10: Bind Deletes To The Actual Integrity Transaction
 
 Status: completed
@@ -876,23 +853,11 @@ Residual-risk list:
 
 Explicit follow-up task CARMSF-17F1 (owner: backend persistence specialist; files: `packages/create-access-router-mongo-starter/template/tests/integrity-transaction.test.ts` race block lines ~189-210; no production-code change expected): widen the concurrent race expectations to the three safe interleavings — `todoStatus ∈ {201, 400, 409}`, `deleteStatus ∈ {200, 409}` — with branch assertions covering delete-wins-then-409 (`deleteStatus === 200 → todoStatus ∈ {400, 409}`) and todo-wins (`todoStatus === 201 → deleteStatus === 409`), while keeping the no-dangling-reference invariant (post-race reads) and session-termination check. Acceptance: 10 consecutive full `pnpm --filter create-access-router-mongo-starter test` runs green with no other change; V4 `pnpm test` then unblocked. Not implemented by this review per ownership rules.
 
-Kind: improvement
+Review: 2026-11-26
 
-Priority: P1, helper-only tests previously missed multiple producer/consumer boundaries.
-
-Suggested agent: independent reviewer who did not implement the primary fixes
-
-Dependencies: CARMSF-01 through CARMSF-16 and any required implementation follow-ups from investigations; optional work may instead have an explicit approved deferral with residual risk.
-
-Primary ownership: this task record, integration evidence, narrowly scoped missing regressions. Do not silently rewrite implementation during independent review.
-
-Finding: prior integration passed helper-heavy tests while session propagation, artifact naming, post-link containment, and parse-error redaction remained unverified at their real boundaries. References: the task-specific source/test evidence above and prior CARMS-19 completion record.
-
-Requirements: review each acceptance criterion against real boundary behavior; verify security across alternate CLI/HTTP paths, literal title serialization, packed-secret exclusion, actual frozen installation, successful persisted CRUD, index readiness, provider context decisions, and generated documentation/types. Check that no new raw errors/secrets cross external boundaries and that request/output bounds remain intact. New independent findings become explicit tasks with evidence and dependencies.
-
-Acceptance criteria: all required fixes and investigation follow-ups have passing targeted evidence; V2/V3/V4 pass or are truthfully blocked with exact prerequisites; platform/provider/database gaps are not represented as verified; staged/packed output derives from reviewed source; an independent findings summary and residual-risk list are appended; unrelated worktree changes remain untouched.
-
-Verification: V2, V3, V4 serially; inspect all investigation conclusions and minimum-Node/Windows/replica-set evidence. A passing mock-only suite cannot substitute for the required real operation checks.
+- **CARMSF-09:** [DEPLOY-06](20260910-175600-netlify-cli-free-deploy.md#task-deploy-06-final-integration-review-independent-reviewer) and commit `7ea1061c` record the switch to API-only deploys. The Netlify CLI shim check is superseded for this deployment path. The review still records no live Netlify deployment, so CARMSF-08F's provider context/scope questions remain open.
+- **CARMSF-17F1:** commit `627a0307` extended the [race assertions](../../packages/create-access-router-mongo-starter/template/tests/integrity-transaction.test.ts) to accept the fail-closed `409` result and retained the post-race write. [Later workspace evidence](20261005-131819-access-router-operation-access-variants.md#oav-07-completion-evidence-2026-10-05) records a passing serialized root test. The current race case does not directly read both records after the race, and no ten-run acceptance record was found. The original follow-up is only partially evidenced.
+- Verification here was source and history inspection; no starter or provider checks were rerun.
 
 ## Decisions And Deliberate Deferrals
 

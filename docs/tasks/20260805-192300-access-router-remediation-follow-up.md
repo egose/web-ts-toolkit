@@ -685,7 +685,7 @@ Primary ownership:
 
 Finding:
 
-Original AR-17 was deferred with 169 `noImplicitAny` errors, but its informal slices lack executable ownership, dependencies, checks, and acceptance evidence.
+Original [AR-17](20260804-124249-access-router-review-remediation.md#task-ar-17-incrementally-enable-strict-type-checking) was deferred with 169 `noImplicitAny` errors, but its informal slices lack executable ownership, dependencies, checks, and acceptance evidence.
 
 Implementation requirements:
 

@@ -5,6 +5,18 @@ probes, fixtures, consumer installations, logs and other scratch work. Before
 finalizing a task or handing work off, promote referenced contents that deserve
 preservation here so another checkout does not depend on ignored local files.
 
+## Reading `_tmp*` references
+
+- `TMPDIR` in a new command is a workspace for files that command will create.
+  Make a fresh ignored directory in your checkout and use its absolute path.
+- A manifest's original path or a command under historical results describes the
+  checkout where the work ran. Follow the archived path or summary for the
+  retained evidence. A fresh clone does not contain the original scratch files.
+- A command that **reads** an old scratch script, build, or data file needs that
+  input. Link to a tracked replacement or give a regeneration procedure if the
+  command is meant to be runnable. Otherwise, state which input is missing and
+  label the command as historical.
+
 ## Location
 
 Store artifacts under:
@@ -27,9 +39,11 @@ duplicating the bundle. Placeholders must be replaced before executing commands.
 - Review findings, resolutions, acceptance reports and meaningful performance results.
 - Selected protocols, data or logs needed to support or reproduce those claims.
 
-Do not preserve something merely because a historical command mentions its path.
-References to disposable `TMPDIR` locations may remain when clearly identified as
-historical scratch work, not required evidence or execution prerequisites.
+Start with the decision, result, and link to the task. A task record and a pinned
+Git revision often suffice. Keep detailed logs, source snapshots, or per-case data
+when a specific audit, calculation, or follow-up depends on them. A path listed
+in a manifest records what was captured; it does not by itself justify keeping
+every captured file in future bundles.
 
 Do not commit dependency trees, caches, database files, browser profiles/binaries,
 generated consumers/builds/tarballs or redundant intermediate output. Convert useful
@@ -71,6 +85,23 @@ as documentation artifacts.
 See [task-file conventions](../tasks/README.md) for scratch-directory usage and
 machine-independent evidence records.
 
-## Existing bundles
+## Find the evidence
 
-- [Access-router historical evidence](access-router/README.md)
+Start with the task record or one of the indexes below. Source paths in older
+reports reflect the reviewed revision. The [maintained access-router test guide](../../packages/access-router/test/README.md)
+describes the current test layout. Links inside captured source excerpts are
+relative to their original checkout.
+
+### Access Router and workspace CI
+
+- [Access-router historical evidence](access-router/README.md): ownership design, migrations, and performance reports.
+- [Test-contract separation acceptance](access-router/20261108-094712-test-contract-separation/ACCEPTANCE.md): final review and the ledgers used to check test preservation.
+- [Dependency-gated CI](access-router/20261118-111723-dependency-gated-ci-tests/README.md): rollout blockers, local checks, and hosted failure evidence.
+- [Performance cleanup outcome](access-router/20261105-084939-performance-cleanup/FINAL.md) and [write-input optimization review](access-router/20261112-084753-create-update-input-optimization/cwo-07/README.md): retained changes, withdrawn candidates, and measurement limits.
+
+### Email Service
+
+- [V1 contract](email-service/20261118-223259-email-service-package/v1-contract.md) and [package acceptance](email-service/20261118-223259-email-service-package/email-12-acceptance.md).
+- [SMTP capacity](email-service/20261120-214514-email-service-smtp-capacity/README.md): approved contract, measurements, and acceptance.
+- [Cross-project adoption re-review](email-service/20261121-email-adopt-10/re-review.md).
+- [Managed attachments](email-service/20261121-email-managed-attachments/README.md): design decisions, independent re-review, and remaining production qualifications.

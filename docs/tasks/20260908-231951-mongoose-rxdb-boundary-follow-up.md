@@ -844,24 +844,6 @@ Completion evidence (independent reviewer, no re-implementation, no source/behav
 - Verification commands/results (run serially from repo root): focused boundary runs `pnpm exec vitest run --config vitest.config.ts` → (a) 6 files, 71 tests passed (document/projection/sanitize/budget/null/chained); (b) 8 files, 54 tests passed (atomicity/nested-save/immutable/array/storage-value/schema/default/nested-required); (c) 10 files, 80 tests passed (validation/middleware-errors/close-recovery/init-drain/precreated-schema/startup/memory/bulk-duplicates/date/lean) — 24 files, 205 tests total; `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json` → clean; `pnpm exec eslint "packages/mongoose-rxdb/src/**/*.ts" "packages/mongoose-rxdb/test/**/*.ts"` → clean; `pnpm --filter @web-ts-toolkit/mongoose-rxdb test` → 35 files, 279 tests passed; `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/test-decl-consumer/tsconfig-nodenext.json` → clean; `.../tsconfig-bundler.json` → clean; `pnpm --filter mongoose-rxdb-example typecheck` → clean; `pnpm exec vitest run --config vitest.config.ts packages/mongoose-rxdb/test/packed-consumer.test.ts` → 1 file, 5 tests passed; `pnpm lint` → 0 errors (3 pre-existing unused `eslint-disable no-console` warnings); `pnpm build` → success; `pnpm test` → first run had 1 failure in `create-access-router-mongo-starter` (out-of-scope package with pre-existing unrelated worktree modifications documented in this plan's Coverage section; untouched per task rules), rerun exit 0 with all 26 packages passing and zero failed tests; `pnpm build-artifact -- --version 0.99.0-bmrx26` → success (`dist/web-ts-toolkit-0.99.0-bmrx26.tar.gz`); `pnpm verify-artifact -- --version 0.99.0-bmrx26` → verified successfully.
 - Changed paths: this task document only (BMRX-26 Status → completed + this evidence). No source, test, README, website, CHANGELOG.md, starter, or `dist` changes. Probe scripts removed from `<repo-root>/_tmp` after the run (pre-existing `<repo-root>/_tmp/bmrx23-*`/`bmrx25-*` files left alone).
 
-Kind: improvement
-
-Priority: P1; multiple shared boundaries and native-only defects require an independent integration gate.
-
-Suggested agent: reviewer who did not implement the preceding fixes
-
-Dependencies: BMRX-01 through BMRX-25
-
-Primary ownership: review evidence in this document, focused missing regressions, package consumer/integration checks; no broad refactor.
-
-Finding and references: the prior completed plan's tests missed alternate setter/projection paths, native startup timing, conditional concurrency, and within-batch native errors. References are the concrete scenarios and test gaps in BMRX-01 through BMRX-25, plus historical MRX-15 evidence.
-
-Requirements: verify acceptance against runtime behavior, not completion summaries. Trace public create/save/insertMany/query/builder/compiler/adapter paths and model invalidation. Compare runtime errors, types, docs, shipped artifacts, and selected-backend metadata. Verify security decisions and bounded-input guarantees, and retain explicit deferred-risk rationale.
-
-Acceptance criteria: every defect has a regression failing before the fix and passing after where feasible; investigations have approved evidence-backed dispositions and tracked necessary follow-ups. Security/concurrency/resource regressions use real/native or isolated-process evidence where fake adapters are insufficient. Required checks pass, or this task remains blocked with exact prerequisites/owner and unverified criteria. No unexplained P0/P1 risk is silently signed off.
-
-Verification: all shared verification levels below, serialized, with exact commands/results appended as completion evidence.
-
 ## Shared Verification
 
 Prerequisites: repo dependencies installed with `pnpm install`, supported Node 22+ for this package, and optional SQLite drivers/license availability identified before claiming backend coverage. Use unique database/collection names and isolated temporary directories such as `<repo-root>/_tmp`; clean up child processes, listeners, databases, and files after success and failure. Never run pathological regex or prototype deletion probes in the main runner.

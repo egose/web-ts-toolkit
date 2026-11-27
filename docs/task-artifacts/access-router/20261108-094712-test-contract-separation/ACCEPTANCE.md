@@ -5,9 +5,9 @@ V3/V4 gate. No unresolved blocker remains.** The same non-implementer reviewer
 verified the repair and retained the earlier blocked history unchanged.
 
 The coordinator owns the [shared task/status](../../../tasks/20261108-094712-access-router-test-contract-separation.md).
-This new index records acceptance; it does not edit that status or rewrite the
-historical [FINAL.md](FINAL.md), [first review](arts-06-review.md), or baseline
-[README](README.md). Their earlier blocked/pending statements describe prior phases.
+This index records acceptance. The [pre-repair index](FINAL.md),
+[first review](arts-06-review.md), and [baseline README](README.md) describe prior
+phases. The [pinned evidence tree][evidence-tree] preserves their original bytes.
 
 ## Actual post-repair results
 
@@ -52,7 +52,7 @@ The narrowly mapped logical union is exact, including occurrence-qualified dupli
 | ARTS-04 public companions | [Report](arts-04-report.md), [coverage guide](arts-04-coverage.md), [executable matrix](arts-04-coverage.json), [verification](arts-04-verification.json), [manifest](arts-04-manifest.json) | 93 additive cases / six contract files; 34 gap rows, 23 surfaces, 97 original public files retained. |
 | Exporter cleanup | [Report](arts-04-cleanup.md), [exact edits/cases](arts-04-cleanup-verification.json), [manifest](arts-04-cleanup-manifest.json) | Supersedes one file identity only; same two cases, not extra coverage. |
 | ARTS-05 guidance | [Report](arts-05-report.md), [reconciliation](arts-05-reconciliation.md), [verification](arts-05-verification.json), [maintained guide](../../../../packages/access-router/test/README.md) | Documentation/static reconciliation, not the subsequent full runtime result. |
-| ARTS-06 first independent review | [Blocked review](arts-06-review.md), [verification](arts-06-verification.json), [7,717 cases](arts-06-cases.jsonl), [historical index](FINAL.md) | All pre-repair gates passed, but actual exact-public-name TS alias bypass blocked acceptance. |
+| ARTS-06 first independent review | [Blocked review](arts-06-review.md), [verification](arts-06-verification.json), [7,717 cases in Git][pre-repair-cases], [historical index](FINAL.md) | All pre-repair gates passed, but actual exact-public-name TS alias bypass blocked acceptance. |
 | ARTS06-F1 implementation | [Handoff](arts-03-f1-report.md), [exact patch](arts-03-f1-changes.patch), [new identities](arts-03-f1-manifest.json), [red/green and 59+17 cases](arts-03-f1-verification.json), [new checkpoint](arts-03-f1-verify-checkpoint.mjs) | Three-file repair; repository versus finite installed contexts, context-qualified caches, 17 appended guards. Focused implementation verification, not self-acceptance. |
 | ARTS-06 post-F1 acceptance | [Independent review](arts-06-f1-review.md), [verification](arts-06-f1-verification.json), [7,734 cases](arts-06-f1-cases.jsonl) | Actual corrected independent 20-probe campaign, every complete post-repair V3 gate and original/evidence preservation audit passed. F1 closed. |
 
@@ -66,8 +66,9 @@ bytes and guides remain protected. All **46 prior artifacts / 422 delivered inpu
 were unchanged throughout review; the coordinator task entry is a review-time
 snapshot, not a prohibition on the coordinator's subsequent status handoff.
 
-- Use [arts-03-f1-verify-checkpoint.mjs](arts-03-f1-verify-checkpoint.mjs) for the
-  repaired identity. It passed again after the final default build. The old
+- Run the [F1 checkpoint verifier](arts-03-f1-verify-checkpoint.mjs) in a separate
+  checkout of [the pinned revision][evidence-tree] with the recorded prerequisites.
+  It checks the original local files and passed after the final default build. The old
   ARTS-03 checkpoint intentionally expects three old hashes; it was not represented
   as a passing current gate or edited to conceal the repair.
 - ARTS-02's complete `verify()` expects its old config/tree. The independent review
@@ -80,6 +81,18 @@ snapshot, not a prohibition on the coordinator's subsequent status handoff.
   not used as a broad exemption or silently rewritten historical claim.
 
 ## Reproduction and limits
+
+Retention note (2026-11-26): the [pre-repair case ledger][pre-repair-cases]
+is retained at `c65f23ae`; the baseline inputs and [post-repair case ledger](arts-06-f1-cases.jsonl)
+remain in the checkout. The historical manifests keep their original paths and
+hashes. For byte-for-byte verification, use the full pinned evidence tree.
+To retrieve just the ledger from the repository root:
+
+```sh
+mkdir -- _tmp-arts-evidence &&
+  git check-ignore --quiet -- _tmp-arts-evidence/arts-06-cases.jsonl &&
+  git show 'c65f23aeb6adefb30b6d6294e90edbe8b4000fb0:docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-06-cases.jsonl' > _tmp-arts-evidence/arts-06-cases.jsonl
+```
 
 Exact commands are preserved with quoted `<repo-root>` placeholders; replace them
 before execution. Use fresh ignored repository-local scratch and absolute runtime
@@ -101,3 +114,6 @@ historical/input preservation and `git diff --check` passed final audit. No buil
 test/package-manager/Mongo job remains from the review. No implementation, original
 test, shared task or historical artifact was edited by the reviewer; no further
 agent, commit, reset or manual deletion occurred.
+
+[evidence-tree]: https://github.com/egose/web-ts-toolkit/tree/c65f23aeb6adefb30b6d6294e90edbe8b4000fb0/docs/task-artifacts/access-router/20261108-094712-test-contract-separation
+[pre-repair-cases]: https://github.com/egose/web-ts-toolkit/blob/c65f23aeb6adefb30b6d6294e90edbe8b4000fb0/docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-06-cases.jsonl

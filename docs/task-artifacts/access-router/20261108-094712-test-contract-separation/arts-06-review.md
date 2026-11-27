@@ -145,8 +145,9 @@ baseline regeneration, expectation change or original-test edit was used. This i
 a reproducibility limit, not evidence of case loss; literal raw-title set equality
 must not be claimed. The final machine-readable comparison expressly reports it false.
 
-[arts-06-cases.jsonl](arts-06-cases.jsonl) preserves all 7,717 current raw default
-observations, original/additive identity joins and passed statuses in both runs.
+[The pre-repair case ledger](https://github.com/egose/web-ts-toolkit/blob/c65f23aeb6adefb30b6d6294e90edbe8b4000fb0/docs/task-artifacts/access-router/20261108-094712-test-contract-separation/arts-06-cases.jsonl)
+preserves all 7,717 raw default observations from this review, original/additive
+identity joins and passed statuses in both runs.
 Its schema and the two differing standalone observations are in the verification JSON.
 ARTS-03 historical guard IDs are treated as opaque prior IDs; fresh location-bearing
 IDs are recorded separately rather than rewriting their old schema.
